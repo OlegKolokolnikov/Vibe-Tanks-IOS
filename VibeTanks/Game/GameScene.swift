@@ -1198,11 +1198,22 @@ class GameScene: SKScene {
     private func updateUI() {
         scoreLabel.text = "Score: \(score)"
 
+        // Build power-up data from player tank
+        var powerUps = Sidebar.PowerUpData()
+        powerUps.starCount = playerTank.starCount
+        powerUps.machinegunCount = playerTank.machinegunCount
+        powerUps.hasGun = playerTank.bulletPower >= 2
+        powerUps.hasShip = playerTank.canSwim
+        powerUps.hasSaw = playerTank.canDestroyTrees
+        // Calculate speed boosts (each 0.3 increment is one boost)
+        powerUps.speedBoosts = Int((playerTank.speedMultiplier - 1.0) / 0.3)
+
         // Update sidebar with remaining enemies (not yet spawned)
         sidebar.update(
             remainingEnemies: enemySpawner.remainingEnemies,
             playerLives: playerTank.lives,
-            level: level
+            level: level,
+            powerUps: powerUps
         )
     }
 
