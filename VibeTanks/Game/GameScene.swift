@@ -220,7 +220,17 @@ class GameScene: SKScene {
 
     private func updatePlayer() {
         guard playerTank.isAlive else {
-            playerTank.updateRespawnTimer()
+            // Player is dead - handle respawn
+            if playerTank.lives > 0 {
+                // If not already respawning, start respawn
+                if !playerTank.isWaitingToRespawn {
+                    playerTank.respawn(at: CGPoint(
+                        x: GameConstants.tileSize * 8,
+                        y: GameConstants.tileSize * 2
+                    ))
+                }
+                playerTank.updateRespawnTimer()
+            }
             return
         }
 
