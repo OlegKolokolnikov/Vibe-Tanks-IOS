@@ -670,10 +670,7 @@ class GameScene: SKScene {
             let newBullets = playerTank.shoot()
             if !newBullets.isEmpty {
                 SoundManager.shared.playShoot()
-                for bullet in newBullets {
-                    bullets.append(bullet)
-                    gameLayer.addChild(bullet)
-                }
+                addBulletsWithSpawnCheck(newBullets)
             }
         }
 
@@ -708,10 +705,7 @@ class GameScene: SKScene {
                     let newBullets = enemy.shoot()
                     if !newBullets.isEmpty {
                         SoundManager.shared.playShoot()
-                        for bullet in newBullets {
-                            bullets.append(bullet)
-                            gameLayer.addChild(bullet)
-                        }
+                        addBulletsWithSpawnCheck(newBullets)
                     }
                 }
             }
@@ -767,6 +761,27 @@ class GameScene: SKScene {
         // Remove bullets that hit walls/obstacles
         for bullet in bulletsHitObstacle {
             removeBullet(bullet, hitObstacle: true)
+        }
+    }
+
+    /// Add bullets to the scene, checking if they spawn inside walls
+    /// If a bullet spawns inside a wall, it immediately triggers the wall collision
+    private func addBulletsWithSpawnCheck(_ newBullets: [Bullet]) {
+        for bullet in newBullets {
+            // Check if bullet spawns inside a wall
+            let (hit, _) = gameMap.checkBulletCollision(
+                position: bullet.position,
+                power: bullet.power
+            )
+            if hit {
+                // Bullet spawned inside wall - immediately destroy it
+                // This triggers wall destruction if applicable
+                bullet.owner?.bulletDestroyed(hitObstacle: true)
+                // Don't add bullet to scene
+            } else {
+                bullets.append(bullet)
+                gameLayer.addChild(bullet)
+            }
         }
     }
 

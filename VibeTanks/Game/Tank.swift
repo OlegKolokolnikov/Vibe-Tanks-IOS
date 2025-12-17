@@ -475,8 +475,12 @@ class Tank: SKSpriteNode {
     }
 
     private var playerColor: SKColor {
+        // Player 1 uses the color from settings
+        if playerNumber == 1 {
+            return GameSettings.shared.playerTankColor.color
+        }
+        // Other players (for future multiplayer) use fixed colors
         switch playerNumber {
-        case 1: return SKColor(hex: "#FFD700") // Gold
         case 2: return SKColor(hex: "#00FF00") // Green
         case 3: return SKColor(hex: "#FF6600") // Orange
         case 4: return SKColor(hex: "#FF00FF") // Magenta

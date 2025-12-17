@@ -116,15 +116,27 @@ class TouchController: SKNode {
 
     func setupForScreen(size: CGSize) {
         // Coordinates are relative to camera center (0,0)
-        // Bottom-left for joystick, bottom-right for fire button
         // Use larger margins to keep controls well inside screen
         let sideMargin: CGFloat = 130
         let bottomMargin: CGFloat = 100
         let topMargin: CGFloat = 80
 
-        joystickPosition = CGPoint(x: -size.width / 2 + sideMargin, y: -size.height / 2 + bottomMargin)
-        fireButtonPosition = CGPoint(x: size.width / 2 - sideMargin, y: -size.height / 2 + bottomMargin)
-        pauseButtonPosition = CGPoint(x: size.width / 2 - sideMargin, y: size.height / 2 - topMargin)
+        let leftX = -size.width / 2 + sideMargin
+        let rightX = size.width / 2 - sideMargin
+        let bottomY = -size.height / 2 + bottomMargin
+
+        // Check if controls are swapped (fire on left instead of right)
+        if GameSettings.shared.controlsSwapped {
+            // Fire on LEFT, joystick on RIGHT
+            fireButtonPosition = CGPoint(x: leftX, y: bottomY)
+            joystickPosition = CGPoint(x: rightX, y: bottomY)
+        } else {
+            // Default: joystick on LEFT, fire on RIGHT
+            joystickPosition = CGPoint(x: leftX, y: bottomY)
+            fireButtonPosition = CGPoint(x: rightX, y: bottomY)
+        }
+
+        pauseButtonPosition = CGPoint(x: rightX, y: size.height / 2 - topMargin)
     }
 
     func setControlsScale(_ scale: CGFloat) {

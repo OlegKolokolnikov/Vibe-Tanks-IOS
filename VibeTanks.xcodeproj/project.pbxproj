@@ -29,6 +29,8 @@
 		A10000010000000000000021 /* UFO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000021 /* UFO.swift */; };
 		A10000010000000000000022 /* EasterEgg.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000022 /* EasterEgg.swift */; };
 		A10000010000000000000023 /* Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000023 /* Sidebar.swift */; };
+		A10000010000000000000024 /* GameSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000024 /* GameSettings.swift */; };
+		A10000010000000000000025 /* OptionsScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000025 /* OptionsScene.swift */; };
 		A10000010000000000000030 /* shoot.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000030 /* shoot.wav */; };
 		A10000010000000000000031 /* explosion.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000031 /* explosion.wav */; };
 		A10000010000000000000032 /* intro.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000032 /* intro.wav */; };
@@ -66,6 +68,8 @@
 		A10000020000000000000021 /* UFO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UFO.swift; sourceTree = "<group>"; };
 		A10000020000000000000022 /* EasterEgg.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasterEgg.swift; sourceTree = "<group>"; };
 		A10000020000000000000023 /* Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar.swift; sourceTree = "<group>"; };
+		A10000020000000000000024 /* GameSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSettings.swift; sourceTree = "<group>"; };
+		A10000020000000000000025 /* OptionsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionsScene.swift; sourceTree = "<group>"; };
 		A10000020000000000000030 /* shoot.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = shoot.wav; sourceTree = "<group>"; };
 		A10000020000000000000031 /* explosion.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = explosion.wav; sourceTree = "<group>"; };
 		A10000020000000000000032 /* intro.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = intro.wav; sourceTree = "<group>"; };
@@ -141,6 +145,8 @@
 				A10000020000000000000021 /* UFO.swift */,
 				A10000020000000000000022 /* EasterEgg.swift */,
 				A10000020000000000000023 /* Sidebar.swift */,
+				A10000020000000000000024 /* GameSettings.swift */,
+				A10000020000000000000025 /* OptionsScene.swift */,
 			);
 			path = Game;
 			sourceTree = "<group>";
@@ -275,6 +281,8 @@
 				A10000010000000000000021 /* UFO.swift in Sources */,
 				A10000010000000000000022 /* EasterEgg.swift in Sources */,
 				A10000010000000000000023 /* Sidebar.swift in Sources */,
+				A10000010000000000000024 /* GameSettings.swift in Sources */,
+				A10000010000000000000025 /* OptionsScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -30,16 +30,21 @@ class MenuScene: SKScene {
         addChild(decoration)
 
         // Play button
-        let playButton = createButton(text: "PLAY", position: CGPoint(x: size.width / 2, y: size.height * 0.28))
+        let playButton = createButton(text: "PLAY", position: CGPoint(x: size.width / 2, y: size.height * 0.30))
         playButton.name = "playButton"
         addChild(playButton)
+
+        // Options button
+        let optionsButton = createButton(text: "OPTIONS", position: CGPoint(x: size.width / 2, y: size.height * 0.20))
+        optionsButton.name = "optionsButton"
+        addChild(optionsButton)
 
         // Instructions
         let instructions = SKLabelNode(text: "Defend your base from enemy tanks!")
         instructions.fontName = "Helvetica"
         instructions.fontSize = 14
         instructions.fontColor = .lightGray
-        instructions.position = CGPoint(x: size.width / 2, y: size.height * 0.18)
+        instructions.position = CGPoint(x: size.width / 2, y: size.height * 0.12)
         addChild(instructions)
 
         // Credits
@@ -47,7 +52,7 @@ class MenuScene: SKScene {
         credits.fontName = "Helvetica-Bold"
         credits.fontSize = 14
         credits.fontColor = .gray
-        credits.position = CGPoint(x: size.width / 2, y: size.height * 0.08)
+        credits.position = CGPoint(x: size.width / 2, y: size.height * 0.05)
         addChild(credits)
     }
 
@@ -736,7 +741,17 @@ class MenuScene: SKScene {
                 startGame()
                 return
             }
+            if node.name == "optionsButton" || node.parent?.name == "optionsButton" {
+                openOptions()
+                return
+            }
         }
+    }
+
+    private func openOptions() {
+        let optionsScene = OptionsScene(size: size)
+        optionsScene.scaleMode = scaleMode
+        view?.presentScene(optionsScene, transition: .fade(withDuration: 0.3))
     }
 
     private func startGame() {
