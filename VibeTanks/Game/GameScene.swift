@@ -1393,8 +1393,10 @@ class GameScene: SKScene {
                     enemy.damage(bypassShip: true, bypassShield: true)
                 }
             }
+            // Remove from scene
+            enemy.removeFromParent()
         }
-        enemyTanks.removeAll { !$0.isAlive }
+        enemyTanks.removeAll()
     }
 
     // MARK: - Base Protection
