@@ -352,7 +352,7 @@ class Tank: SKSpriteNode {
             let changeColor = SKAction.run { [weak self] in
                 self?.updateTankTexture(mainColor: color, darkColor: color.darker())
             }
-            let wait = SKAction.wait(forDuration: 0.15)
+            let wait = SKAction.wait(forDuration: 0.5)
             colorActions.append(changeColor)
             colorActions.append(wait)
         }
