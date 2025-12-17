@@ -344,8 +344,8 @@ class Tank: SKSpriteNode {
 
     private func startRainbowAnimation() {
         // Smooth rainbow using hue rotation
-        let updateInterval: TimeInterval = 0.05  // 20 FPS for smooth animation
-        let cycleDuration: TimeInterval = 3.0    // Full rainbow cycle in 3 seconds
+        let updateInterval: TimeInterval = 0.016  // 60 FPS for very smooth animation
+        let cycleDuration: TimeInterval = 4.0     // Full rainbow cycle in 4 seconds
 
         let updateColor = SKAction.run { [weak self] in
             guard let self = self else { return }
