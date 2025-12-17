@@ -223,108 +223,226 @@ class GameScene: SKScene {
         gameLayer.addChild(gzhelLayer)
     }
 
-    /// Render Gzhel flower to texture for performance
+    /// Render Gzhel chamomile flower to texture - white petals, yellow center, blue accents
     private func renderGzhelFlowerTexture(size: CGFloat, blueColor: SKColor, lightBlue: SKColor) -> SKTexture {
-        let textureSize = CGSize(width: size * 1.5, height: size * 1.5)
+        let textureSize = CGSize(width: size * 2, height: size * 2)
         let renderer = UIGraphicsImageRenderer(size: textureSize)
 
         let image = renderer.image { context in
             let ctx = context.cgContext
             let center = CGPoint(x: textureSize.width / 2, y: textureSize.height / 2)
 
-            // Outer petals
-            for i in 0..<5 {
-                let angle = CGFloat(i) * .pi * 2 / 5
-                let petalCenter = CGPoint(
-                    x: center.x + cos(angle) * size * 0.3,
-                    y: center.y + sin(angle) * size * 0.3
+            // Colors
+            let petalWhite = UIColor.white.cgColor
+            let petalShadow = UIColor(red: 0.9, green: 0.92, blue: 0.98, alpha: 1).cgColor
+            let centerYellow = UIColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1).cgColor
+            let centerOrange = UIColor(red: 0.95, green: 0.7, blue: 0.1, alpha: 1).cgColor
+
+            // Outer decorative swirls (blue)
+            ctx.setStrokeColor(lightBlue.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.setLineCap(.round)
+            for i in 0..<8 {
+                let angle = CGFloat(i) * .pi / 4 + .pi / 8
+                let startR = size * 0.7
+                let endR = size * 0.85
+                ctx.move(to: CGPoint(x: center.x + cos(angle) * startR, y: center.y + sin(angle) * startR))
+                ctx.addQuadCurve(
+                    to: CGPoint(x: center.x + cos(angle + 0.3) * endR, y: center.y + sin(angle + 0.3) * endR),
+                    control: CGPoint(x: center.x + cos(angle + 0.15) * (endR + 5), y: center.y + sin(angle + 0.15) * (endR + 5))
                 )
-
-                ctx.saveGState()
-                ctx.translateBy(x: petalCenter.x, y: petalCenter.y)
-                ctx.rotate(by: angle + .pi / 2)
-
-                let petalRect = CGRect(x: -size * 0.2, y: -size * 0.35, width: size * 0.4, height: size * 0.7)
-                ctx.setFillColor(blueColor.cgColor)
-                ctx.setStrokeColor(lightBlue.cgColor)
-                ctx.setLineWidth(1)
-                ctx.fillEllipse(in: petalRect)
-                ctx.strokeEllipse(in: petalRect)
-                ctx.restoreGState()
             }
+            ctx.strokePath()
 
-            // Inner petals
-            for i in 0..<5 {
-                let angle = CGFloat(i) * .pi * 2 / 5 + .pi / 5
-                let petalCenter = CGPoint(
-                    x: center.x + cos(angle) * size * 0.15,
-                    y: center.y + sin(angle) * size * 0.15
-                )
+            // Main white petals (chamomile style - many thin petals)
+            let petalCount = 16
+            for i in 0..<petalCount {
+                let angle = CGFloat(i) * .pi * 2 / CGFloat(petalCount)
 
                 ctx.saveGState()
-                ctx.translateBy(x: petalCenter.x, y: petalCenter.y)
-                ctx.rotate(by: angle + .pi / 2)
+                ctx.translateBy(x: center.x, y: center.y)
+                ctx.rotate(by: angle)
 
-                let petalRect = CGRect(x: -size * 0.125, y: -size * 0.225, width: size * 0.25, height: size * 0.45)
-                ctx.setFillColor(lightBlue.cgColor)
+                // Petal shape - elongated with pointed tip
+                let petalPath = CGMutablePath()
+                let petalLength = size * 0.55
+                let petalWidth = size * 0.12
+
+                petalPath.move(to: CGPoint(x: 0, y: size * 0.15))
+                petalPath.addQuadCurve(
+                    to: CGPoint(x: 0, y: size * 0.15 + petalLength),
+                    control: CGPoint(x: petalWidth, y: size * 0.15 + petalLength * 0.5)
+                )
+                petalPath.addQuadCurve(
+                    to: CGPoint(x: 0, y: size * 0.15),
+                    control: CGPoint(x: -petalWidth, y: size * 0.15 + petalLength * 0.5)
+                )
+
+                // Shadow side
+                ctx.setFillColor(i % 2 == 0 ? petalWhite : petalShadow)
+                ctx.addPath(petalPath)
+                ctx.fillPath()
+
+                // Blue outline
                 ctx.setStrokeColor(blueColor.cgColor)
+                ctx.setLineWidth(0.8)
+                ctx.addPath(petalPath)
+                ctx.strokePath()
+
+                // Center vein (blue line)
+                ctx.setStrokeColor(lightBlue.cgColor)
                 ctx.setLineWidth(0.5)
-                ctx.fillEllipse(in: petalRect)
-                ctx.strokeEllipse(in: petalRect)
+                ctx.move(to: CGPoint(x: 0, y: size * 0.18))
+                ctx.addLine(to: CGPoint(x: 0, y: size * 0.15 + petalLength * 0.7))
+                ctx.strokePath()
+
                 ctx.restoreGState()
             }
 
-            // Center
-            let centerRect = CGRect(x: center.x - size * 0.15, y: center.y - size * 0.15, width: size * 0.3, height: size * 0.3)
-            ctx.setFillColor(UIColor.white.cgColor)
-            ctx.setStrokeColor(blueColor.cgColor)
-            ctx.setLineWidth(1)
+            // Yellow center with gradient effect
+            let centerRadius = size * 0.18
+            let centerRect = CGRect(x: center.x - centerRadius, y: center.y - centerRadius,
+                                    width: centerRadius * 2, height: centerRadius * 2)
+            ctx.setFillColor(centerYellow)
             ctx.fillEllipse(in: centerRect)
-            ctx.strokeEllipse(in: centerRect)
 
-            // Center dot
-            let dotRect = CGRect(x: center.x - size * 0.06, y: center.y - size * 0.06, width: size * 0.12, height: size * 0.12)
-            ctx.setFillColor(blueColor.cgColor)
-            ctx.fillEllipse(in: dotRect)
+            // Inner orange ring
+            let innerRadius = size * 0.12
+            let innerRect = CGRect(x: center.x - innerRadius, y: center.y - innerRadius,
+                                   width: innerRadius * 2, height: innerRadius * 2)
+            ctx.setFillColor(centerOrange)
+            ctx.fillEllipse(in: innerRect)
+
+            // Center texture dots
+            ctx.setFillColor(UIColor(red: 0.85, green: 0.6, blue: 0.1, alpha: 1).cgColor)
+            for i in 0..<6 {
+                let angle = CGFloat(i) * .pi / 3
+                let dotR = size * 0.06
+                let dotX = center.x + cos(angle) * dotR - 1
+                let dotY = center.y + sin(angle) * dotR - 1
+                ctx.fillEllipse(in: CGRect(x: dotX, y: dotY, width: 2, height: 2))
+            }
+
+            // Blue center outline
+            ctx.setStrokeColor(blueColor.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.strokeEllipse(in: centerRect)
         }
 
         return SKTexture(image: image)
     }
 
-    /// Render Gzhel vine to texture for performance
+    /// Render decorative Gzhel vine with curls and leaves
     private func renderGzhelVineTexture(length: CGFloat, color: SKColor) -> SKTexture {
-        let textureSize = CGSize(width: 40, height: length + 10)
+        let textureSize = CGSize(width: 50, height: length + 20)
         let renderer = UIGraphicsImageRenderer(size: textureSize)
 
         let image = renderer.image { context in
             let ctx = context.cgContext
-            let centerX: CGFloat = 15
-            let centerY = textureSize.height / 2
+            let centerX: CGFloat = 20
+            let startY: CGFloat = 10
+            let endY = textureSize.height - 10
 
-            // Main curl
-            ctx.setStrokeColor(color.cgColor)
-            ctx.setLineWidth(2)
+            let darkBlue = color.cgColor
+            let lightBlue = UIColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 1).cgColor
+
+            // Main flowing vine stem
+            ctx.setStrokeColor(darkBlue)
+            ctx.setLineWidth(2.5)
             ctx.setLineCap(.round)
 
-            ctx.move(to: CGPoint(x: centerX, y: centerY - length / 2))
-            ctx.addQuadCurve(
-                to: CGPoint(x: centerX + 15, y: centerY + length / 2),
-                control: CGPoint(x: centerX + 25, y: centerY)
+            ctx.move(to: CGPoint(x: centerX, y: startY))
+            ctx.addCurve(
+                to: CGPoint(x: centerX + 8, y: startY + length * 0.33),
+                control1: CGPoint(x: centerX + 15, y: startY + length * 0.1),
+                control2: CGPoint(x: centerX - 5, y: startY + length * 0.25)
             )
-            ctx.addQuadCurve(
-                to: CGPoint(x: centerX + 10, y: centerY + length / 2 - 10),
-                control: CGPoint(x: centerX + 20, y: centerY + length / 2 + 5)
+            ctx.addCurve(
+                to: CGPoint(x: centerX, y: endY),
+                control1: CGPoint(x: centerX + 20, y: startY + length * 0.5),
+                control2: CGPoint(x: centerX - 10, y: startY + length * 0.8)
             )
             ctx.strokePath()
 
-            // Small leaf
-            ctx.saveGState()
-            ctx.translateBy(x: centerX + 8, y: centerY)
-            ctx.rotate(by: .pi / 4)
-            let leafRect = CGRect(x: -4, y: -7, width: 8, height: 14)
-            ctx.setFillColor(color.cgColor)
-            ctx.fillEllipse(in: leafRect)
-            ctx.restoreGState()
+            // Decorative curling tendrils
+            ctx.setStrokeColor(lightBlue)
+            ctx.setLineWidth(1.5)
+
+            // Top curl
+            ctx.move(to: CGPoint(x: centerX + 5, y: startY + length * 0.15))
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX + 18, y: startY + length * 0.08),
+                control: CGPoint(x: centerX + 20, y: startY + length * 0.18)
+            )
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX + 22, y: startY + length * 0.12),
+                control: CGPoint(x: centerX + 22, y: startY + length * 0.05)
+            )
+            ctx.strokePath()
+
+            // Middle curl
+            ctx.move(to: CGPoint(x: centerX + 10, y: startY + length * 0.45))
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX + 25, y: startY + length * 0.5),
+                control: CGPoint(x: centerX + 22, y: startY + length * 0.4)
+            )
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX + 20, y: startY + length * 0.55),
+                control: CGPoint(x: centerX + 30, y: startY + length * 0.52)
+            )
+            ctx.strokePath()
+
+            // Bottom curl
+            ctx.move(to: CGPoint(x: centerX - 3, y: startY + length * 0.75))
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX - 12, y: startY + length * 0.7),
+                control: CGPoint(x: centerX - 15, y: startY + length * 0.78)
+            )
+            ctx.strokePath()
+
+            // Decorative leaves
+            func drawLeaf(at point: CGPoint, angle: CGFloat, leafSize: CGFloat) {
+                ctx.saveGState()
+                ctx.translateBy(x: point.x, y: point.y)
+                ctx.rotate(by: angle)
+
+                // Leaf shape
+                let leafPath = CGMutablePath()
+                leafPath.move(to: CGPoint(x: 0, y: 0))
+                leafPath.addQuadCurve(to: CGPoint(x: 0, y: leafSize), control: CGPoint(x: leafSize * 0.5, y: leafSize * 0.5))
+                leafPath.addQuadCurve(to: CGPoint(x: 0, y: 0), control: CGPoint(x: -leafSize * 0.5, y: leafSize * 0.5))
+
+                ctx.setFillColor(darkBlue)
+                ctx.addPath(leafPath)
+                ctx.fillPath()
+
+                // Leaf vein
+                ctx.setStrokeColor(lightBlue)
+                ctx.setLineWidth(0.8)
+                ctx.move(to: CGPoint(x: 0, y: 2))
+                ctx.addLine(to: CGPoint(x: 0, y: leafSize * 0.7))
+                ctx.strokePath()
+
+                ctx.restoreGState()
+            }
+
+            // Add leaves along the vine
+            drawLeaf(at: CGPoint(x: centerX + 3, y: startY + length * 0.25), angle: .pi / 4, leafSize: 12)
+            drawLeaf(at: CGPoint(x: centerX + 12, y: startY + length * 0.4), angle: .pi / 3, leafSize: 10)
+            drawLeaf(at: CGPoint(x: centerX + 5, y: startY + length * 0.6), angle: -.pi / 5, leafSize: 11)
+            drawLeaf(at: CGPoint(x: centerX - 5, y: startY + length * 0.8), angle: -.pi / 3, leafSize: 9)
+
+            // Small decorative dots
+            ctx.setFillColor(lightBlue)
+            let dotPositions: [(CGFloat, CGFloat)] = [
+                (centerX + 15, startY + length * 0.2),
+                (centerX + 20, startY + length * 0.35),
+                (centerX - 8, startY + length * 0.65),
+                (centerX + 8, startY + length * 0.85)
+            ]
+            for (x, y) in dotPositions {
+                ctx.fillEllipse(in: CGRect(x: x - 1.5, y: y - 1.5, width: 3, height: 3))
+            }
         }
 
         return SKTexture(image: image)
