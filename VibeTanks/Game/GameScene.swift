@@ -393,6 +393,11 @@ class GameScene: SKScene {
         playerTank.canSwim = initialPowerUps.canSwim
         playerTank.canDestroyTrees = initialPowerUps.canDestroyTrees
 
+        // Redraw tank to show power-up indicators (ship, etc.)
+        if initialPowerUps.canSwim || initialPowerUps.canDestroyTrees || initialPowerUps.starCount > 0 {
+            playerTank.drawTank()
+        }
+
         gameLayer.addChild(playerTank)
 
         // Calculate enemies for this level (base 20 + 2 per level)

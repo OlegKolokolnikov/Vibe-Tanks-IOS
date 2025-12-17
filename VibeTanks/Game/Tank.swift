@@ -131,7 +131,7 @@ class Tank: SKSpriteNode {
 
     // MARK: - Drawing
 
-    private func drawTank() {
+    func drawTank() {
         // Remove old children
         removeAllChildren()
         cachedTextures.removeAll()
