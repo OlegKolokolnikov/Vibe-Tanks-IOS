@@ -1,10 +1,11 @@
 import SpriteKit
 
-/// The base/eagle that players must protect (Battle City style)
+/// The base (cat) that players must protect
 class Base: SKSpriteNode {
 
     private var isDestroyed: Bool = false
     private let baseSize: CGFloat = GameConstants.tileSize // Match tile size so it fits in protection
+    private var catNode: SKNode?
 
     init(position: CGPoint) {
         super.init(texture: nil, color: .clear, size: CGSize(width: baseSize, height: baseSize))
@@ -23,102 +24,248 @@ class Base: SKSpriteNode {
         removeAllChildren()
 
         if isDestroyed {
-            // Draw destroyed base - rubble
+            // Draw destroyed base - sad scene
             let background = SKShapeNode(rectOf: CGSize(width: baseSize, height: baseSize))
-            background.fillColor = SKColor(red: 0.31, green: 0.19, blue: 0, alpha: 1) // Dark brown
+            background.fillColor = SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
             background.strokeColor = .clear
             addChild(background)
 
-            // Rubble pieces
-            let rubble1 = SKShapeNode(rectOf: CGSize(width: 8, height: 8))
-            rubble1.position = CGPoint(x: -8, y: 8)
-            rubble1.fillColor = SKColor(red: 0.47, green: 0.28, blue: 0, alpha: 1)
-            rubble1.strokeColor = .clear
-            addChild(rubble1)
-
-            let rubble2 = SKShapeNode(rectOf: CGSize(width: 10, height: 10))
-            rubble2.position = CGPoint(x: 6, y: 4)
-            rubble2.fillColor = SKColor(red: 0.47, green: 0.28, blue: 0, alpha: 1)
-            rubble2.strokeColor = .clear
-            addChild(rubble2)
-
-            let rubble3 = SKShapeNode(rectOf: CGSize(width: 12, height: 10))
-            rubble3.position = CGPoint(x: -4, y: -6)
-            rubble3.fillColor = SKColor(red: 0.47, green: 0.28, blue: 0, alpha: 1)
-            rubble3.strokeColor = .clear
-            addChild(rubble3)
+            // Broken pieces
+            for _ in 0..<5 {
+                let piece = SKShapeNode(rectOf: CGSize(width: CGFloat.random(in: 4...8), height: CGFloat.random(in: 4...8)))
+                piece.position = CGPoint(x: CGFloat.random(in: -10...10), y: CGFloat.random(in: -10...10))
+                piece.fillColor = SKColor(red: 0.4, green: 0.3, blue: 0.2, alpha: 1)
+                piece.strokeColor = .clear
+                piece.zRotation = CGFloat.random(in: 0...(.pi))
+                addChild(piece)
+            }
         } else {
-            // Draw classic Battle City eagle
-            // Tan background
-            let background = SKShapeNode(rectOf: CGSize(width: baseSize, height: baseSize))
-            background.fillColor = SKColor(red: 0.99, green: 0.85, blue: 0.66, alpha: 1) // Tan
-            background.strokeColor = .clear
-            addChild(background)
+            // Draw cute cat
+            let cat = SKNode()
+            catNode = cat
 
-            // Eagle body - black parts (coordinates relative to center)
-            // Head (x+12, y+4 in original = center offset)
-            let head = SKShapeNode(rectOf: CGSize(width: 8, height: 8))
-            head.position = CGPoint(x: 0, y: 10)
-            head.fillColor = .black
-            head.strokeColor = .clear
-            addChild(head)
+            // Background (cat bed/cushion)
+            let cushion = SKShapeNode(ellipseOf: CGSize(width: baseSize * 0.9, height: baseSize * 0.7))
+            cushion.fillColor = SKColor(red: 0.8, green: 0.6, blue: 0.7, alpha: 1) // Pink cushion
+            cushion.strokeColor = SKColor(red: 0.6, green: 0.4, blue: 0.5, alpha: 1)
+            cushion.lineWidth = 2
+            cushion.position = CGPoint(x: 0, y: -2)
+            cat.addChild(cushion)
 
-            // Body center
-            let bodyCenter = SKShapeNode(rectOf: CGSize(width: 16, height: 12))
-            bodyCenter.position = CGPoint(x: 0, y: 0)
-            bodyCenter.fillColor = .black
-            bodyCenter.strokeColor = .clear
-            addChild(bodyCenter)
+            // Cat body (orange tabby)
+            let catColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+            let darkCatColor = SKColor(red: 0.8, green: 0.4, blue: 0.1, alpha: 1)
 
-            // Left wing
-            let leftWing = SKShapeNode(rectOf: CGSize(width: 6, height: 8))
-            leftWing.position = CGPoint(x: -9, y: -2)
-            leftWing.fillColor = .black
-            leftWing.strokeColor = .clear
-            addChild(leftWing)
+            // Body
+            let body = SKShapeNode(ellipseOf: CGSize(width: 18, height: 14))
+            body.fillColor = catColor
+            body.strokeColor = darkCatColor
+            body.lineWidth = 1
+            body.position = CGPoint(x: 0, y: -2)
+            cat.addChild(body)
 
-            // Right wing
-            let rightWing = SKShapeNode(rectOf: CGSize(width: 6, height: 8))
-            rightWing.position = CGPoint(x: 9, y: -2)
-            rightWing.fillColor = .black
-            rightWing.strokeColor = .clear
-            addChild(rightWing)
+            // Head
+            let head = SKShapeNode(circleOfRadius: 8)
+            head.fillColor = catColor
+            head.strokeColor = darkCatColor
+            head.lineWidth = 1
+            head.position = CGPoint(x: 0, y: 8)
+            cat.addChild(head)
 
-            // Left leg/tail
-            let leftLeg = SKShapeNode(rectOf: CGSize(width: 4, height: 6))
-            leftLeg.position = CGPoint(x: -4, y: -9)
-            leftLeg.fillColor = .black
-            leftLeg.strokeColor = .clear
-            addChild(leftLeg)
+            // Ears
+            let leftEar = SKShapeNode()
+            let leftEarPath = CGMutablePath()
+            leftEarPath.move(to: CGPoint(x: -6, y: 12))
+            leftEarPath.addLine(to: CGPoint(x: -10, y: 20))
+            leftEarPath.addLine(to: CGPoint(x: -2, y: 14))
+            leftEarPath.closeSubpath()
+            leftEar.path = leftEarPath
+            leftEar.fillColor = catColor
+            leftEar.strokeColor = darkCatColor
+            leftEar.lineWidth = 1
+            cat.addChild(leftEar)
 
-            // Right leg/tail
-            let rightLeg = SKShapeNode(rectOf: CGSize(width: 4, height: 6))
-            rightLeg.position = CGPoint(x: 4, y: -9)
-            rightLeg.fillColor = .black
-            rightLeg.strokeColor = .clear
-            addChild(rightLeg)
+            let rightEar = SKShapeNode()
+            let rightEarPath = CGMutablePath()
+            rightEarPath.move(to: CGPoint(x: 6, y: 12))
+            rightEarPath.addLine(to: CGPoint(x: 10, y: 20))
+            rightEarPath.addLine(to: CGPoint(x: 2, y: 14))
+            rightEarPath.closeSubpath()
+            rightEar.path = rightEarPath
+            rightEar.fillColor = catColor
+            rightEar.strokeColor = darkCatColor
+            rightEar.lineWidth = 1
+            cat.addChild(rightEar)
 
-            // Orange/red details
-            let detailColor = SKColor(red: 0.99, green: 0.45, blue: 0.38, alpha: 1)
+            // Inner ears (pink)
+            let innerEarColor = SKColor(red: 1.0, green: 0.7, blue: 0.8, alpha: 1)
+            let leftInnerEar = SKShapeNode()
+            let leftInnerPath = CGMutablePath()
+            leftInnerPath.move(to: CGPoint(x: -6, y: 13))
+            leftInnerPath.addLine(to: CGPoint(x: -8, y: 18))
+            leftInnerPath.addLine(to: CGPoint(x: -4, y: 14))
+            leftInnerPath.closeSubpath()
+            leftInnerEar.path = leftInnerPath
+            leftInnerEar.fillColor = innerEarColor
+            leftInnerEar.strokeColor = .clear
+            cat.addChild(leftInnerEar)
 
-            let leftDetail = SKShapeNode(rectOf: CGSize(width: 4, height: 4))
-            leftDetail.position = CGPoint(x: -4, y: -2)
-            leftDetail.fillColor = detailColor
-            leftDetail.strokeColor = .clear
-            addChild(leftDetail)
+            let rightInnerEar = SKShapeNode()
+            let rightInnerPath = CGMutablePath()
+            rightInnerPath.move(to: CGPoint(x: 6, y: 13))
+            rightInnerPath.addLine(to: CGPoint(x: 8, y: 18))
+            rightInnerPath.addLine(to: CGPoint(x: 4, y: 14))
+            rightInnerPath.closeSubpath()
+            rightInnerEar.path = rightInnerPath
+            rightInnerEar.fillColor = innerEarColor
+            rightInnerEar.strokeColor = .clear
+            cat.addChild(rightInnerEar)
 
-            let rightDetail = SKShapeNode(rectOf: CGSize(width: 4, height: 4))
-            rightDetail.position = CGPoint(x: 4, y: -2)
-            rightDetail.fillColor = detailColor
-            rightDetail.strokeColor = .clear
-            addChild(rightDetail)
+            // Eyes
+            let leftEye = SKShapeNode(ellipseOf: CGSize(width: 4, height: 5))
+            leftEye.fillColor = .green
+            leftEye.strokeColor = .black
+            leftEye.lineWidth = 0.5
+            leftEye.position = CGPoint(x: -3, y: 9)
+            cat.addChild(leftEye)
 
-            let centerDetail = SKShapeNode(rectOf: CGSize(width: 4, height: 8))
-            centerDetail.position = CGPoint(x: 0, y: 0)
-            centerDetail.fillColor = detailColor
-            centerDetail.strokeColor = .clear
-            addChild(centerDetail)
+            let rightEye = SKShapeNode(ellipseOf: CGSize(width: 4, height: 5))
+            rightEye.fillColor = .green
+            rightEye.strokeColor = .black
+            rightEye.lineWidth = 0.5
+            rightEye.position = CGPoint(x: 3, y: 9)
+            cat.addChild(rightEye)
+
+            // Pupils
+            let leftPupil = SKShapeNode(ellipseOf: CGSize(width: 2, height: 3))
+            leftPupil.fillColor = .black
+            leftPupil.strokeColor = .clear
+            leftPupil.position = CGPoint(x: -3, y: 9)
+            cat.addChild(leftPupil)
+
+            let rightPupil = SKShapeNode(ellipseOf: CGSize(width: 2, height: 3))
+            rightPupil.fillColor = .black
+            rightPupil.strokeColor = .clear
+            rightPupil.position = CGPoint(x: 3, y: 9)
+            cat.addChild(rightPupil)
+
+            // Nose
+            let nose = SKShapeNode()
+            let nosePath = CGMutablePath()
+            nosePath.move(to: CGPoint(x: 0, y: 6))
+            nosePath.addLine(to: CGPoint(x: -2, y: 4))
+            nosePath.addLine(to: CGPoint(x: 2, y: 4))
+            nosePath.closeSubpath()
+            nose.path = nosePath
+            nose.fillColor = SKColor(red: 1.0, green: 0.5, blue: 0.5, alpha: 1)
+            nose.strokeColor = .clear
+            cat.addChild(nose)
+
+            // Whiskers
+            let whiskerColor = SKColor.white
+            for side in [-1.0, 1.0] {
+                for i in 0..<3 {
+                    let whisker = SKShapeNode()
+                    let whiskerPath = CGMutablePath()
+                    let startX = CGFloat(side) * 3
+                    let endX = CGFloat(side) * 12
+                    let yOffset = CGFloat(i - 1) * 2
+                    whiskerPath.move(to: CGPoint(x: startX, y: 5 + yOffset))
+                    whiskerPath.addLine(to: CGPoint(x: endX, y: 4 + yOffset + CGFloat(i - 1)))
+                    whisker.path = whiskerPath
+                    whisker.strokeColor = whiskerColor
+                    whisker.lineWidth = 0.5
+                    cat.addChild(whisker)
+                }
+            }
+
+            // Stripes on body
+            for i in 0..<3 {
+                let stripe = SKShapeNode(rectOf: CGSize(width: 10, height: 2))
+                stripe.fillColor = darkCatColor
+                stripe.strokeColor = .clear
+                stripe.position = CGPoint(x: 0, y: -2 + CGFloat(i - 1) * 4)
+                stripe.zRotation = CGFloat.random(in: -0.2...0.2)
+                cat.addChild(stripe)
+            }
+
+            // Tail (curled)
+            let tail = SKShapeNode()
+            let tailPath = CGMutablePath()
+            tailPath.move(to: CGPoint(x: 8, y: -4))
+            tailPath.addQuadCurve(to: CGPoint(x: 14, y: 2), control: CGPoint(x: 14, y: -6))
+            tailPath.addQuadCurve(to: CGPoint(x: 12, y: 8), control: CGPoint(x: 18, y: 4))
+            tail.path = tailPath
+            tail.strokeColor = catColor
+            tail.lineWidth = 4
+            tail.lineCap = .round
+            cat.addChild(tail)
+
+            addChild(cat)
+
+            // Idle animation - gentle breathing
+            let breatheIn = SKAction.scaleY(to: 1.05, duration: 1.5)
+            let breatheOut = SKAction.scaleY(to: 0.95, duration: 1.5)
+            let breathe = SKAction.sequence([breatheIn, breatheOut])
+            cat.run(SKAction.repeatForever(breathe))
         }
+    }
+
+    /// Play victory animation - cat runs out and plays with toy
+    func playVictoryAnimation(to targetPosition: CGPoint) {
+        guard let cat = catNode, !isDestroyed else { return }
+
+        // Stop idle animation
+        cat.removeAllActions()
+        cat.setScale(1.0)
+
+        // Create a toy ball
+        let toy = SKShapeNode(circleOfRadius: 6)
+        toy.fillColor = .red
+        toy.strokeColor = .white
+        toy.lineWidth = 1
+        toy.position = CGPoint(x: targetPosition.x - position.x, y: targetPosition.y - position.y + 20)
+        toy.zPosition = 1
+        addChild(toy)
+
+        // Cat jumps and runs to toy
+        let jumpUp = SKAction.moveBy(x: 0, y: 15, duration: 0.2)
+        let moveToToy = SKAction.move(to: CGPoint(x: toy.position.x, y: toy.position.y - 10), duration: 0.8)
+        moveToToy.timingMode = .easeOut
+
+        // Paw at toy animation
+        let pawLeft = SKAction.rotate(byAngle: 0.3, duration: 0.15)
+        let pawRight = SKAction.rotate(byAngle: -0.6, duration: 0.15)
+        let pawBack = SKAction.rotate(byAngle: 0.3, duration: 0.15)
+        let pawSequence = SKAction.sequence([pawLeft, pawRight, pawBack])
+
+        // Toy bounces when hit
+        let toyBounce = SKAction.sequence([
+            SKAction.moveBy(x: 15, y: 10, duration: 0.2),
+            SKAction.moveBy(x: 10, y: -10, duration: 0.2),
+            SKAction.moveBy(x: -5, y: 5, duration: 0.15),
+            SKAction.moveBy(x: -5, y: -5, duration: 0.15)
+        ])
+
+        // Run the animations
+        cat.run(SKAction.sequence([
+            jumpUp,
+            SKAction.moveBy(x: 0, y: -15, duration: 0.15),
+            moveToToy,
+            pawSequence,
+            SKAction.wait(forDuration: 0.1),
+            pawSequence,
+            pawSequence
+        ]))
+
+        toy.run(SKAction.sequence([
+            SKAction.wait(forDuration: 1.15),
+            toyBounce,
+            SKAction.repeatForever(SKAction.sequence([
+                SKAction.wait(forDuration: 0.5),
+                toyBounce
+            ]))
+        ]))
     }
 
     func checkCollision(bulletPosition: CGPoint) -> Bool {

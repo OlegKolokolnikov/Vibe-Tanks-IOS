@@ -16,6 +16,7 @@ class GameScene: SKScene {
     private var easterEgg: EasterEgg?
     private var ufoSpawnedThisLevel: Bool = false
     private var ufoWasKilled: Bool = false
+    private var playerCollectedEasterEgg: Bool = false
     private var playerKills: Int = 0
     private var ufoMessageTimer: Int = 0
     private var ufoMessageLabel: SKLabelNode?
@@ -683,6 +684,7 @@ class GameScene: SKScene {
             // Player collected the easter egg!
             egg.collect()
             easterEgg = nil
+            playerCollectedEasterEgg = true
 
             // Give player 3 extra lives
             playerTank.addLives(GameConstants.easterEggLivesBonus)
@@ -1108,6 +1110,16 @@ class GameScene: SKScene {
         menuButton.zPosition = 200
         menuButton.name = "menuButton"
         gameCamera.addChild(menuButton)
+
+        // If player collected easter egg, cat plays with toy!
+        if playerCollectedEasterEgg {
+            // Find a position above the base for the cat to play
+            let playPosition = CGPoint(
+                x: base.position.x,
+                y: base.position.y + GameConstants.tileSize * 3
+            )
+            base.playVictoryAnimation(to: playPosition)
+        }
     }
 
     private var pauseOverlay: SKNode?
