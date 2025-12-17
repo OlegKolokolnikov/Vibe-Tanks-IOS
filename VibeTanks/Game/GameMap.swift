@@ -690,41 +690,154 @@ class GameMap: SKNode {
     }
 
     private static func generateBrickTexture(tileSize: CGFloat) -> SKTexture {
-        let node = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
-        node.fillColor = SKColor(red: 0.6, green: 0.3, blue: 0.1, alpha: 1.0)
-        node.strokeColor = SKColor(red: 0.4, green: 0.2, blue: 0.05, alpha: 1.0)
-        node.lineWidth = 1
-
-        let pattern = SKShapeNode()
-        let path = CGMutablePath()
+        let node = SKNode()
         let half = tileSize / 2
-        path.move(to: CGPoint(x: -half, y: 0))
-        path.addLine(to: CGPoint(x: half, y: 0))
-        path.move(to: CGPoint(x: 0, y: -half))
-        path.addLine(to: CGPoint(x: 0, y: 0))
-        path.move(to: CGPoint(x: -half / 2, y: 0))
-        path.addLine(to: CGPoint(x: -half / 2, y: half))
-        path.move(to: CGPoint(x: half / 2, y: 0))
-        path.addLine(to: CGPoint(x: half / 2, y: half))
-        pattern.path = path
-        pattern.strokeColor = SKColor(red: 0.4, green: 0.2, blue: 0.05, alpha: 1.0)
-        pattern.lineWidth = 1
-        node.addChild(pattern)
+
+        // Background mortar color
+        let background = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
+        background.fillColor = SKColor(red: 0.35, green: 0.25, blue: 0.15, alpha: 1.0)  // Dark mortar
+        background.strokeColor = .clear
+        node.addChild(background)
+
+        // Brick dimensions
+        let brickWidth: CGFloat = tileSize / 2 - 1
+        let brickHeight: CGFloat = tileSize / 4 - 1
+        let mortarGap: CGFloat = 1.5
+
+        // Brick colors (slight variations for realism)
+        let brickColors: [SKColor] = [
+            SKColor(red: 0.72, green: 0.32, blue: 0.15, alpha: 1.0),
+            SKColor(red: 0.68, green: 0.28, blue: 0.12, alpha: 1.0),
+            SKColor(red: 0.75, green: 0.35, blue: 0.18, alpha: 1.0),
+            SKColor(red: 0.65, green: 0.30, blue: 0.14, alpha: 1.0)
+        ]
+
+        // Draw 4 rows of bricks (alternating offset pattern)
+        for row in 0..<4 {
+            let yPos = -half + CGFloat(row) * (brickHeight + mortarGap) + brickHeight / 2 + mortarGap / 2
+            let offset: CGFloat = (row % 2 == 0) ? 0 : brickWidth / 2
+
+            for col in 0..<3 {
+                let xPos = -half + CGFloat(col) * (brickWidth + mortarGap) + brickWidth / 2 + mortarGap / 2 + offset - brickWidth / 4
+
+                // Only draw bricks that are mostly visible
+                if xPos > -half - brickWidth / 2 && xPos < half + brickWidth / 2 {
+                    let brick = SKShapeNode(rectOf: CGSize(width: brickWidth, height: brickHeight), cornerRadius: 1)
+                    brick.fillColor = brickColors[(row + col) % brickColors.count]
+                    brick.strokeColor = SKColor(red: 0.5, green: 0.2, blue: 0.1, alpha: 1.0)
+                    brick.lineWidth = 0.5
+                    brick.position = CGPoint(x: xPos, y: yPos)
+
+                    // Add subtle highlight on top edge
+                    let highlight = SKShapeNode(rectOf: CGSize(width: brickWidth - 2, height: 1))
+                    highlight.fillColor = SKColor.white.withAlphaComponent(0.15)
+                    highlight.strokeColor = .clear
+                    highlight.position = CGPoint(x: 0, y: brickHeight / 2 - 1.5)
+                    brick.addChild(highlight)
+
+                    // Add subtle shadow on bottom edge
+                    let shadow = SKShapeNode(rectOf: CGSize(width: brickWidth - 2, height: 1))
+                    shadow.fillColor = SKColor.black.withAlphaComponent(0.2)
+                    shadow.strokeColor = .clear
+                    shadow.position = CGPoint(x: 0, y: -brickHeight / 2 + 1.5)
+                    brick.addChild(shadow)
+
+                    node.addChild(brick)
+                }
+            }
+        }
 
         return renderShapeToTexture(node, size: CGSize(width: tileSize, height: tileSize))
     }
 
     private static func generateSteelTexture(tileSize: CGFloat) -> SKTexture {
-        let node = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
-        node.fillColor = SKColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
-        node.strokeColor = SKColor(red: 0.3, green: 0.3, blue: 0.3, alpha: 1.0)
-        node.lineWidth = 2
+        let node = SKNode()
+        let half = tileSize / 2
 
-        let shine = SKShapeNode(rectOf: CGSize(width: tileSize - 8, height: tileSize - 8))
-        shine.fillColor = SKColor(red: 0.7, green: 0.7, blue: 0.7, alpha: 0.3)
+        // Steel plate background with gradient effect
+        let background = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
+        background.fillColor = SKColor(red: 0.45, green: 0.48, blue: 0.52, alpha: 1.0)
+        background.strokeColor = SKColor(red: 0.25, green: 0.28, blue: 0.32, alpha: 1.0)
+        background.lineWidth = 2
+        node.addChild(background)
+
+        // Metal plate pattern (rivets in corners)
+        let rivetPositions: [CGPoint] = [
+            CGPoint(x: -half + 5, y: -half + 5),
+            CGPoint(x: half - 5, y: -half + 5),
+            CGPoint(x: -half + 5, y: half - 5),
+            CGPoint(x: half - 5, y: half - 5)
+        ]
+
+        for pos in rivetPositions {
+            let rivet = SKShapeNode(circleOfRadius: 2)
+            rivet.fillColor = SKColor(red: 0.3, green: 0.32, blue: 0.35, alpha: 1.0)
+            rivet.strokeColor = SKColor(red: 0.55, green: 0.58, blue: 0.62, alpha: 1.0)
+            rivet.lineWidth = 0.5
+            rivet.position = pos
+            node.addChild(rivet)
+        }
+
+        // Metallic shine effect (diagonal)
+        let shine = SKShapeNode()
+        let shinePath = CGMutablePath()
+        shinePath.move(to: CGPoint(x: -half + 4, y: half - 4))
+        shinePath.addLine(to: CGPoint(x: -half + 12, y: half - 4))
+        shinePath.addLine(to: CGPoint(x: -half + 4, y: half - 12))
+        shinePath.closeSubpath()
+        shine.path = shinePath
+        shine.fillColor = SKColor.white.withAlphaComponent(0.25)
         shine.strokeColor = .clear
-        shine.position = CGPoint(x: -2, y: 2)
         node.addChild(shine)
+
+        // Barbed wire across the top
+        let wireY: CGFloat = half - 6
+        let wireColor = SKColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1.0)
+
+        // Main horizontal wire
+        let mainWire = SKShapeNode()
+        let wirePath = CGMutablePath()
+        wirePath.move(to: CGPoint(x: -half, y: wireY))
+        wirePath.addLine(to: CGPoint(x: half, y: wireY))
+        mainWire.path = wirePath
+        mainWire.strokeColor = wireColor
+        mainWire.lineWidth = 1.5
+        node.addChild(mainWire)
+
+        // Second wire slightly below
+        let secondWire = SKShapeNode()
+        let wire2Path = CGMutablePath()
+        wire2Path.move(to: CGPoint(x: -half, y: wireY - 4))
+        wire2Path.addLine(to: CGPoint(x: half, y: wireY - 4))
+        secondWire.path = wire2Path
+        secondWire.strokeColor = wireColor
+        secondWire.lineWidth = 1
+        node.addChild(secondWire)
+
+        // Barbs (X shapes along the wire)
+        let barbSpacing: CGFloat = 8
+        let numBarbs = Int(tileSize / barbSpacing)
+        for i in 0..<numBarbs {
+            let barbX = -half + CGFloat(i) * barbSpacing + barbSpacing / 2
+
+            let barb = SKShapeNode()
+            let barbPath = CGMutablePath()
+            // X shape
+            barbPath.move(to: CGPoint(x: barbX - 2, y: wireY + 3))
+            barbPath.addLine(to: CGPoint(x: barbX + 2, y: wireY - 3))
+            barbPath.move(to: CGPoint(x: barbX + 2, y: wireY + 3))
+            barbPath.addLine(to: CGPoint(x: barbX - 2, y: wireY - 3))
+            // Small diagonal spikes
+            barbPath.move(to: CGPoint(x: barbX, y: wireY))
+            barbPath.addLine(to: CGPoint(x: barbX - 1.5, y: wireY + 4))
+            barbPath.move(to: CGPoint(x: barbX, y: wireY))
+            barbPath.addLine(to: CGPoint(x: barbX + 1.5, y: wireY - 5))
+            barb.path = barbPath
+            barb.strokeColor = wireColor
+            barb.lineWidth = 1
+            barb.lineCap = .round
+            node.addChild(barb)
+        }
 
         return renderShapeToTexture(node, size: CGSize(width: tileSize, height: tileSize))
     }
@@ -750,18 +863,78 @@ class GameMap: SKNode {
     }
 
     private static func generateForestTexture(tileSize: CGFloat) -> SKTexture {
-        let node = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
-        node.fillColor = SKColor(red: 0.1, green: 0.5, blue: 0.1, alpha: 0.7)
-        node.strokeColor = .clear
+        let node = SKNode()
+        let half = tileSize / 2
 
-        for i in 0..<2 {
-            for j in 0..<2 {
-                let tree = SKShapeNode(circleOfRadius: 6)
-                tree.fillColor = SKColor(red: 0.0, green: 0.4, blue: 0.0, alpha: 0.8)
-                tree.strokeColor = SKColor(red: 0.0, green: 0.3, blue: 0.0, alpha: 1.0)
-                tree.position = CGPoint(x: CGFloat(i) * 12 - 6, y: CGFloat(j) * 12 - 6)
-                node.addChild(tree)
-            }
+        // Ground/grass background
+        let background = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
+        background.fillColor = SKColor(red: 0.15, green: 0.4, blue: 0.1, alpha: 0.6)
+        background.strokeColor = .clear
+        node.addChild(background)
+
+        // Draw 4 trees in a 2x2 pattern
+        let treePositions: [CGPoint] = [
+            CGPoint(x: -half / 2 + 2, y: -half / 2 + 2),
+            CGPoint(x: half / 2 - 2, y: -half / 2 + 2),
+            CGPoint(x: -half / 2 + 2, y: half / 2 - 2),
+            CGPoint(x: half / 2 - 2, y: half / 2 - 2)
+        ]
+
+        for (index, pos) in treePositions.enumerated() {
+            // Tree trunk
+            let trunkWidth: CGFloat = 3
+            let trunkHeight: CGFloat = 8
+            let trunk = SKShapeNode(rectOf: CGSize(width: trunkWidth, height: trunkHeight))
+            trunk.fillColor = SKColor(red: 0.4, green: 0.25, blue: 0.1, alpha: 1.0)
+            trunk.strokeColor = SKColor(red: 0.3, green: 0.15, blue: 0.05, alpha: 1.0)
+            trunk.lineWidth = 0.5
+            trunk.position = CGPoint(x: pos.x, y: pos.y - 3)
+            node.addChild(trunk)
+
+            // Tree foliage (layered triangles for pine tree look)
+            let foliageColors: [SKColor] = [
+                SKColor(red: 0.1, green: 0.5, blue: 0.15, alpha: 0.95),
+                SKColor(red: 0.05, green: 0.45, blue: 0.1, alpha: 0.95),
+                SKColor(red: 0.15, green: 0.55, blue: 0.2, alpha: 0.95),
+                SKColor(red: 0.0, green: 0.4, blue: 0.1, alpha: 0.95)
+            ]
+
+            // Bottom layer (largest)
+            let bottom = SKShapeNode()
+            let bottomPath = CGMutablePath()
+            bottomPath.move(to: CGPoint(x: pos.x, y: pos.y + 8))
+            bottomPath.addLine(to: CGPoint(x: pos.x - 7, y: pos.y - 1))
+            bottomPath.addLine(to: CGPoint(x: pos.x + 7, y: pos.y - 1))
+            bottomPath.closeSubpath()
+            bottom.path = bottomPath
+            bottom.fillColor = foliageColors[index % foliageColors.count]
+            bottom.strokeColor = SKColor(red: 0.0, green: 0.3, blue: 0.05, alpha: 1.0)
+            bottom.lineWidth = 0.5
+            node.addChild(bottom)
+
+            // Middle layer
+            let middle = SKShapeNode()
+            let middlePath = CGMutablePath()
+            middlePath.move(to: CGPoint(x: pos.x, y: pos.y + 11))
+            middlePath.addLine(to: CGPoint(x: pos.x - 5, y: pos.y + 3))
+            middlePath.addLine(to: CGPoint(x: pos.x + 5, y: pos.y + 3))
+            middlePath.closeSubpath()
+            middle.path = middlePath
+            middle.fillColor = foliageColors[(index + 1) % foliageColors.count].withAlphaComponent(0.9)
+            middle.strokeColor = .clear
+            node.addChild(middle)
+
+            // Top layer (smallest)
+            let top = SKShapeNode()
+            let topPath = CGMutablePath()
+            topPath.move(to: CGPoint(x: pos.x, y: pos.y + 13))
+            topPath.addLine(to: CGPoint(x: pos.x - 3, y: pos.y + 7))
+            topPath.addLine(to: CGPoint(x: pos.x + 3, y: pos.y + 7))
+            topPath.closeSubpath()
+            top.path = topPath
+            top.fillColor = foliageColors[(index + 2) % foliageColors.count].withAlphaComponent(0.85)
+            top.strokeColor = .clear
+            node.addChild(top)
         }
 
         return renderShapeToTexture(node, size: CGSize(width: tileSize, height: tileSize))

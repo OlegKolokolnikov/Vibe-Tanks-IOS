@@ -47,6 +47,13 @@ class Tank: SKSpriteNode {
     private var trackFrame: Int = 0
     private var cachedTextures: [SKTexture] = []
 
+    // Ice sliding
+    private var isOnIce: Bool = false
+    private var slideDirection: Direction?
+    private var slideDistance: CGFloat = 0
+    private let iceSlideDistance: CGFloat = 32  // One tile
+    private let iceSpeedBoost: CGFloat = 1.3    // 30% faster on ice
+
     // AI (for enemies)
     var ai: TankAI?
 
@@ -442,12 +449,25 @@ class Tank: SKSpriteNode {
     // MARK: - Movement
 
     func move(direction: Direction, map: GameMap, allTanks: [Tank]) {
+        // Check if on ice
+        let wasOnIce = isOnIce
+        isOnIce = map.isIceTile(at: position)
+
+        // If we were sliding and now changing direction or on ice with new input
+        if isOnIce && slideDirection != nil && slideDirection != direction {
+            // Player is trying to change direction while sliding - start new slide
+            slideDirection = direction
+            slideDistance = 0
+        }
+
         // First, update direction and rotation
         self.direction = direction
         self.zRotation = direction.rotation
 
         let velocity = direction.velocity
-        let actualMoveSpeed = moveSpeed * speedMultiplier
+        // Speed boost on ice
+        let iceMultiplier: CGFloat = isOnIce ? iceSpeedBoost : 1.0
+        let actualMoveSpeed = moveSpeed * speedMultiplier * iceMultiplier
         let newX = position.x + velocity.dx * actualMoveSpeed
         let newY = position.y + velocity.dy * actualMoveSpeed
 
@@ -477,8 +497,8 @@ class Tank: SKSpriteNode {
 
         // If blocked, try sliding to align with tile grid (like original Battle City)
         if !didMove {
-            if let slidePosition = trySlideMove(direction: direction, map: map, allTanks: allTanks) {
-                finalPosition = slidePosition
+            if let slidePos = trySlideMove(direction: direction, map: map, allTanks: allTanks) {
+                finalPosition = slidePos
                 didMove = true
             }
         }
@@ -486,7 +506,86 @@ class Tank: SKSpriteNode {
         if didMove {
             position = finalPosition
             animateTracks()
+
+            // Track ice sliding
+            if isOnIce {
+                slideDirection = direction
+                slideDistance = 0  // Reset since we're actively moving
+            }
         }
+
+        // If just stepped onto ice, start tracking slide
+        if isOnIce && !wasOnIce {
+            slideDirection = direction
+            slideDistance = 0
+        }
+    }
+
+    /// Continue sliding on ice when player stops input
+    func continueIceSlide(map: GameMap, allTanks: [Tank]) -> Bool {
+        guard isOnIce || slideDistance < iceSlideDistance else {
+            slideDirection = nil
+            slideDistance = 0
+            return false
+        }
+
+        guard let dir = slideDirection else { return false }
+
+        // Check if still on ice or still have slide distance remaining
+        let stillOnIce = map.isIceTile(at: position)
+        if !stillOnIce && slideDistance >= iceSlideDistance {
+            slideDirection = nil
+            slideDistance = 0
+            isOnIce = false
+            return false
+        }
+
+        let velocity = dir.velocity
+        let slideSpeed = moveSpeed * speedMultiplier * iceSpeedBoost
+        let newX = position.x + velocity.dx * slideSpeed
+        let newY = position.y + velocity.dy * slideSpeed
+
+        let newPosition = CGPoint(x: newX, y: newY)
+
+        // Check collision
+        if !map.checkTankCollision(position: newPosition, size: self.size.width, canSwim: canSwim) {
+            var canMove = true
+            for tank in allTanks {
+                if tank !== self && tank.isAlive {
+                    if checkCollision(with: tank, at: newPosition) {
+                        canMove = false
+                        break
+                    }
+                }
+            }
+
+            if canMove {
+                position = newPosition
+                slideDistance += slideSpeed
+                animateTracks()
+
+                // Update ice status
+                isOnIce = map.isIceTile(at: position)
+
+                // Stop sliding if we've slid enough and left the ice
+                if !isOnIce && slideDistance >= iceSlideDistance {
+                    slideDirection = nil
+                    slideDistance = 0
+                    return false
+                }
+                return true
+            }
+        }
+
+        // Hit something, stop sliding
+        slideDirection = nil
+        slideDistance = 0
+        return false
+    }
+
+    /// Check if tank is currently sliding on ice
+    var isSliding: Bool {
+        return slideDirection != nil && (isOnIce || slideDistance < iceSlideDistance)
     }
 
     private func animateTracks() {

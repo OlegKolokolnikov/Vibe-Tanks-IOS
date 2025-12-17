@@ -228,6 +228,9 @@ class GameScene: SKScene {
             let direction = touchController.currentDirection ?? keyboardDirection
             if let dir = direction {
                 playerTank.move(direction: dir, map: gameMap, allTanks: allTanks)
+            } else {
+                // No input - continue ice slide if player was on ice
+                _ = playerTank.continueIceSlide(map: gameMap, allTanks: allTanks)
             }
         }
 
@@ -355,13 +358,69 @@ class GameScene: SKScene {
         if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, map: gameMap) {
             enemyTanks.append(newEnemy)
             gameLayer.addChild(newEnemy)
+            showSpawnEffect(at: newEnemy.position)
         }
 
         // Spawn extra enemies (from tank power-up collection)
         if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, map: gameMap) {
             enemyTanks.append(extraEnemy)
             gameLayer.addChild(extraEnemy)
+            showSpawnEffect(at: extraEnemy.position)
         }
+    }
+
+    /// Show electricity/lightning effect when enemy spawns
+    private func showSpawnEffect(at position: CGPoint) {
+        let effectNode = SKNode()
+        effectNode.position = position
+        effectNode.zPosition = 50
+
+        // Create multiple lightning bolts
+        for i in 0..<6 {
+            let bolt = createLightningBolt()
+            bolt.zRotation = CGFloat(i) * .pi / 3  // Spread around 360 degrees
+            effectNode.addChild(bolt)
+        }
+
+        // Add center flash
+        let flash = SKShapeNode(circleOfRadius: 15)
+        flash.fillColor = .white
+        flash.strokeColor = .cyan
+        flash.lineWidth = 2
+        flash.glowWidth = 5
+        effectNode.addChild(flash)
+
+        gameLayer.addChild(effectNode)
+
+        // Animate: quick flash then fade
+        let scaleUp = SKAction.scale(to: 1.3, duration: 0.1)
+        let fadeOut = SKAction.fadeOut(withDuration: 0.2)
+        let remove = SKAction.removeFromParent()
+
+        effectNode.run(SKAction.sequence([scaleUp, fadeOut, remove]))
+    }
+
+    /// Create a single lightning bolt shape
+    private func createLightningBolt() -> SKShapeNode {
+        let bolt = SKShapeNode()
+        let path = CGMutablePath()
+
+        // Zigzag lightning pattern
+        path.move(to: CGPoint(x: 0, y: 5))
+        path.addLine(to: CGPoint(x: 3, y: 12))
+        path.addLine(to: CGPoint(x: -2, y: 18))
+        path.addLine(to: CGPoint(x: 4, y: 28))
+        path.addLine(to: CGPoint(x: -1, y: 22))
+        path.addLine(to: CGPoint(x: 2, y: 15))
+        path.addLine(to: CGPoint(x: -3, y: 8))
+
+        bolt.path = path
+        bolt.strokeColor = .cyan
+        bolt.lineWidth = 2
+        bolt.glowWidth = 3
+        bolt.lineCap = .round
+
+        return bolt
     }
 
     private func updateUFO() {
