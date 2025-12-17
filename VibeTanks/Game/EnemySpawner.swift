@@ -74,7 +74,7 @@ class EnemySpawner {
         return result
     }
 
-    func update(existingEnemies: [Tank], map: GameMap) -> Tank? {
+    func update(existingEnemies: [Tank], playerTank: Tank?, map: GameMap) -> Tank? {
         // Check if we can spawn more
         guard spawnedCount < totalEnemies else { return nil }
         guard existingEnemies.count < maxOnScreen else { return nil }
@@ -88,10 +88,11 @@ class EnemySpawner {
         // Determine enemy type
         let type = determineEnemyType()
 
-        // Find valid spawn position
+        // Find valid spawn position (also checks player position)
         guard let position = findValidSpawnPosition(
             type: type,
             existingEnemies: existingEnemies,
+            playerTank: playerTank,
             map: map
         ) else {
             return nil
@@ -122,6 +123,7 @@ class EnemySpawner {
     private func findValidSpawnPosition(
         type: Tank.EnemyType,
         existingEnemies: [Tank],
+        playerTank: Tank?,
         map: GameMap
     ) -> CGPoint? {
         let tankSize = GameConstants.tankSize
@@ -129,7 +131,7 @@ class EnemySpawner {
         // Try random spawn position
         let shuffled = spawnPositions.shuffled()
         for pos in shuffled {
-            if isPositionValid(pos, tankSize: tankSize, existingEnemies: existingEnemies, map: map) {
+            if isPositionValid(pos, tankSize: tankSize, existingEnemies: existingEnemies, playerTank: playerTank, map: map) {
                 return pos
             }
         }
@@ -141,12 +143,21 @@ class EnemySpawner {
         _ position: CGPoint,
         tankSize: CGFloat,
         existingEnemies: [Tank],
+        playerTank: Tank?,
         map: GameMap
     ) -> Bool {
-        // Check collision with other tanks
+        // Check collision with other enemy tanks
         for enemy in existingEnemies {
             let minDist = (tankSize + enemy.size.width) / 2
             if position.distance(to: enemy.position) < minDist {
+                return false
+            }
+        }
+
+        // Check collision with player tank (prevent spawning on player)
+        if let player = playerTank, player.isAlive {
+            let minDist = (tankSize + player.size.width) / 2
+            if position.distance(to: player.position) < minDist {
                 return false
             }
         }
@@ -176,7 +187,7 @@ class EnemySpawner {
     }
 
     /// Try to spawn an extra enemy (called from GameScene)
-    func spawnExtraEnemy(existingEnemies: [Tank], map: GameMap) -> Tank? {
+    func spawnExtraEnemy(existingEnemies: [Tank], playerTank: Tank?, map: GameMap) -> Tank? {
         guard extraEnemiesToSpawn > 0 else { return nil }
         guard existingEnemies.count < maxOnScreen else { return nil }
 
@@ -184,10 +195,11 @@ class EnemySpawner {
         let types: [Tank.EnemyType] = [.regular, .fast, .armored, .power]
         let type = types.randomElement() ?? .regular
 
-        // Find valid spawn position
+        // Find valid spawn position (also checks player position)
         guard let position = findValidSpawnPosition(
             type: type,
             existingEnemies: existingEnemies,
+            playerTank: playerTank,
             map: map
         ) else {
             return nil

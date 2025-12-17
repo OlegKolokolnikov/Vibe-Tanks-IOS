@@ -21,6 +21,9 @@ class GameScene: SKScene {
     private static var consecutiveLosses: Int = 0
     static var isEasyMode: Bool { consecutiveLosses >= 3 }
 
+    // Gzhel decoration state (accessible for cat color)
+    private(set) static var isGzhelActive: Bool = false
+
     // Game objects
     private var gameMap: GameMap!
     private var playerTank: Tank!
@@ -150,6 +153,7 @@ class GameScene: SKScene {
         let flowerTexture30 = renderGzhelFlowerTexture(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
         let flowerTexture25 = renderGzhelFlowerTexture(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
         let vineTexture = renderGzhelVineTexture(length: 50, color: gzhelBlue)
+        print("DEBUG Gzhel: flowerTexture30 size=\(flowerTexture30.size()), flowerTexture25 size=\(flowerTexture25.size()), vineTexture size=\(vineTexture.size())")
 
         // White background sprites (single texture, very efficient)
         let whiteTexture = SKTexture(image: UIImage.solidColor(.white, size: CGSize(width: 4, height: 4)))
@@ -181,6 +185,7 @@ class GameScene: SKScene {
         for y in stride(from: CGFloat(40), to: mapHeight, by: flowerSpacing) {
             let flower = SKSpriteNode(texture: flowerTexture30)
             flower.position = CGPoint(x: -30, y: y)
+            flower.zPosition = 1  // On top of white background
             gzhelLayer.addChild(flower)
         }
 
@@ -189,6 +194,7 @@ class GameScene: SKScene {
             let flower = SKSpriteNode(texture: flowerTexture30)
             flower.position = CGPoint(x: totalWidth + 30, y: y)
             flower.xScale = -1
+            flower.zPosition = 1
             gzhelLayer.addChild(flower)
         }
 
@@ -197,6 +203,7 @@ class GameScene: SKScene {
             let flower = SKSpriteNode(texture: flowerTexture25)
             flower.position = CGPoint(x: x, y: mapHeight + 30)
             flower.zRotation = -.pi / 2
+            flower.zPosition = 1
             gzhelLayer.addChild(flower)
         }
 
@@ -205,6 +212,7 @@ class GameScene: SKScene {
             let flower = SKSpriteNode(texture: flowerTexture25)
             flower.position = CGPoint(x: x, y: -30)
             flower.zRotation = .pi / 2
+            flower.zPosition = 1
             gzhelLayer.addChild(flower)
         }
 
@@ -212,11 +220,13 @@ class GameScene: SKScene {
         for y in stride(from: CGFloat(70), to: mapHeight - 40, by: flowerSpacing) {
             let vine = SKSpriteNode(texture: vineTexture)
             vine.position = CGPoint(x: -45, y: y + flowerSpacing / 2)
+            vine.zPosition = 1
             gzhelLayer.addChild(vine)
 
             let vine2 = SKSpriteNode(texture: vineTexture)
             vine2.position = CGPoint(x: totalWidth + 45, y: y + flowerSpacing / 2)
             vine2.xScale = -1
+            vine2.zPosition = 1
             gzhelLayer.addChild(vine2)
         }
 
@@ -227,6 +237,10 @@ class GameScene: SKScene {
     private func renderGzhelFlowerTexture(size: CGFloat, blueColor: SKColor, lightBlue: SKColor) -> SKTexture {
         let textureSize = CGSize(width: size * 2, height: size * 2)
         let renderer = UIGraphicsImageRenderer(size: textureSize)
+
+        // Convert SKColor to UIColor for use in renderer
+        let blueUIColor = UIColor(cgColor: blueColor.cgColor)
+        let lightBlueUIColor = UIColor(cgColor: lightBlue.cgColor)
 
         let image = renderer.image { context in
             let ctx = context.cgContext
@@ -239,7 +253,7 @@ class GameScene: SKScene {
             let centerOrange = UIColor(red: 0.95, green: 0.7, blue: 0.1, alpha: 1).cgColor
 
             // Outer decorative swirls (blue)
-            ctx.setStrokeColor(lightBlue.cgColor)
+            ctx.setStrokeColor(lightBlueUIColor.cgColor)
             ctx.setLineWidth(1.5)
             ctx.setLineCap(.round)
             for i in 0..<8 {
@@ -284,13 +298,13 @@ class GameScene: SKScene {
                 ctx.fillPath()
 
                 // Blue outline
-                ctx.setStrokeColor(blueColor.cgColor)
+                ctx.setStrokeColor(blueUIColor.cgColor)
                 ctx.setLineWidth(0.8)
                 ctx.addPath(petalPath)
                 ctx.strokePath()
 
                 // Center vein (blue line)
-                ctx.setStrokeColor(lightBlue.cgColor)
+                ctx.setStrokeColor(lightBlueUIColor.cgColor)
                 ctx.setLineWidth(0.5)
                 ctx.move(to: CGPoint(x: 0, y: size * 0.18))
                 ctx.addLine(to: CGPoint(x: 0, y: size * 0.15 + petalLength * 0.7))
@@ -324,7 +338,7 @@ class GameScene: SKScene {
             }
 
             // Blue center outline
-            ctx.setStrokeColor(blueColor.cgColor)
+            ctx.setStrokeColor(blueUIColor.cgColor)
             ctx.setLineWidth(1.5)
             ctx.strokeEllipse(in: centerRect)
         }
@@ -337,13 +351,16 @@ class GameScene: SKScene {
         let textureSize = CGSize(width: 50, height: length + 20)
         let renderer = UIGraphicsImageRenderer(size: textureSize)
 
+        // Convert SKColor to UIColor for use in renderer
+        let colorUIColor = UIColor(cgColor: color.cgColor)
+
         let image = renderer.image { context in
             let ctx = context.cgContext
             let centerX: CGFloat = 20
             let startY: CGFloat = 10
             let endY = textureSize.height - 10
 
-            let darkBlue = color.cgColor
+            let darkBlue = colorUIColor.cgColor
             let lightBlue = UIColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 1).cgColor
 
             // Main flowing vine stem
@@ -458,8 +475,11 @@ class GameScene: SKScene {
         addChild(gameLayer)
 
         // Add Gzhel border decoration if earned from previous level (must be after gameLayer exists)
+        print("DEBUG setupGame: showGzhelBorder=\(showGzhelBorder), level=\(level)")
+        GameScene.isGzhelActive = showGzhelBorder
         if showGzhelBorder {
             setupGzhelBorder()
+            print("DEBUG: Gzhel border setup called!")
         }
 
         // Create map with session seed + level for deterministic but session-unique generation
@@ -508,6 +528,7 @@ class GameScene: SKScene {
         playerTank.lives = initialLives  // Carry lives from previous level
 
         // Apply power-ups from previous level
+        print("DEBUG setupGame: applying initialPowerUps - stars=\(initialPowerUps.starCount), machinegun=\(initialPowerUps.machinegunCount), bulletPower=\(initialPowerUps.bulletPower), speed=\(initialPowerUps.speedMultiplier), swim=\(initialPowerUps.canSwim), trees=\(initialPowerUps.canDestroyTrees)")
         playerTank.starCount = initialPowerUps.starCount
         playerTank.machinegunCount = initialPowerUps.machinegunCount
         playerTank.bulletPower = initialPowerUps.bulletPower
@@ -515,10 +536,9 @@ class GameScene: SKScene {
         playerTank.canSwim = initialPowerUps.canSwim
         playerTank.canDestroyTrees = initialPowerUps.canDestroyTrees
 
-        // Redraw tank to show power-up indicators (ship, etc.)
-        if initialPowerUps.canSwim || initialPowerUps.canDestroyTrees || initialPowerUps.starCount > 0 {
-            playerTank.drawTank()
-        }
+        // Always redraw tank to show power-up indicators
+        playerTank.drawTank()
+        print("DEBUG setupGame: after applying - tank.stars=\(playerTank.starCount), tank.machinegun=\(playerTank.machinegunCount), tank.bulletPower=\(playerTank.bulletPower)")
 
         gameLayer.addChild(playerTank)
 
@@ -717,29 +737,35 @@ class GameScene: SKScene {
     }
 
     private func updateBullets() {
-        var bulletsToRemove: [Bullet] = []
+        var bulletsOutOfBounds: [Bullet] = []
+        var bulletsHitObstacle: [Bullet] = []
 
         for bullet in bullets {
             bullet.update()
 
-            // Check out of bounds
+            // Check out of bounds (not an obstacle - bullet left the screen)
             if bullet.isOutOfBounds(mapSize: gameMap.pixelSize) {
-                bulletsToRemove.append(bullet)
+                bulletsOutOfBounds.append(bullet)
                 continue
             }
 
-            // Check map collision
+            // Check map collision (walls - this IS an obstacle)
             let (hit, _) = gameMap.checkBulletCollision(
                 position: bullet.position,
                 power: bullet.power
             )
             if hit {
-                bulletsToRemove.append(bullet)
+                bulletsHitObstacle.append(bullet)
             }
         }
 
-        // Remove bullets (these hit obstacles/walls)
-        for bullet in bulletsToRemove {
+        // Remove bullets that went out of bounds (not obstacles)
+        for bullet in bulletsOutOfBounds {
+            removeBullet(bullet, hitObstacle: false)
+        }
+
+        // Remove bullets that hit walls/obstacles
+        for bullet in bulletsHitObstacle {
             removeBullet(bullet, hitObstacle: true)
         }
     }
@@ -760,15 +786,15 @@ class GameScene: SKScene {
     }
 
     private func updateSpawner() {
-        // Spawn regular enemies
-        if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, map: gameMap) {
+        // Spawn regular enemies (don't spawn on player)
+        if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap) {
             enemyTanks.append(newEnemy)
             gameLayer.addChild(newEnemy)
             showSpawnEffect(at: newEnemy.position)
         }
 
-        // Spawn extra enemies (from tank power-up collection)
-        if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, map: gameMap) {
+        // Spawn extra enemies (from tank power-up collection, don't spawn on player)
+        if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap) {
             enemyTanks.append(extraEnemy)
             gameLayer.addChild(extraEnemy)
             showSpawnEffect(at: extraEnemy.position)
@@ -1017,8 +1043,9 @@ class GameScene: SKScene {
             }
         }
 
+        // Bullet vs bullet collision counts as obstacle (prevents enemy spam in easy mode)
         for bullet in bulletsToRemove {
-            removeBullet(bullet)
+            removeBullet(bullet, hitObstacle: true)
         }
     }
 
@@ -1069,6 +1096,7 @@ class GameScene: SKScene {
             egg.collect()
             easterEgg = nil
             playerCollectedEasterEgg = true
+            print("DEBUG: Easter egg collected! playerCollectedEasterEgg=\(playerCollectedEasterEgg)")
 
             // Give player 3 extra lives
             playerTank.addLives(GameConstants.easterEggLivesBonus)
@@ -1850,9 +1878,12 @@ class GameScene: SKScene {
             }
 
             // Tap anywhere else - next level if won, restart if lost
+            print("DEBUG tap: isGameOver=\(isGameOver), didWinLevel=\(didWinLevel)")
             if didWinLevel {
+                print("DEBUG: calling nextLevel()")
                 nextLevel()
             } else {
+                print("DEBUG: calling restartGame()")
                 restartGame()
             }
             return
@@ -1870,8 +1901,10 @@ class GameScene: SKScene {
         powerUps.canSwim = playerTank.canSwim
         powerUps.canDestroyTrees = playerTank.canDestroyTrees
 
-        // If player collected easter egg and cat played, next level gets Gzhel decoration
+        // If player collected easter egg and cat played, next level gets Gzhel decoration (one level only)
         let earnedGzhel = playerCollectedEasterEgg
+        print("DEBUG nextLevel: playerCollectedEasterEgg=\(playerCollectedEasterEgg), earnedGzhel=\(earnedGzhel)")
+        print("DEBUG nextLevel powerUps: stars=\(powerUps.starCount), machinegun=\(powerUps.machinegunCount), bulletPower=\(powerUps.bulletPower), speed=\(powerUps.speedMultiplier), swim=\(powerUps.canSwim), trees=\(powerUps.canDestroyTrees)")
 
         let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel)
         newScene.scaleMode = scaleMode
@@ -1879,8 +1912,8 @@ class GameScene: SKScene {
     }
 
     private func restartGame() {
-        // Keep same session seed so level 1 is the same as when we started
-        let newScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed)
+        // Restart the SAME level (keep level number and session seed, reset score to level start)
+        let newScene = GameScene(size: size, level: level, score: levelStartScore, sessionSeed: sessionSeed)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }

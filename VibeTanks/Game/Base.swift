@@ -40,25 +40,34 @@ class Base: SKSpriteNode {
                 addChild(piece)
             }
         } else {
-            // Draw cute cat
-            let cat = SKNode()
-            catNode = cat
+            // Draw cute cat - cushion is separate so cat can walk away from it
 
-            // Background (cat bed/cushion)
+            // Background (cat bed/cushion) - added to Base directly, not to cat
             let cushion = SKShapeNode(ellipseOf: CGSize(width: baseSize * 0.9, height: baseSize * 0.7))
             cushion.fillColor = SKColor(red: 0.8, green: 0.6, blue: 0.7, alpha: 1) // Pink cushion
             cushion.strokeColor = SKColor(red: 0.6, green: 0.4, blue: 0.5, alpha: 1)
             cushion.lineWidth = 2
             cushion.position = CGPoint(x: 0, y: -2)
-            cat.addChild(cushion)
+            cushion.name = "cushion"
+            addChild(cushion)
 
-            // Cat body (white in easy mode, orange tabby otherwise)
+            // Cat body (separate from cushion so it can animate independently)
+            let cat = SKNode()
+            catNode = cat
+
+            // Cat body color: black for Gzhel, white for easy mode, orange tabby otherwise
             let catColor: SKColor
             let darkCatColor: SKColor
-            if GameScene.isEasyMode {
+            if GameScene.isGzhelActive {
+                // Black cat for Gzhel level
+                catColor = SKColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1)
+                darkCatColor = SKColor(red: 0.08, green: 0.08, blue: 0.1, alpha: 1)
+            } else if GameScene.isEasyMode {
+                // White cat for easy mode
                 catColor = SKColor(red: 0.98, green: 0.98, blue: 0.98, alpha: 1)
                 darkCatColor = SKColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
             } else {
+                // Orange tabby (default)
                 catColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
                 darkCatColor = SKColor(red: 0.8, green: 0.4, blue: 0.1, alpha: 1)
             }

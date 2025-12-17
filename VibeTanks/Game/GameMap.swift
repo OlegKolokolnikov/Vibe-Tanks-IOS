@@ -113,11 +113,14 @@ class GameMap: SKNode {
             generateCorridor()
         }
 
-        // Add water features
-        let numWater = 1 + randomInt(in: 0...2)
+        // Add water features - ensure at least 10% of playable area is water
+        let numWater = 4 + randomInt(in: 0...3) // 4-7 water features for good coverage
         for _ in 0..<numWater {
             generateWaterFeature()
         }
+
+        // Ensure minimum water coverage (10% of playable area)
+        ensureMinimumWaterCoverage()
 
         // Add tree patches
         let numTrees = 1 + randomInt(in: 0...2)
@@ -125,11 +128,14 @@ class GameMap: SKNode {
             generateTreePatch()
         }
 
-        // Add ice patches
-        let numIce = 1 + randomInt(in: 0...1)
+        // Add ice patches - ensure at least 10% of playable area is ice
+        let numIce = 5 + randomInt(in: 0...4) // 5-9 patches for good coverage
         for _ in 0..<numIce {
             generateIcePatch()
         }
+
+        // Ensure minimum ice coverage (10% of playable area)
+        ensureMinimumIceCoverage()
 
         // Add random scattered blocks
         let numScattered = 5 + randomInt(in: 0...9)
@@ -583,6 +589,101 @@ class GameMap: SKNode {
             }
         }
         return Double(emptyCount) / Double(totalPlayable)
+    }
+
+    private func calculateIcePercentage() -> Double {
+        var totalPlayable = 0
+        var iceCount = 0
+
+        for row in 1..<(mapHeight - 1) {
+            for col in 1..<(mapWidth - 1) {
+                totalPlayable += 1
+                if tiles[row][col] == .ice {
+                    iceCount += 1
+                }
+            }
+        }
+        return Double(iceCount) / Double(totalPlayable)
+    }
+
+    private func calculateWaterPercentage() -> Double {
+        var totalPlayable = 0
+        var waterCount = 0
+
+        for row in 1..<(mapHeight - 1) {
+            for col in 1..<(mapWidth - 1) {
+                totalPlayable += 1
+                if tiles[row][col] == .water {
+                    waterCount += 1
+                }
+            }
+        }
+        return Double(waterCount) / Double(totalPlayable)
+    }
+
+    private func ensureMinimumWaterCoverage() {
+        var attempts = 0
+        // Keep adding water until we reach at least 10% coverage
+        while calculateWaterPercentage() < 0.10 && attempts < 30 {
+            // Alternate between different water patterns for variety
+            if attempts % 3 == 0 {
+                generateWaterPool()
+            } else if attempts % 3 == 1 {
+                generateWaterLake()
+            } else {
+                generateWaterPond()
+            }
+            attempts += 1
+        }
+        if attempts > 0 {
+            clearSpawnAreas() // Make sure spawn areas stay clear
+        }
+    }
+
+    private func generateWaterPond() {
+        let pondRow = 6 + randomInt(in: 0...(mapHeight - 15))
+        let pondCol = 4 + randomInt(in: 0...(mapWidth - 11))
+        let pondWidth = 3 + randomInt(in: 0...2)
+        let pondHeight = 3 + randomInt(in: 0...2)
+
+        for r in 0..<pondHeight {
+            for c in 0..<pondWidth {
+                placeTile(row: pondRow + r, col: pondCol + c, type: .water)
+            }
+        }
+    }
+
+    private func ensureMinimumIceCoverage() {
+        var attempts = 0
+        // Keep adding ice until we reach at least 10% coverage
+        while calculateIcePercentage() < 0.10 && attempts < 30 {
+            // Alternate between different ice patterns for variety
+            if attempts % 3 == 0 {
+                generateIceRink()
+            } else if attempts % 3 == 1 {
+                generateIcePath()
+            } else {
+                // Generate a larger ice lake
+                generateIceLake()
+            }
+            attempts += 1
+        }
+        if attempts > 0 {
+            clearSpawnAreas() // Make sure spawn areas stay clear
+        }
+    }
+
+    private func generateIceLake() {
+        let lakeRow = 8 + randomInt(in: 0...(mapHeight - 19))
+        let lakeCol = 5 + randomInt(in: 0...(mapWidth - 13))
+        let lakeWidth = 3 + randomInt(in: 0...2)
+        let lakeHeight = 3 + randomInt(in: 0...2)
+
+        for r in 0..<lakeHeight {
+            for c in 0..<lakeWidth {
+                placeTile(row: lakeRow + r, col: lakeCol + c, type: .ice)
+            }
+        }
     }
 
     private func clearSpawnAreas() {
