@@ -8,6 +8,9 @@ class EnemySpawner {
     private var spawnedCount: Int = 0
     private var spawnCooldown: Int
 
+    // Pre-planned enemy types for guaranteed distribution
+    private var plannedEnemyTypes: [Tank.EnemyType] = []
+
     // Spawn positions (top of map)
     private let spawnPositions: [CGPoint]
 
@@ -26,6 +29,49 @@ class EnemySpawner {
             CGPoint(x: CGFloat(mapWidth / 2) * tileSize, y: CGFloat(mapHeight - 2) * tileSize),
             CGPoint(x: CGFloat(mapWidth - 2) * tileSize, y: CGFloat(mapHeight - 2) * tileSize)
         ]
+
+        // Plan enemy types with guaranteed distribution
+        plannedEnemyTypes = planEnemyTypes(total: totalEnemies)
+    }
+
+    /// Plan enemy types ensuring: exactly 5 heavy, at least 5 power, rest are regular/fast/armored
+    private func planEnemyTypes(total: Int) -> [Tank.EnemyType] {
+        var types: [Tank.EnemyType] = []
+
+        // Exactly 5 heavy tanks
+        let heavyCount = 5
+        for _ in 0..<heavyCount {
+            types.append(.heavy)
+        }
+
+        // At least 5 power tanks
+        let powerCount = 5
+        for _ in 0..<powerCount {
+            types.append(.power)
+        }
+
+        // Fill the rest with regular, fast, armored (and possibly more power)
+        let remaining = total - heavyCount - powerCount
+        let otherTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power]
+        for _ in 0..<remaining {
+            types.append(otherTypes.randomElement() ?? .regular)
+        }
+
+        // Shuffle so they don't spawn in predictable order (but heavy tanks spawn later)
+        // Separate heavy tanks and others, shuffle others, then place heavy at end
+        var nonHeavy = types.filter { $0 != .heavy }
+        let heavy = types.filter { $0 == .heavy }
+        nonHeavy.shuffle()
+
+        // Insert heavy tanks spread across the last portion
+        var result = nonHeavy
+        for (index, heavyTank) in heavy.enumerated() {
+            // Place heavy tanks in the last third of spawns
+            let insertPos = result.count - (heavy.count - index - 1)
+            result.insert(heavyTank, at: max(insertPos, result.count * 2 / 3))
+        }
+
+        return result
     }
 
     func update(existingEnemies: [Tank], map: GameMap) -> Tank? {
@@ -65,25 +111,12 @@ class EnemySpawner {
     }
 
     private func determineEnemyType() -> Tank.EnemyType {
-        let remaining = totalEnemies - spawnedCount
-
-        // Last few are HEAVY
-        if remaining <= 6 {
-            return .heavy
+        // Use pre-planned type if available
+        if spawnedCount < plannedEnemyTypes.count {
+            return plannedEnemyTypes[spawnedCount]
         }
-
-        // Random based on probability
-        let rand = Double.random(in: 0...1)
-
-        if rand < GameConstants.spawnRegularThreshold {
-            return .regular
-        } else if rand < GameConstants.spawnFastThreshold {
-            return .fast
-        } else if rand < GameConstants.spawnArmoredThreshold {
-            return .armored
-        } else {
-            return .power
-        }
+        // Fallback for any extra spawns
+        return .regular
     }
 
     private func findValidSpawnPosition(
