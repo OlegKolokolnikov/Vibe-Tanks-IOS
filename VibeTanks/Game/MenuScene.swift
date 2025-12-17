@@ -51,19 +51,13 @@ class MenuScene: SKScene {
         addChild(credits)
     }
 
-    /// Create tank in profile view with smiling skull in war hat
+    /// Create tank in profile view with skull commander sticking out
     private func createTankAndSkull() -> SKNode {
         let container = SKNode()
 
         // Tank in profile (side view) - facing right
-        let tank = createProfileTank()
-        tank.position = CGPoint(x: -60, y: -20)
+        let tank = createProfileTankWithSkull()
         container.addChild(tank)
-
-        // Smiling skull with war hat
-        let skull = createSmilingSkull()
-        skull.position = CGPoint(x: 60, y: 0)
-        container.addChild(skull)
 
         // Add subtle animation
         let breathe = SKAction.sequence([
@@ -75,66 +69,79 @@ class MenuScene: SKScene {
         return container
     }
 
-    /// Create a tank in profile (side) view
-    private func createProfileTank() -> SKNode {
+    /// Create a tank in profile (side) view with skull commander
+    private func createProfileTankWithSkull() -> SKNode {
         let tank = SKNode()
         let tankColor = SKColor(red: 0.2, green: 0.5, blue: 0.2, alpha: 1.0)  // Army green
         let darkColor = SKColor(red: 0.1, green: 0.3, blue: 0.1, alpha: 1.0)
 
         // Track (bottom)
-        let track = SKShapeNode(rectOf: CGSize(width: 70, height: 18), cornerRadius: 9)
+        let track = SKShapeNode(rectOf: CGSize(width: 80, height: 20), cornerRadius: 10)
         track.fillColor = darkColor
         track.strokeColor = .black
         track.lineWidth = 1
-        track.position = CGPoint(x: 0, y: -15)
+        track.position = CGPoint(x: 0, y: -20)
         tank.addChild(track)
 
         // Track wheels
-        for i in 0..<4 {
-            let wheel = SKShapeNode(circleOfRadius: 6)
+        for i in 0..<5 {
+            let wheel = SKShapeNode(circleOfRadius: 7)
             wheel.fillColor = .darkGray
             wheel.strokeColor = .black
             wheel.lineWidth = 1
-            wheel.position = CGPoint(x: CGFloat(i - 1) * 18 - 9, y: -15)
+            wheel.position = CGPoint(x: CGFloat(i - 2) * 18, y: -20)
             tank.addChild(wheel)
         }
 
         // Hull (main body)
-        let hull = SKShapeNode(rectOf: CGSize(width: 55, height: 22), cornerRadius: 3)
+        let hull = SKShapeNode(rectOf: CGSize(width: 65, height: 25), cornerRadius: 3)
         hull.fillColor = tankColor
         hull.strokeColor = darkColor
         hull.lineWidth = 1
-        hull.position = CGPoint(x: -5, y: 2)
+        hull.position = CGPoint(x: -5, y: -2)
         tank.addChild(hull)
 
-        // Turret
-        let turret = SKShapeNode(ellipseOf: CGSize(width: 30, height: 20))
+        // Turret base
+        let turret = SKShapeNode(ellipseOf: CGSize(width: 35, height: 22))
         turret.fillColor = tankColor
         turret.strokeColor = darkColor
         turret.lineWidth = 1
-        turret.position = CGPoint(x: -5, y: 15)
+        turret.position = CGPoint(x: -8, y: 12)
         tank.addChild(turret)
 
+        // Hatch opening (where skull comes out)
+        let hatch = SKShapeNode(ellipseOf: CGSize(width: 18, height: 10))
+        hatch.fillColor = .black
+        hatch.strokeColor = darkColor
+        hatch.lineWidth = 1
+        hatch.position = CGPoint(x: -8, y: 18)
+        tank.addChild(hatch)
+
         // Barrel (pointing right)
-        let barrel = SKShapeNode(rectOf: CGSize(width: 35, height: 8), cornerRadius: 2)
+        let barrel = SKShapeNode(rectOf: CGSize(width: 45, height: 9), cornerRadius: 2)
         barrel.fillColor = darkColor
         barrel.strokeColor = .black
         barrel.lineWidth = 1
-        barrel.position = CGPoint(x: 22, y: 15)
+        barrel.position = CGPoint(x: 25, y: 12)
         tank.addChild(barrel)
 
         // Muzzle brake
-        let muzzle = SKShapeNode(rectOf: CGSize(width: 6, height: 12))
+        let muzzle = SKShapeNode(rectOf: CGSize(width: 8, height: 14))
         muzzle.fillColor = darkColor
         muzzle.strokeColor = .black
         muzzle.lineWidth = 1
-        muzzle.position = CGPoint(x: 42, y: 15)
+        muzzle.position = CGPoint(x: 52, y: 12)
         tank.addChild(muzzle)
 
-        // Star emblem on turret
-        let star = createStar(size: 8, color: .red)
-        star.position = CGPoint(x: -5, y: 15)
+        // Star emblem on hull
+        let star = createStar(size: 10, color: .red)
+        star.position = CGPoint(x: -5, y: -2)
         tank.addChild(star)
+
+        // Skull commander sticking out of hatch (profile view, facing right)
+        let skull = createProfileSkull()
+        skull.position = CGPoint(x: -8, y: 38)
+        tank.addChild(skull)
 
         return tank
     }
@@ -166,110 +173,122 @@ class MenuScene: SKScene {
         return star
     }
 
-    /// Create a smiling skull with war hat
-    private func createSmilingSkull() -> SKNode {
+    /// Create a smiling skull in profile view (facing right) with war hat
+    private func createProfileSkull() -> SKNode {
         let skull = SKNode()
+        let boneColor = SKColor(red: 0.95, green: 0.9, blue: 0.8, alpha: 1.0)
+        let boneOutline = SKColor(red: 0.6, green: 0.55, blue: 0.45, alpha: 1.0)
 
-        // War hat (pilotka style)
+        // War hat (pilotka) in profile - tilted
         let hat = SKShapeNode()
         let hatPath = CGMutablePath()
-        hatPath.move(to: CGPoint(x: -25, y: 25))
-        hatPath.addLine(to: CGPoint(x: 0, y: 40))
-        hatPath.addLine(to: CGPoint(x: 25, y: 25))
-        hatPath.addLine(to: CGPoint(x: 20, y: 25))
-        hatPath.addLine(to: CGPoint(x: 0, y: 35))
-        hatPath.addLine(to: CGPoint(x: -20, y: 25))
+        hatPath.move(to: CGPoint(x: -12, y: 12))
+        hatPath.addLine(to: CGPoint(x: 8, y: 20))
+        hatPath.addLine(to: CGPoint(x: 18, y: 14))
+        hatPath.addLine(to: CGPoint(x: 12, y: 10))
+        hatPath.addLine(to: CGPoint(x: -8, y: 10))
         hatPath.closeSubpath()
         hat.path = hatPath
-        hat.fillColor = SKColor(red: 0.4, green: 0.25, blue: 0.1, alpha: 1.0)  // Khaki/brown
-        hat.strokeColor = SKColor(red: 0.3, green: 0.15, blue: 0.05, alpha: 1.0)
+        hat.fillColor = SKColor(red: 0.35, green: 0.25, blue: 0.15, alpha: 1.0)
+        hat.strokeColor = SKColor(red: 0.25, green: 0.15, blue: 0.05, alpha: 1.0)
         hat.lineWidth = 1
         skull.addChild(hat)
 
-        // Hat star
-        let hatStar = createStar(size: 6, color: .red)
-        hatStar.position = CGPoint(x: 0, y: 30)
+        // Hat star (small, on side)
+        let hatStar = createStar(size: 5, color: .red)
+        hatStar.position = CGPoint(x: 10, y: 14)
         skull.addChild(hatStar)
 
-        // Skull shape (rounded)
-        let head = SKShapeNode(ellipseOf: CGSize(width: 50, height: 55))
-        head.fillColor = SKColor(red: 1.0, green: 0.98, blue: 0.9, alpha: 1.0)  // Bone white
-        head.strokeColor = SKColor(red: 0.7, green: 0.65, blue: 0.55, alpha: 1.0)
+        // Skull profile shape (side view - more skull-like)
+        let head = SKShapeNode()
+        let headPath = CGMutablePath()
+        // Back of skull (rounded)
+        headPath.move(to: CGPoint(x: -15, y: 8))
+        headPath.addQuadCurve(to: CGPoint(x: -12, y: -8), control: CGPoint(x: -18, y: 0))
+        // Jaw line
+        headPath.addLine(to: CGPoint(x: 5, y: -12))
+        // Chin
+        headPath.addQuadCurve(to: CGPoint(x: 12, y: -8), control: CGPoint(x: 10, y: -14))
+        // Front of face (nose area dips in)
+        headPath.addLine(to: CGPoint(x: 14, y: -2))
+        headPath.addQuadCurve(to: CGPoint(x: 10, y: 5), control: CGPoint(x: 16, y: 2))
+        // Forehead
+        headPath.addQuadCurve(to: CGPoint(x: -15, y: 8), control: CGPoint(x: 0, y: 14))
+        headPath.closeSubpath()
+        head.path = headPath
+        head.fillColor = boneColor
+        head.strokeColor = boneOutline
         head.lineWidth = 2
-        head.position = CGPoint(x: 0, y: 0)
         skull.addChild(head)
 
-        // Eye sockets (dark, looking at player)
-        let leftEyeSocket = SKShapeNode(ellipseOf: CGSize(width: 14, height: 16))
-        leftEyeSocket.fillColor = .black
-        leftEyeSocket.strokeColor = .clear
-        leftEyeSocket.position = CGPoint(x: -10, y: 8)
-        skull.addChild(leftEyeSocket)
+        // Eye socket (single, profile view - dark hollow)
+        let eyeSocket = SKShapeNode(ellipseOf: CGSize(width: 10, height: 12))
+        eyeSocket.fillColor = .black
+        eyeSocket.strokeColor = .clear
+        eyeSocket.position = CGPoint(x: 4, y: 2)
+        skull.addChild(eyeSocket)
 
-        let rightEyeSocket = SKShapeNode(ellipseOf: CGSize(width: 14, height: 16))
-        rightEyeSocket.fillColor = .black
-        rightEyeSocket.strokeColor = .clear
-        rightEyeSocket.position = CGPoint(x: 10, y: 8)
-        skull.addChild(rightEyeSocket)
+        // Eye glint (friendly)
+        let glint = SKShapeNode(circleOfRadius: 2)
+        glint.fillColor = .white
+        glint.strokeColor = .clear
+        glint.position = CGPoint(x: 6, y: 4)
+        skull.addChild(glint)
 
-        // Eye glints (friendly look)
-        let leftGlint = SKShapeNode(circleOfRadius: 3)
-        leftGlint.fillColor = .white
-        leftGlint.strokeColor = .clear
-        leftGlint.position = CGPoint(x: -7, y: 10)
-        skull.addChild(leftGlint)
-
-        let rightGlint = SKShapeNode(circleOfRadius: 3)
-        rightGlint.fillColor = .white
-        rightGlint.strokeColor = .clear
-        rightGlint.position = CGPoint(x: 13, y: 10)
-        skull.addChild(rightGlint)
-
-        // Nose hole (triangle)
+        // Nose hole (profile - just a dark area)
         let nose = SKShapeNode()
         let nosePath = CGMutablePath()
-        nosePath.move(to: CGPoint(x: 0, y: -2))
-        nosePath.addLine(to: CGPoint(x: -5, y: -10))
-        nosePath.addLine(to: CGPoint(x: 5, y: -10))
+        nosePath.move(to: CGPoint(x: 12, y: -2))
+        nosePath.addLine(to: CGPoint(x: 10, y: -5))
+        nosePath.addLine(to: CGPoint(x: 14, y: -4))
         nosePath.closeSubpath()
         nose.path = nosePath
         nose.fillColor = .black
         nose.strokeColor = .clear
         skull.addChild(nose)
 
-        // Smiling mouth with teeth
-        let smile = SKShapeNode()
-        let smilePath = CGMutablePath()
-        smilePath.move(to: CGPoint(x: -15, y: -18))
-        smilePath.addQuadCurve(to: CGPoint(x: 15, y: -18), control: CGPoint(x: 0, y: -28))
-        smile.path = smilePath
-        smile.strokeColor = .black
-        smile.lineWidth = 2
-        smile.fillColor = .clear
-        skull.addChild(smile)
-
-        // Teeth
-        for i in 0..<6 {
-            let tooth = SKShapeNode(rectOf: CGSize(width: 4, height: 6))
-            tooth.fillColor = SKColor(red: 1.0, green: 0.98, blue: 0.9, alpha: 1.0)
-            tooth.strokeColor = SKColor(red: 0.7, green: 0.65, blue: 0.55, alpha: 1.0)
-            tooth.lineWidth = 0.5
-            tooth.position = CGPoint(x: CGFloat(i - 2) * 5 - 2.5, y: -20)
-            skull.addChild(tooth)
+        // Teeth (profile view - showing smile)
+        let teeth = SKShapeNode()
+        let teethPath = CGMutablePath()
+        teethPath.move(to: CGPoint(x: 5, y: -10))
+        teethPath.addLine(to: CGPoint(x: 12, y: -8))
+        // Individual teeth lines
+        for i in 0..<4 {
+            let x = CGFloat(5 + i * 2)
+            teethPath.move(to: CGPoint(x: x, y: -10))
+            teethPath.addLine(to: CGPoint(x: x + 1, y: -7))
         }
+        teeth.path = teethPath
+        teeth.strokeColor = boneOutline
+        teeth.lineWidth = 1
+        teeth.fillColor = .clear
+        skull.addChild(teeth)
 
-        // Cheek blush (friendly look)
-        let leftBlush = SKShapeNode(ellipseOf: CGSize(width: 10, height: 6))
-        leftBlush.fillColor = SKColor(red: 1.0, green: 0.6, blue: 0.6, alpha: 0.5)
-        leftBlush.strokeColor = .clear
-        leftBlush.position = CGPoint(x: -18, y: -2)
-        skull.addChild(leftBlush)
+        // Upper teeth row
+        let upperTeeth = SKShapeNode(rectOf: CGSize(width: 8, height: 3), cornerRadius: 1)
+        upperTeeth.fillColor = boneColor
+        upperTeeth.strokeColor = boneOutline
+        upperTeeth.lineWidth = 0.5
+        upperTeeth.position = CGPoint(x: 9, y: -8)
+        skull.addChild(upperTeeth)
 
-        let rightBlush = SKShapeNode(ellipseOf: CGSize(width: 10, height: 6))
-        rightBlush.fillColor = SKColor(red: 1.0, green: 0.6, blue: 0.6, alpha: 0.5)
-        rightBlush.strokeColor = .clear
-        rightBlush.position = CGPoint(x: 18, y: -2)
-        skull.addChild(rightBlush)
+        // Cheekbone highlight
+        let cheek = SKShapeNode(ellipseOf: CGSize(width: 6, height: 4))
+        cheek.fillColor = SKColor(red: 1.0, green: 0.7, blue: 0.7, alpha: 0.4)
+        cheek.strokeColor = .clear
+        cheek.position = CGPoint(x: 8, y: -3)
+        skull.addChild(cheek)
+
+        // Jaw bone detail
+        let jawLine = SKShapeNode()
+        let jawPath = CGMutablePath()
+        jawPath.move(to: CGPoint(x: -10, y: -6))
+        jawPath.addQuadCurve(to: CGPoint(x: 5, y: -11), control: CGPoint(x: -2, y: -10))
+        jawLine.path = jawPath
+        jawLine.strokeColor = boneOutline
+        jawLine.lineWidth = 1
+        jawLine.fillColor = .clear
+        skull.addChild(jawLine)
 
         return skull
     }
