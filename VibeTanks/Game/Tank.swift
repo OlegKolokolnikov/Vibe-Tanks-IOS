@@ -806,11 +806,11 @@ class Tank: SKSpriteNode {
     }
 
     private func die() {
+        createExplosion()
         if isPlayer {
             lives -= 1
             isHidden = true
             health = 0  // Ensure health is 0
-            createExplosion()
         } else {
             // Enemy death handled by game scene
             health = 0
