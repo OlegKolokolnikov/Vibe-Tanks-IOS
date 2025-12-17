@@ -343,22 +343,27 @@ class Tank: SKSpriteNode {
     }
 
     private func startRainbowAnimation() {
-        // Rainbow colors for POWER tanks
-        let rainbowColors: [SKColor] = [.red, .orange, .yellow, .green, .cyan, .blue, .purple]
+        // Smooth rainbow using hue rotation
+        let updateInterval: TimeInterval = 0.05  // 20 FPS for smooth animation
+        let cycleDuration: TimeInterval = 3.0    // Full rainbow cycle in 3 seconds
 
-        // Create color cycling action
-        var colorActions: [SKAction] = []
-        for color in rainbowColors {
-            let changeColor = SKAction.run { [weak self] in
-                self?.updateTankTexture(mainColor: color, darkColor: color.darker())
-            }
-            let wait = SKAction.wait(forDuration: 0.5)
-            colorActions.append(changeColor)
-            colorActions.append(wait)
+        let updateColor = SKAction.run { [weak self] in
+            guard let self = self else { return }
+
+            // Calculate hue based on time
+            let time = CACurrentMediaTime()
+            let hue = CGFloat((time / cycleDuration).truncatingRemainder(dividingBy: 1.0))
+
+            // Create color from hue (saturation and brightness at max for vivid colors)
+            let mainColor = SKColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
+            let darkColor = SKColor(hue: hue, saturation: 1.0, brightness: 0.6, alpha: 1.0)
+
+            self.updateTankTexture(mainColor: mainColor, darkColor: darkColor)
         }
 
-        let rainbowCycle = SKAction.sequence(colorActions)
-        let repeatForever = SKAction.repeatForever(rainbowCycle)
+        let wait = SKAction.wait(forDuration: updateInterval)
+        let sequence = SKAction.sequence([updateColor, wait])
+        let repeatForever = SKAction.repeatForever(sequence)
         run(repeatForever, withKey: "rainbowAnimation")
     }
 
