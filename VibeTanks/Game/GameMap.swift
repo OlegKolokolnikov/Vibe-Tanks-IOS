@@ -634,6 +634,15 @@ class GameMap: SKNode {
 
         // Clear the eagle space (col 13, row 24)
         tiles[24][13] = .empty
+
+        // Steel barrier above base - prevents shooting base directly from top
+        // Place at row 18-19 to block vertical shots to base at col 13
+        tiles[18][12] = .steel
+        tiles[18][13] = .steel
+        tiles[18][14] = .steel
+        tiles[19][12] = .steel
+        tiles[19][13] = .steel
+        tiles[19][14] = .steel
     }
 
     // MARK: - Rendering
