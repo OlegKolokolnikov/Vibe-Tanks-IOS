@@ -1998,10 +1998,14 @@ class GameScene: SKScene {
             case .keyboardSpacebar, .keyboardJ:
                 keyboardFiring = true
 
-            // Restart on Enter when game over
+            // Continue/restart on Enter when game over
             case .keyboardReturnOrEnter:
                 if isGameOver {
-                    restartGame()
+                    if didWinLevel {
+                        nextLevel()
+                    } else {
+                        restartGame()
+                    }
                 }
 
             default:
