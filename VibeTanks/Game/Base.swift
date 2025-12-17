@@ -211,7 +211,7 @@ class Base: SKSpriteNode {
         }
     }
 
-    /// Play victory animation - cat runs out and plays with toy
+    /// Play victory animation - cat plays with toy (batting it around)
     func playVictoryAnimation(to targetPosition: CGPoint) {
         guard let cat = catNode, !isDestroyed else { return }
 
@@ -219,62 +219,93 @@ class Base: SKSpriteNode {
         cat.removeAllActions()
         cat.setScale(1.0)
 
-        // Create a toy ball near the cat
-        let toy = SKShapeNode(circleOfRadius: 6)
+        // Move cat slightly forward from base
+        cat.position = CGPoint(x: 25, y: 0)
+
+        // Create a toy ball in front of the cat
+        let toy = SKShapeNode(circleOfRadius: 5)
         toy.fillColor = .red
-        toy.strokeColor = .white
+        toy.strokeColor = .yellow
         toy.lineWidth = 1
-        toy.position = CGPoint(x: 30, y: 20)  // Start near the cat
-        toy.zPosition = 1
+        toy.position = CGPoint(x: 45, y: -5)
+        toy.zPosition = 2
         addChild(toy)
 
-        // Cat jumps up excitedly
-        let jumpUp = SKAction.moveBy(x: 0, y: 15, duration: 0.2)
-        let jumpDown = SKAction.moveBy(x: 0, y: -15, duration: 0.15)
+        // Cat watches toy (slight head tilt)
+        let watchLeft = SKAction.rotate(toAngle: 0.15, duration: 0.3)
+        let watchRight = SKAction.rotate(toAngle: -0.15, duration: 0.3)
+        let watchCenter = SKAction.rotate(toAngle: 0, duration: 0.2)
 
-        // Paw swipe animation
-        let pawLeft = SKAction.rotate(byAngle: 0.3, duration: 0.1)
-        let pawRight = SKAction.rotate(byAngle: -0.6, duration: 0.1)
-        let pawBack = SKAction.rotate(byAngle: 0.3, duration: 0.1)
-        let pawSequence = SKAction.sequence([pawLeft, pawRight, pawBack])
+        // Cat pounce/bat animation
+        let crouch = SKAction.scaleY(to: 0.8, duration: 0.15)
+        let pounce = SKAction.group([
+            SKAction.scaleY(to: 1.1, duration: 0.1),
+            SKAction.moveBy(x: 8, y: 3, duration: 0.1)
+        ])
+        let recover = SKAction.group([
+            SKAction.scaleY(to: 1.0, duration: 0.15),
+            SKAction.moveBy(x: -8, y: -3, duration: 0.15)
+        ])
 
-        // Create a play cycle where cat chases toy back and forth
-        let playCycle = SKAction.run { [weak cat, weak toy] in
-            guard let cat = cat, let toy = toy else { return }
+        // Toy bounce away when batted
+        var toyGoingRight = true
 
-            // Random direction for toy to bounce
-            let bounceX = CGFloat.random(in: -25...25)
-            let bounceY = CGFloat.random(in: -15...15)
+        let batToy = SKAction.run { [weak toy] in
+            guard let toy = toy else { return }
 
-            // Keep toy within bounds
-            let newX = max(-40, min(40, toy.position.x + bounceX))
-            let newY = max(-10, min(30, toy.position.y + bounceY))
+            // Alternate toy direction
+            let direction: CGFloat = toyGoingRight ? 1 : -1
+            toyGoingRight = !toyGoingRight
 
-            // Toy bounces
-            let toyMove = SKAction.move(to: CGPoint(x: newX, y: newY), duration: 0.3)
-            toyMove.timingMode = .easeOut
-            toy.run(toyMove)
+            // Toy flies away
+            let flyAway = SKAction.moveBy(x: direction * 35, y: 8, duration: 0.2)
+            flyAway.timingMode = .easeOut
 
-            // Cat chases and paws at toy
-            let catChase = SKAction.move(to: CGPoint(x: newX, y: newY - 10), duration: 0.35)
-            catChase.timingMode = .easeOut
-            cat.run(SKAction.sequence([catChase, pawSequence]))
+            // Toy rolls back toward cat
+            let rollBack = SKAction.moveBy(x: direction * -30, y: -8, duration: 0.6)
+            rollBack.timingMode = .easeOut
+
+            // Toy spins while moving
+            let spin = SKAction.rotate(byAngle: direction * .pi * 3, duration: 0.8)
+
+            toy.run(SKAction.group([
+                SKAction.sequence([flyAway, rollBack]),
+                spin
+            ]))
         }
 
-        // Initial jump, then play forever
+        // Play sequence: watch, crouch, pounce/bat, recover, repeat
+        let playOnce = SKAction.sequence([
+            watchLeft,
+            SKAction.wait(forDuration: 0.3),
+            watchCenter,
+            crouch,
+            SKAction.wait(forDuration: 0.1),
+            pounce,
+            batToy,
+            recover,
+            SKAction.wait(forDuration: 0.5),
+            watchRight,
+            SKAction.wait(forDuration: 0.3),
+            watchCenter,
+            crouch,
+            SKAction.wait(forDuration: 0.1),
+            pounce,
+            batToy,
+            recover,
+            SKAction.wait(forDuration: 0.5)
+        ])
+
+        // Initial excited jump
+        let jumpUp = SKAction.moveBy(x: 0, y: 10, duration: 0.15)
+        let jumpDown = SKAction.moveBy(x: 0, y: -10, duration: 0.1)
+
         cat.run(SKAction.sequence([
             jumpUp,
             jumpDown,
-            SKAction.wait(forDuration: 0.2)
-        ])) { [weak cat] in
-            guard let cat = cat else { return }
-            // Start the play loop
-            let playLoop = SKAction.sequence([
-                playCycle,
-                SKAction.wait(forDuration: 0.6)
-            ])
-            cat.run(SKAction.repeatForever(playLoop))
-        }
+            SKAction.wait(forDuration: 0.3),
+            SKAction.repeatForever(playOnce)
+        ]))
     }
 
     func checkCollision(bulletPosition: CGPoint) -> Bool {
