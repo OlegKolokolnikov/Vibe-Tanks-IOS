@@ -350,7 +350,7 @@ class Tank: SKSpriteNode {
         var colorActions: [SKAction] = []
         for color in rainbowColors {
             let changeColor = SKAction.run { [weak self] in
-                self?.updateTankColor(main: color, dark: color.darker())
+                self?.updateTankTexture(mainColor: color, darkColor: color.darker())
             }
             let wait = SKAction.wait(forDuration: 0.15)
             colorActions.append(changeColor)
@@ -362,25 +362,22 @@ class Tank: SKSpriteNode {
         run(repeatForever, withKey: "rainbowAnimation")
     }
 
-    private func updateTankColor(main: SKColor, dark: SKColor) {
-        // Update body color
-        if let body = childNode(withName: "body") as? SKShapeNode {
-            body.fillColor = main
-        }
+    private func updateTankTexture(mainColor: SKColor, darkColor: SKColor) {
+        let tankSize = self.size.width
 
-        // Update turret color
-        if let turret = childNode(withName: "turret") as? SKShapeNode {
-            turret.fillColor = main
-        }
+        // Re-render texture with new colors
+        let texture = Tank.renderTankTexture(
+            size: tankSize,
+            mainColor: mainColor,
+            darkColor: darkColor,
+            isPlayer: isPlayer,
+            enemyType: enemyType,
+            trackOffset: 0
+        )
 
-        // Update track backgrounds
-        for child in children {
-            if let shape = child as? SKShapeNode {
-                // Track backgrounds are the large rectangles without names
-                if shape.name == nil && shape.frame.width > 6 && shape.frame.height > 20 {
-                    shape.fillColor = dark
-                }
-            }
+        // Update the tank sprite
+        if let tankSprite = childNode(withName: "tankBody") as? SKSpriteNode {
+            tankSprite.texture = texture
         }
     }
 
