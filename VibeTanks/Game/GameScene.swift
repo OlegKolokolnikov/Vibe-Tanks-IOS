@@ -17,6 +17,10 @@ class GameScene: SKScene {
     // Highscore (persists across games until app restart)
     private static var highScore: Int = 250
 
+    // Easy mode: activates after 3 consecutive losses
+    private static var consecutiveLosses: Int = 0
+    static var isEasyMode: Bool { consecutiveLosses >= 3 }
+
     // Game objects
     private var gameMap: GameMap!
     private var playerTank: Tank!
@@ -503,15 +507,19 @@ class GameScene: SKScene {
             return
         }
 
-        // Handle movement from touch controller or keyboard (only if not frozen)
+        // Handle movement from touch controller or keyboard
+        let direction = touchController.currentDirection ?? keyboardDirection
         if playerFreezeTimer <= 0 {
-            let direction = touchController.currentDirection ?? keyboardDirection
+            // Normal movement
             if let dir = direction {
                 playerTank.move(direction: dir, map: gameMap, allTanks: allTanks)
             } else {
                 // No input - continue ice slide if player was on ice
                 _ = playerTank.continueIceSlide(map: gameMap, allTanks: allTanks)
             }
+        } else if GameScene.isEasyMode, let dir = direction {
+            // Easy mode: can turn while frozen (but not move)
+            playerTank.turn(to: dir)
         }
 
         // Check for forest destruction (SAW power-up)
@@ -612,9 +620,9 @@ class GameScene: SKScene {
             }
         }
 
-        // Remove bullets
+        // Remove bullets (these hit obstacles/walls)
         for bullet in bulletsToRemove {
-            removeBullet(bullet)
+            removeBullet(bullet, hitObstacle: true)
         }
     }
 
@@ -1314,8 +1322,8 @@ class GameScene: SKScene {
         label.run(fadeOut)
     }
 
-    private func removeBullet(_ bullet: Bullet) {
-        bullet.owner?.bulletDestroyed()
+    private func removeBullet(_ bullet: Bullet, hitObstacle: Bool = false) {
+        bullet.owner?.bulletDestroyed(hitObstacle: hitObstacle)
         bullet.removeFromParent()
         bullets.removeAll { $0 === bullet }
     }
@@ -1340,6 +1348,9 @@ class GameScene: SKScene {
         didWinLevel = true
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playVictory()
+
+        // Reset consecutive losses on win (exits easy mode)
+        GameScene.consecutiveLosses = 0
 
         showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false)
 
@@ -1424,6 +1435,9 @@ class GameScene: SKScene {
         isGameOver = true
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playGameOver()
+
+        // Track consecutive losses for easy mode
+        GameScene.consecutiveLosses += 1
 
         showScoreBreakdown(title: "GAME OVER", titleColor: .red, showRestart: true)
     }
@@ -1754,6 +1768,9 @@ class GameScene: SKScene {
     }
 
     private func goToMenu() {
+        // Reset consecutive losses on menu (exits easy mode)
+        GameScene.consecutiveLosses = 0
+
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.stopBackgroundMusic()
         let menuScene = MenuScene(size: size)

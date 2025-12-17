@@ -497,6 +497,12 @@ class Tank: SKSpriteNode {
 
     // MARK: - Movement
 
+    /// Turn the tank to face a direction without moving (for frozen state in easy mode)
+    func turn(to direction: Direction) {
+        self.direction = direction
+        self.zRotation = direction.rotation
+    }
+
     func move(direction: Direction, map: GameMap, allTanks: [Tank]) {
         // Check if on ice
         let wasOnIce = isOnIce
@@ -758,12 +764,16 @@ class Tank: SKSpriteNode {
         return bullets
     }
 
-    func bulletDestroyed() {
+    func bulletDestroyed(hitObstacle: Bool = false) {
         activeBullets = max(0, activeBullets - 1)
-        // Reset cooldown so player can shoot immediately when bullet is destroyed
+        // Reset cooldown so tank can shoot immediately when bullet is destroyed
         // This matches original Battle City behavior
+        // In easy mode, enemies don't get cooldown reset when bullet hits obstacle
         if activeBullets == 0 {
-            shootCooldown = 0
+            let shouldResetCooldown = isPlayer || !hitObstacle || !GameScene.isEasyMode
+            if shouldResetCooldown {
+                shootCooldown = 0
+            }
         }
     }
 

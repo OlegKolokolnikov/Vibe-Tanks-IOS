@@ -52,9 +52,16 @@ class Base: SKSpriteNode {
             cushion.position = CGPoint(x: 0, y: -2)
             cat.addChild(cushion)
 
-            // Cat body (orange tabby)
-            let catColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
-            let darkCatColor = SKColor(red: 0.8, green: 0.4, blue: 0.1, alpha: 1)
+            // Cat body (white in easy mode, orange tabby otherwise)
+            let catColor: SKColor
+            let darkCatColor: SKColor
+            if GameScene.isEasyMode {
+                catColor = SKColor(red: 0.98, green: 0.98, blue: 0.98, alpha: 1)
+                darkCatColor = SKColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
+            } else {
+                catColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+                darkCatColor = SKColor(red: 0.8, green: 0.4, blue: 0.1, alpha: 1)
+            }
 
             // Body
             let body = SKShapeNode(ellipseOf: CGSize(width: 18, height: 14))
@@ -179,14 +186,16 @@ class Base: SKSpriteNode {
                 }
             }
 
-            // Stripes on body
-            for i in 0..<3 {
-                let stripe = SKShapeNode(rectOf: CGSize(width: 10, height: 2))
-                stripe.fillColor = darkCatColor
-                stripe.strokeColor = .clear
-                stripe.position = CGPoint(x: 0, y: -2 + CGFloat(i - 1) * 4)
-                stripe.zRotation = CGFloat.random(in: -0.2...0.2)
-                cat.addChild(stripe)
+            // Stripes on body (only for orange tabby, not white cat)
+            if !GameScene.isEasyMode {
+                for i in 0..<3 {
+                    let stripe = SKShapeNode(rectOf: CGSize(width: 10, height: 2))
+                    stripe.fillColor = darkCatColor
+                    stripe.strokeColor = .clear
+                    stripe.position = CGPoint(x: 0, y: -2 + CGFloat(i - 1) * 4)
+                    stripe.zRotation = CGFloat.random(in: -0.2...0.2)
+                    cat.addChild(stripe)
+                }
             }
 
             // Tail (curled)
