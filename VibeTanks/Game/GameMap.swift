@@ -843,21 +843,75 @@ class GameMap: SKNode {
     }
 
     private static func generateWaterTexture(tileSize: CGFloat) -> SKTexture {
-        let node = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
-        node.fillColor = SKColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 0.8)
-        node.strokeColor = SKColor(red: 0.1, green: 0.3, blue: 0.6, alpha: 1.0)
-        node.lineWidth = 1
-
-        let wave = SKShapeNode()
-        let path = CGMutablePath()
+        let node = SKNode()
         let half = tileSize / 2
-        path.move(to: CGPoint(x: -half, y: 4))
-        path.addQuadCurve(to: CGPoint(x: 0, y: 4), control: CGPoint(x: -half / 2, y: 8))
-        path.addQuadCurve(to: CGPoint(x: half, y: 4), control: CGPoint(x: half / 2, y: 0))
-        wave.path = path
-        wave.strokeColor = SKColor(red: 0.4, green: 0.6, blue: 1.0, alpha: 0.5)
-        wave.lineWidth = 2
-        node.addChild(wave)
+
+        // Blue water background
+        let background = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
+        background.fillColor = SKColor(red: 0.15, green: 0.4, blue: 0.75, alpha: 1.0)
+        background.strokeColor = SKColor(red: 0.1, green: 0.25, blue: 0.5, alpha: 1.0)
+        background.lineWidth = 1
+        node.addChild(background)
+
+        // Darker blue dots scattered across
+        let dotPositions: [CGPoint] = [
+            CGPoint(x: -half + 6, y: -half + 5),
+            CGPoint(x: -half + 18, y: -half + 8),
+            CGPoint(x: -half + 10, y: -half + 20),
+            CGPoint(x: -half + 24, y: -half + 15),
+            CGPoint(x: -half + 4, y: -half + 26),
+            CGPoint(x: -half + 20, y: -half + 25),
+            CGPoint(x: -half + 14, y: -half + 12),
+            CGPoint(x: -half + 28, y: -half + 6),
+            CGPoint(x: -half + 8, y: -half + 14),
+            CGPoint(x: -half + 26, y: -half + 22)
+        ]
+
+        for pos in dotPositions {
+            let dot = SKShapeNode(circleOfRadius: 1.5)
+            dot.fillColor = SKColor(red: 0.08, green: 0.25, blue: 0.55, alpha: 0.8)
+            dot.strokeColor = .clear
+            dot.position = pos
+            node.addChild(dot)
+        }
+
+        // White wave lines
+        let wave1 = SKShapeNode()
+        let path1 = CGMutablePath()
+        path1.move(to: CGPoint(x: -half, y: 6))
+        path1.addQuadCurve(to: CGPoint(x: -half / 2, y: 6), control: CGPoint(x: -half + 8, y: 10))
+        path1.addQuadCurve(to: CGPoint(x: 0, y: 6), control: CGPoint(x: -4, y: 2))
+        path1.addQuadCurve(to: CGPoint(x: half, y: 6), control: CGPoint(x: half / 2, y: 10))
+        wave1.path = path1
+        wave1.strokeColor = SKColor.white.withAlphaComponent(0.5)
+        wave1.lineWidth = 1.5
+        wave1.lineCap = .round
+        node.addChild(wave1)
+
+        let wave2 = SKShapeNode()
+        let path2 = CGMutablePath()
+        path2.move(to: CGPoint(x: -half, y: -6))
+        path2.addQuadCurve(to: CGPoint(x: -half / 2, y: -6), control: CGPoint(x: -half + 6, y: -2))
+        path2.addQuadCurve(to: CGPoint(x: 4, y: -6), control: CGPoint(x: 0, y: -10))
+        path2.addQuadCurve(to: CGPoint(x: half, y: -6), control: CGPoint(x: half - 4, y: -2))
+        wave2.path = path2
+        wave2.strokeColor = SKColor.white.withAlphaComponent(0.4)
+        wave2.lineWidth = 1
+        wave2.lineCap = .round
+        node.addChild(wave2)
+
+        // Small white highlights
+        let highlight1 = SKShapeNode(circleOfRadius: 2)
+        highlight1.fillColor = SKColor.white.withAlphaComponent(0.3)
+        highlight1.strokeColor = .clear
+        highlight1.position = CGPoint(x: -6, y: 10)
+        node.addChild(highlight1)
+
+        let highlight2 = SKShapeNode(circleOfRadius: 1.5)
+        highlight2.fillColor = SKColor.white.withAlphaComponent(0.25)
+        highlight2.strokeColor = .clear
+        highlight2.position = CGPoint(x: 8, y: -8)
+        node.addChild(highlight2)
 
         return renderShapeToTexture(node, size: CGSize(width: tileSize, height: tileSize))
     }
@@ -941,17 +995,85 @@ class GameMap: SKNode {
     }
 
     private static func generateIceTexture(tileSize: CGFloat) -> SKTexture {
-        let node = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
-        node.fillColor = SKColor(red: 0.8, green: 0.9, blue: 1.0, alpha: 0.9)
-        node.strokeColor = SKColor(red: 0.6, green: 0.8, blue: 1.0, alpha: 1.0)
-        node.lineWidth = 1
+        let node = SKNode()
+        let half = tileSize / 2
 
-        let shine = SKShapeNode(rectOf: CGSize(width: 8, height: 4))
-        shine.fillColor = .white
-        shine.strokeColor = .clear
-        shine.position = CGPoint(x: -4, y: 6)
-        shine.alpha = 0.6
-        node.addChild(shine)
+        // White/gray ice background
+        let background = SKShapeNode(rectOf: CGSize(width: tileSize, height: tileSize))
+        background.fillColor = SKColor(red: 0.85, green: 0.88, blue: 0.92, alpha: 1.0)
+        background.strokeColor = SKColor(red: 0.7, green: 0.75, blue: 0.8, alpha: 1.0)
+        background.lineWidth = 1
+        node.addChild(background)
+
+        // Gray dots scattered across (frozen bubbles/imperfections)
+        let dotPositions: [CGPoint] = [
+            CGPoint(x: -half + 5, y: -half + 7),
+            CGPoint(x: -half + 15, y: -half + 4),
+            CGPoint(x: -half + 8, y: -half + 18),
+            CGPoint(x: -half + 22, y: -half + 12),
+            CGPoint(x: -half + 3, y: -half + 28),
+            CGPoint(x: -half + 18, y: -half + 24),
+            CGPoint(x: -half + 26, y: -half + 8),
+            CGPoint(x: -half + 12, y: -half + 14),
+            CGPoint(x: -half + 28, y: -half + 20),
+            CGPoint(x: -half + 6, y: -half + 22)
+        ]
+
+        for pos in dotPositions {
+            let dot = SKShapeNode(circleOfRadius: 1.2)
+            dot.fillColor = SKColor(red: 0.65, green: 0.68, blue: 0.72, alpha: 0.7)
+            dot.strokeColor = .clear
+            dot.position = pos
+            node.addChild(dot)
+        }
+
+        // Crack lines (light gray)
+        let crack1 = SKShapeNode()
+        let path1 = CGMutablePath()
+        path1.move(to: CGPoint(x: -half + 4, y: -half + 6))
+        path1.addLine(to: CGPoint(x: -half + 10, y: -half + 12))
+        path1.addLine(to: CGPoint(x: -half + 8, y: -half + 18))
+        path1.addLine(to: CGPoint(x: -half + 14, y: -half + 22))
+        crack1.path = path1
+        crack1.strokeColor = SKColor(red: 0.7, green: 0.73, blue: 0.78, alpha: 0.8)
+        crack1.lineWidth = 1
+        crack1.lineCap = .round
+        node.addChild(crack1)
+
+        let crack2 = SKShapeNode()
+        let path2 = CGMutablePath()
+        path2.move(to: CGPoint(x: -half + 20, y: -half + 2))
+        path2.addLine(to: CGPoint(x: -half + 18, y: -half + 10))
+        path2.addLine(to: CGPoint(x: -half + 24, y: -half + 16))
+        crack2.path = path2
+        crack2.strokeColor = SKColor(red: 0.7, green: 0.73, blue: 0.78, alpha: 0.7)
+        crack2.lineWidth = 0.8
+        crack2.lineCap = .round
+        node.addChild(crack2)
+
+        let crack3 = SKShapeNode()
+        let path3 = CGMutablePath()
+        path3.move(to: CGPoint(x: -half + 26, y: -half + 24))
+        path3.addLine(to: CGPoint(x: -half + 20, y: -half + 28))
+        path3.addLine(to: CGPoint(x: -half + 16, y: -half + 26))
+        crack3.path = path3
+        crack3.strokeColor = SKColor(red: 0.7, green: 0.73, blue: 0.78, alpha: 0.6)
+        crack3.lineWidth = 0.8
+        crack3.lineCap = .round
+        node.addChild(crack3)
+
+        // White shine highlights
+        let shine1 = SKShapeNode(rectOf: CGSize(width: 6, height: 3), cornerRadius: 1)
+        shine1.fillColor = SKColor.white.withAlphaComponent(0.5)
+        shine1.strokeColor = .clear
+        shine1.position = CGPoint(x: -6, y: 8)
+        node.addChild(shine1)
+
+        let shine2 = SKShapeNode(rectOf: CGSize(width: 4, height: 2), cornerRadius: 1)
+        shine2.fillColor = SKColor.white.withAlphaComponent(0.4)
+        shine2.strokeColor = .clear
+        shine2.position = CGPoint(x: 7, y: -4)
+        node.addChild(shine2)
 
         return renderShapeToTexture(node, size: CGSize(width: tileSize, height: tileSize))
     }
