@@ -1051,19 +1051,32 @@ class GameScene: SKScene {
         label.fontName = "Helvetica-Bold"
         label.fontSize = 36 * cameraScale
         label.fontColor = .green
-        label.position = CGPoint(x: 0, y: 30 * cameraScale)
+        label.position = CGPoint(x: 0, y: 50 * cameraScale)
         label.zPosition = 200
         gameCamera.addChild(label)
 
+        // Score
+        let scoreText = SKLabelNode(text: "Score: \(score)")
+        scoreText.fontName = "Helvetica-Bold"
+        scoreText.fontSize = 20 * cameraScale
+        scoreText.fontColor = .yellow
+        scoreText.position = CGPoint(x: 0, y: 10 * cameraScale)
+        scoreText.zPosition = 200
+        gameCamera.addChild(scoreText)
+
         // Next level button
-        let nextLabel = SKLabelNode(text: "Tap for Next Level")
-        nextLabel.fontName = "Helvetica"
-        nextLabel.fontSize = 24 * cameraScale
-        nextLabel.fontColor = .white
-        nextLabel.position = CGPoint(x: 0, y: -30 * cameraScale)
-        nextLabel.zPosition = 200
-        nextLabel.name = "nextLevel"
-        gameCamera.addChild(nextLabel)
+        let nextButton = createPauseButton(text: "NEXT LEVEL", cameraScale: cameraScale)
+        nextButton.position = CGPoint(x: 0, y: -40 * cameraScale)
+        nextButton.zPosition = 200
+        nextButton.name = "nextLevelButton"
+        gameCamera.addChild(nextButton)
+
+        // Menu button
+        let menuButton = createPauseButton(text: "MENU", cameraScale: cameraScale)
+        menuButton.position = CGPoint(x: 0, y: -100 * cameraScale)
+        menuButton.zPosition = 200
+        menuButton.name = "menuButton"
+        gameCamera.addChild(menuButton)
     }
 
     private var pauseOverlay: SKNode?
@@ -1226,6 +1239,10 @@ class GameScene: SKScene {
                 }
                 if node.name == "restartButton" || node.parent?.name == "restartButton" {
                     restartGame()
+                    return
+                }
+                if node.name == "nextLevelButton" || node.parent?.name == "nextLevelButton" {
+                    nextLevel()
                     return
                 }
             }

@@ -191,261 +191,124 @@ class Tank: SKSpriteNode {
             ctx.translateBy(x: 0, y: size)
             ctx.scaleBy(x: 1, y: -1)
 
-            // Generate camo colors from main color
-            let camoLight = mainColor.lighter(by: 0.15)
-            let camoDark = mainColor.darker(by: 0.15)
-
+            // === TRACKS (simple blocky style) ===
             let trackWidth: CGFloat = 6 * scale
-            let trackInset: CGFloat = 0
 
-            // === TRACKS (heavy duty military tracks) ===
-            let trackColor = UIColor(red: 0.18, green: 0.18, blue: 0.16, alpha: 1.0)
-            ctx.setFillColor(trackColor.cgColor)
+            // Track background
+            ctx.setFillColor(darkColor.cgColor)
+            ctx.fill(CGRect(x: 0, y: 0, width: trackWidth, height: size))
+            ctx.fill(CGRect(x: size - trackWidth, y: 0, width: trackWidth, height: size))
 
-            // Track guards (top part covering wheels)
-            ctx.fill(CGRect(x: trackInset, y: 1 * scale, width: trackWidth + 2 * scale, height: size - 2 * scale))
-            ctx.fill(CGRect(x: size - trackWidth - trackInset - 2 * scale, y: 1 * scale, width: trackWidth + 2 * scale, height: size - 2 * scale))
+            // Track treads (animated)
+            let treadColor = UIColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)
+            ctx.setFillColor(treadColor.cgColor)
+            let treadSpacing: CGFloat = 4 * scale
+            let treadHeight: CGFloat = 2 * scale
+            let numTreads = Int(size / treadSpacing) + 2
 
-            // Track links (animated)
-            let linkColor = UIColor(red: 0.25, green: 0.24, blue: 0.22, alpha: 1.0)
-            ctx.setFillColor(linkColor.cgColor)
-            let linkSpacing: CGFloat = 3.5 * scale
-            let linkHeight: CGFloat = 2.5 * scale
-            let numLinks = Int(size / linkSpacing) + 2
-
-            for i in 0..<numLinks {
-                let baseY = CGFloat(i) * linkSpacing + trackOffset
-                let y = baseY.truncatingRemainder(dividingBy: size + linkSpacing) - linkSpacing
-                if y >= 0 && y <= size - 2 * scale {
-                    // Left track links
-                    ctx.fill(CGRect(x: trackInset + 1 * scale, y: y + 1 * scale, width: trackWidth, height: linkHeight))
-                    // Right track links
-                    ctx.fill(CGRect(x: size - trackWidth - trackInset - 1 * scale, y: y + 1 * scale, width: trackWidth, height: linkHeight))
+            for i in 0..<numTreads {
+                let baseY = CGFloat(i) * treadSpacing + trackOffset
+                let y = baseY.truncatingRemainder(dividingBy: size + treadSpacing) - treadSpacing
+                if y >= 0 && y <= size {
+                    ctx.fill(CGRect(x: 1 * scale, y: y, width: trackWidth - 2 * scale, height: treadHeight))
+                    ctx.fill(CGRect(x: size - trackWidth + 1 * scale, y: y, width: trackWidth - 2 * scale, height: treadHeight))
                 }
             }
 
-            // Drive sprockets (front and rear wheels visible)
-            let sprocketColor = UIColor(red: 0.22, green: 0.22, blue: 0.2, alpha: 1.0)
-            let sprocketRadius: CGFloat = 3.5 * scale
-            let sprocketPositions: [CGFloat] = [sprocketRadius + 2 * scale, size - sprocketRadius - 2 * scale]
-
-            for sprocketY in sprocketPositions {
-                ctx.setFillColor(sprocketColor.cgColor)
-                // Left sprocket
-                ctx.fillEllipse(in: CGRect(
-                    x: trackInset + trackWidth/2 - sprocketRadius + 1 * scale,
-                    y: sprocketY - sprocketRadius,
-                    width: sprocketRadius * 2,
-                    height: sprocketRadius * 2
-                ))
-                // Right sprocket
-                ctx.fillEllipse(in: CGRect(
-                    x: size - trackWidth - trackInset + trackWidth/2 - sprocketRadius - 1 * scale,
-                    y: sprocketY - sprocketRadius,
-                    width: sprocketRadius * 2,
-                    height: sprocketRadius * 2
-                ))
-
-                // Sprocket teeth/details
-                ctx.setFillColor(UIColor(red: 0.15, green: 0.15, blue: 0.13, alpha: 1.0).cgColor)
-                let hubRadius = sprocketRadius * 0.4
-                ctx.fillEllipse(in: CGRect(
-                    x: trackInset + trackWidth/2 - hubRadius + 1 * scale,
-                    y: sprocketY - hubRadius,
-                    width: hubRadius * 2,
-                    height: hubRadius * 2
-                ))
-                ctx.fillEllipse(in: CGRect(
-                    x: size - trackWidth - trackInset + trackWidth/2 - hubRadius - 1 * scale,
-                    y: sprocketY - hubRadius,
-                    width: hubRadius * 2,
-                    height: hubRadius * 2
-                ))
-            }
-
-            // === HULL with CAMO PATTERN ===
-            let hullLeft = trackInset + trackWidth + 2 * scale
-            let hullRight = size - trackInset - trackWidth - 2 * scale
+            // === HULL (main body - simple rectangle) ===
+            let hullLeft = trackWidth
+            let hullRight = size - trackWidth
             let hullWidth = hullRight - hullLeft
-            let hullBottom = 2 * scale
-            let hullTop = size - 4 * scale
+            let hullBottom: CGFloat = 2 * scale
+            let hullTop = size - 2 * scale
 
-            // Main hull body
+            // Hull body
             ctx.setFillColor(mainColor.cgColor)
             ctx.fill(CGRect(x: hullLeft, y: hullBottom, width: hullWidth, height: hullTop - hullBottom))
 
-            // Camo pattern (irregular shapes)
-            ctx.setFillColor(camoDark.cgColor)
-            // Camo blob 1
-            ctx.fillEllipse(in: CGRect(x: hullLeft + 1 * scale, y: hullBottom + 2 * scale, width: 5 * scale, height: 4 * scale))
-            // Camo blob 2
-            ctx.fillEllipse(in: CGRect(x: hullRight - 6 * scale, y: hullTop - 8 * scale, width: 4 * scale, height: 5 * scale))
-            // Camo blob 3
-            ctx.fillEllipse(in: CGRect(x: center - 3 * scale, y: hullBottom + 8 * scale, width: 6 * scale, height: 4 * scale))
-
-            ctx.setFillColor(camoLight.cgColor)
-            // Light camo blob 1
-            ctx.fillEllipse(in: CGRect(x: hullLeft + 3 * scale, y: hullTop - 10 * scale, width: 4 * scale, height: 3 * scale))
-            // Light camo blob 2
-            ctx.fillEllipse(in: CGRect(x: hullRight - 8 * scale, y: hullBottom + 4 * scale, width: 5 * scale, height: 4 * scale))
-
-            // Hull front armor (sloped, lighter)
-            ctx.setFillColor(mainColor.lighter(by: 0.1).cgColor)
-            let frontPath = CGMutablePath()
-            frontPath.move(to: CGPoint(x: hullLeft, y: hullTop - 5 * scale))
-            frontPath.addLine(to: CGPoint(x: hullLeft + 2 * scale, y: hullTop))
-            frontPath.addLine(to: CGPoint(x: hullRight - 2 * scale, y: hullTop))
-            frontPath.addLine(to: CGPoint(x: hullRight, y: hullTop - 5 * scale))
-            frontPath.closeSubpath()
-            ctx.addPath(frontPath)
-            ctx.fillPath()
-
-            // Hull rear (engine deck, darker)
-            ctx.setFillColor(darkColor.cgColor)
-            ctx.fill(CGRect(x: hullLeft, y: hullBottom, width: hullWidth, height: 4 * scale))
-
-            // Engine grille
-            ctx.setFillColor(UIColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0).cgColor)
-            ctx.fill(CGRect(x: center - 4 * scale, y: hullBottom + 1 * scale, width: 8 * scale, height: 2 * scale))
-
-            // Side armor plates
-            ctx.setFillColor(darkColor.withAlphaComponent(0.4).cgColor)
-            ctx.fill(CGRect(x: hullLeft, y: hullBottom + 4 * scale, width: 1.5 * scale, height: hullTop - hullBottom - 9 * scale))
-            ctx.fill(CGRect(x: hullRight - 1.5 * scale, y: hullBottom + 4 * scale, width: 1.5 * scale, height: hullTop - hullBottom - 9 * scale))
-
-            // === TURRET (modern angular design) ===
-            let turretCenterY = center
-            let turretWidth: CGFloat = 10 * scale
-            let turretLength: CGFloat = 12 * scale
-
-            // Turret base with camo
-            ctx.setFillColor(mainColor.cgColor)
-            let turretPath = CGMutablePath()
-            turretPath.move(to: CGPoint(x: center - turretWidth/2 + 1 * scale, y: turretCenterY - turretLength/2))
-            turretPath.addLine(to: CGPoint(x: center - turretWidth/2, y: turretCenterY))
-            turretPath.addLine(to: CGPoint(x: center - turretWidth/2 + 2 * scale, y: turretCenterY + turretLength/2))
-            turretPath.addLine(to: CGPoint(x: center + turretWidth/2 - 2 * scale, y: turretCenterY + turretLength/2))
-            turretPath.addLine(to: CGPoint(x: center + turretWidth/2, y: turretCenterY))
-            turretPath.addLine(to: CGPoint(x: center + turretWidth/2 - 1 * scale, y: turretCenterY - turretLength/2))
-            turretPath.closeSubpath()
-            ctx.addPath(turretPath)
-            ctx.fillPath()
-
-            // Turret camo
-            ctx.setFillColor(camoDark.cgColor)
-            ctx.fillEllipse(in: CGRect(x: center - 3 * scale, y: turretCenterY - 2 * scale, width: 4 * scale, height: 3 * scale))
-
-            // Turret ring
+            // Hull outline
             ctx.setStrokeColor(darkColor.cgColor)
             ctx.setLineWidth(1 * scale)
-            ctx.strokeEllipse(in: CGRect(
-                x: center - 4 * scale,
-                y: turretCenterY - 4 * scale,
-                width: 8 * scale,
-                height: 8 * scale
-            ))
+            ctx.stroke(CGRect(x: hullLeft, y: hullBottom, width: hullWidth, height: hullTop - hullBottom))
 
-            // Commander cupola
-            ctx.setFillColor(darkColor.cgColor)
+            // === TURRET (simple circle) ===
+            let turretRadius: CGFloat = 6 * scale
+            let turretCenterY = center - 1 * scale
+
+            ctx.setFillColor(mainColor.cgColor)
             ctx.fillEllipse(in: CGRect(
-                x: center - 2 * scale,
-                y: turretCenterY - 2 * scale,
-                width: 4 * scale,
-                height: 4 * scale
+                x: center - turretRadius,
+                y: turretCenterY - turretRadius,
+                width: turretRadius * 2,
+                height: turretRadius * 2
             ))
 
-            // === GUN SYSTEM ===
-            let gunMantletWidth: CGFloat = 6 * scale
-            let gunMantletHeight: CGFloat = 4 * scale
-            let barrelWidth: CGFloat = 2.5 * scale
-            let barrelLength: CGFloat = size/2 + 6 * scale
-            let barrelStartY = turretCenterY + turretLength/2 - 2 * scale
-
-            // Gun mantlet (armored housing)
-            ctx.setFillColor(UIColor(red: 0.25, green: 0.25, blue: 0.23, alpha: 1.0).cgColor)
-            ctx.fill(CGRect(
-                x: center - gunMantletWidth/2,
-                y: barrelStartY - 1 * scale,
-                width: gunMantletWidth,
-                height: gunMantletHeight
+            // Turret outline
+            ctx.setStrokeColor(darkColor.cgColor)
+            ctx.setLineWidth(1.5 * scale)
+            ctx.strokeEllipse(in: CGRect(
+                x: center - turretRadius,
+                y: turretCenterY - turretRadius,
+                width: turretRadius * 2,
+                height: turretRadius * 2
             ))
 
-            // Main gun barrel
-            ctx.setFillColor(UIColor(red: 0.2, green: 0.2, blue: 0.18, alpha: 1.0).cgColor)
+            // === GUN BARREL ===
+            let barrelWidth: CGFloat = 4 * scale
+            let barrelLength: CGFloat = size / 2 + 2 * scale
+            let barrelStartY = turretCenterY + turretRadius - 2 * scale
+
+            // Barrel
+            ctx.setFillColor(darkColor.cgColor)
             ctx.fill(CGRect(
-                x: center - barrelWidth/2,
+                x: center - barrelWidth / 2,
                 y: barrelStartY,
                 width: barrelWidth,
                 height: barrelLength
             ))
 
-            // Barrel thermal sleeve (thicker middle section)
-            ctx.setFillColor(UIColor(red: 0.22, green: 0.22, blue: 0.2, alpha: 1.0).cgColor)
+            // Barrel highlight
+            ctx.setFillColor(mainColor.darker(by: 0.1).cgColor)
             ctx.fill(CGRect(
-                x: center - barrelWidth/2 - 0.5 * scale,
-                y: barrelStartY + 4 * scale,
-                width: barrelWidth + 1 * scale,
-                height: barrelLength * 0.5
+                x: center - barrelWidth / 2 + 1 * scale,
+                y: barrelStartY,
+                width: barrelWidth - 2 * scale,
+                height: barrelLength - 2 * scale
             ))
-
-            // Muzzle brake
-            ctx.setFillColor(UIColor(red: 0.18, green: 0.18, blue: 0.16, alpha: 1.0).cgColor)
-            ctx.fill(CGRect(
-                x: center - barrelWidth/2 - 1 * scale,
-                y: barrelStartY + barrelLength - 3 * scale,
-                width: barrelWidth + 2 * scale,
-                height: 3 * scale
-            ))
-
-            // Barrel bore (dark center)
-            ctx.setFillColor(UIColor(red: 0.05, green: 0.05, blue: 0.05, alpha: 1.0).cgColor)
-            ctx.fillEllipse(in: CGRect(
-                x: center - 1 * scale,
-                y: barrelStartY + barrelLength - 1.5 * scale,
-                width: 2 * scale,
-                height: 1.5 * scale
-            ))
-
-            // === EQUIPMENT & DETAILS ===
-            // Antenna
-            ctx.setStrokeColor(UIColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1.0).cgColor)
-            ctx.setLineWidth(0.8 * scale)
-            ctx.move(to: CGPoint(x: hullRight - 3 * scale, y: turretCenterY - 3 * scale))
-            ctx.addLine(to: CGPoint(x: hullRight - 1 * scale, y: turretCenterY - 8 * scale))
-            ctx.strokePath()
-
-            // Tool box on hull
-            ctx.setFillColor(UIColor(red: 0.3, green: 0.28, blue: 0.25, alpha: 1.0).cgColor)
-            ctx.fill(CGRect(x: hullLeft + 1 * scale, y: hullTop - 6 * scale, width: 3 * scale, height: 2 * scale))
 
             // === ENEMY TYPE MARKINGS ===
             if !isPlayer {
                 switch enemyType {
                 case .fast:
-                    // Lightning bolt marking
+                    // White stripe
                     ctx.setFillColor(UIColor.white.withAlphaComponent(0.5).cgColor)
-                    ctx.fill(CGRect(x: center - 0.5 * scale, y: hullBottom + 5 * scale, width: 1 * scale, height: 6 * scale))
+                    ctx.fill(CGRect(x: center - 1 * scale, y: hullBottom + 3 * scale, width: 2 * scale, height: 6 * scale))
                 case .armored:
-                    // Extra reactive armor blocks
-                    ctx.setFillColor(UIColor(red: 0.35, green: 0.33, blue: 0.3, alpha: 1.0).cgColor)
+                    // Side plates
+                    ctx.setFillColor(UIColor.gray.cgColor)
                     ctx.fill(CGRect(x: hullLeft + 1 * scale, y: center - 3 * scale, width: 2 * scale, height: 6 * scale))
                     ctx.fill(CGRect(x: hullRight - 3 * scale, y: center - 3 * scale, width: 2 * scale, height: 6 * scale))
                 case .heavy:
-                    // Heavy tank number
+                    // Cross mark
                     ctx.setFillColor(UIColor.white.withAlphaComponent(0.4).cgColor)
-                    ctx.fill(CGRect(x: center - 3 * scale, y: turretCenterY + 2 * scale, width: 6 * scale, height: 1 * scale))
-                    ctx.fill(CGRect(x: center - 3 * scale, y: turretCenterY - 3 * scale, width: 6 * scale, height: 1 * scale))
+                    ctx.fill(CGRect(x: center - 4 * scale, y: turretCenterY - 0.5 * scale, width: 8 * scale, height: 1 * scale))
+                    ctx.fill(CGRect(x: center - 0.5 * scale, y: turretCenterY - 4 * scale, width: 1 * scale, height: 8 * scale))
                 case .boss:
                     // Red star
                     ctx.setFillColor(UIColor.red.cgColor)
-                    ctx.fillEllipse(in: CGRect(x: center - 2.5 * scale, y: hullBottom + 6 * scale, width: 5 * scale, height: 5 * scale))
+                    ctx.fillEllipse(in: CGRect(x: center - 3 * scale, y: turretCenterY - 3 * scale, width: 6 * scale, height: 6 * scale))
                 default:
                     break
                 }
             } else {
-                // Player unit marking (white stripe)
-                ctx.setFillColor(UIColor.white.withAlphaComponent(0.4).cgColor)
-                ctx.fill(CGRect(x: hullLeft + 2 * scale, y: hullTop - 4 * scale, width: hullWidth - 4 * scale, height: 1 * scale))
+                // Player star
+                ctx.setFillColor(UIColor.white.withAlphaComponent(0.5).cgColor)
+                ctx.fillEllipse(in: CGRect(
+                    x: center - 2 * scale,
+                    y: hullBottom + 3 * scale,
+                    width: 4 * scale,
+                    height: 4 * scale
+                ))
             }
         }
 
