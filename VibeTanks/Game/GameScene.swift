@@ -1082,6 +1082,7 @@ class GameScene: SKScene {
             let background = SKShapeNode(rectOf: CGSize(width: 2000, height: 2000))
             background.fillColor = SKColor.black.withAlphaComponent(0.7)
             background.strokeColor = .clear
+            background.name = "pauseBackground"
             pauseOverlay?.addChild(background)
 
             // Pause text
@@ -1089,16 +1090,20 @@ class GameScene: SKScene {
             pauseLabel.fontName = "Helvetica-Bold"
             pauseLabel.fontSize = 48 * cameraScale
             pauseLabel.fontColor = .white
-            pauseLabel.position = CGPoint(x: 0, y: 20 * cameraScale)
+            pauseLabel.position = CGPoint(x: 0, y: 50 * cameraScale)
             pauseOverlay?.addChild(pauseLabel)
 
-            // Resume instruction
-            let resumeLabel = SKLabelNode(text: "Tap anywhere to resume")
-            resumeLabel.fontName = "Helvetica"
-            resumeLabel.fontSize = 20
-            resumeLabel.fontColor = .lightGray
-            resumeLabel.position = CGPoint(x: 0, y: -30)
-            pauseOverlay?.addChild(resumeLabel)
+            // Resume button
+            let resumeButton = createPauseButton(text: "RESUME", cameraScale: cameraScale)
+            resumeButton.position = CGPoint(x: 0, y: -10 * cameraScale)
+            resumeButton.name = "resumeButton"
+            pauseOverlay?.addChild(resumeButton)
+
+            // Menu button
+            let menuButton = createPauseButton(text: "MENU", cameraScale: cameraScale)
+            menuButton.position = CGPoint(x: 0, y: -70 * cameraScale)
+            menuButton.name = "menuButton"
+            pauseOverlay?.addChild(menuButton)
 
             gameCamera.addChild(pauseOverlay!)
         } else {
@@ -1106,6 +1111,25 @@ class GameScene: SKScene {
             pauseOverlay?.removeFromParent()
             pauseOverlay = nil
         }
+    }
+
+    private func createPauseButton(text: String, cameraScale: CGFloat) -> SKNode {
+        let container = SKNode()
+
+        let background = SKShapeNode(rectOf: CGSize(width: 180 * cameraScale, height: 45 * cameraScale), cornerRadius: 8 * cameraScale)
+        background.fillColor = SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)
+        background.strokeColor = .yellow
+        background.lineWidth = 2
+        container.addChild(background)
+
+        let label = SKLabelNode(text: text)
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = 22 * cameraScale
+        label.fontColor = .white
+        label.verticalAlignmentMode = .center
+        container.addChild(label)
+
+        return container
     }
 
     private func gameOver(won: Bool) {
@@ -1120,7 +1144,7 @@ class GameScene: SKScene {
         label.fontName = "Helvetica-Bold"
         label.fontSize = 48 * cameraScale
         label.fontColor = won ? .green : .red
-        label.position = CGPoint(x: 0, y: 30 * cameraScale) // Center of camera
+        label.position = CGPoint(x: 0, y: 50 * cameraScale)
         label.zPosition = 200
         gameCamera.addChild(label)
 
@@ -1129,19 +1153,23 @@ class GameScene: SKScene {
         scoreText.fontName = "Helvetica-Bold"
         scoreText.fontSize = 24 * cameraScale
         scoreText.fontColor = .yellow
-        scoreText.position = CGPoint(x: 0, y: -20 * cameraScale)
+        scoreText.position = CGPoint(x: 0, y: 0 * cameraScale)
         scoreText.zPosition = 200
         gameCamera.addChild(scoreText)
 
         // Restart button
-        let restartLabel = SKLabelNode(text: "Tap to Restart")
-        restartLabel.fontName = "Helvetica"
-        restartLabel.fontSize = 24 * cameraScale
-        restartLabel.fontColor = .white
-        restartLabel.position = CGPoint(x: 0, y: -60 * cameraScale)
-        restartLabel.zPosition = 200
-        restartLabel.name = "restart"
-        gameCamera.addChild(restartLabel)
+        let restartButton = createPauseButton(text: "RESTART", cameraScale: cameraScale)
+        restartButton.position = CGPoint(x: 0, y: -50 * cameraScale)
+        restartButton.zPosition = 200
+        restartButton.name = "restartButton"
+        gameCamera.addChild(restartButton)
+
+        // Menu button
+        let menuButton = createPauseButton(text: "MENU", cameraScale: cameraScale)
+        menuButton.position = CGPoint(x: 0, y: -110 * cameraScale)
+        menuButton.zPosition = 200
+        menuButton.name = "menuButton"
+        gameCamera.addChild(menuButton)
     }
 
     private func updateUI() {
@@ -1164,14 +1192,45 @@ class GameScene: SKScene {
     // MARK: - Touch Handling for Restart
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Handle unpause - tap anywhere when paused
+        guard let touch = touches.first else { return }
+
+        // Handle pause menu buttons
         if isGamePaused {
+            let location = touch.location(in: gameCamera)
+            let nodes = gameCamera.nodes(at: location)
+
+            for node in nodes {
+                if node.name == "menuButton" || node.parent?.name == "menuButton" {
+                    goToMenu()
+                    return
+                }
+                if node.name == "resumeButton" || node.parent?.name == "resumeButton" {
+                    togglePause()
+                    return
+                }
+            }
+            // Tap on background also resumes
             togglePause()
             return
         }
 
+        // Handle game over buttons
         if isGameOver {
-            // Check if we completed the level or lost
+            let location = touch.location(in: gameCamera)
+            let nodes = gameCamera.nodes(at: location)
+
+            for node in nodes {
+                if node.name == "menuButton" || node.parent?.name == "menuButton" {
+                    goToMenu()
+                    return
+                }
+                if node.name == "restartButton" || node.parent?.name == "restartButton" {
+                    restartGame()
+                    return
+                }
+            }
+
+            // Tap anywhere else - next level if won, restart if lost
             if didWinLevel {
                 nextLevel()
             } else {
@@ -1194,6 +1253,14 @@ class GameScene: SKScene {
         let newScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
+    }
+
+    private func goToMenu() {
+        SoundManager.shared.stopGameplaySounds()
+        SoundManager.shared.stopBackgroundMusic()
+        let menuScene = MenuScene(size: size)
+        menuScene.scaleMode = scaleMode
+        view?.presentScene(menuScene, transition: .fade(withDuration: 0.5))
     }
 
     // MARK: - Keyboard Support (for Simulator)
