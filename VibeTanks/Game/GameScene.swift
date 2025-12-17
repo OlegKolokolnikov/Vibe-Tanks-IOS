@@ -1,5 +1,16 @@
 import SpriteKit
 
+// MARK: - UIImage Extension for solid color textures
+extension UIImage {
+    static func solidColor(_ color: UIColor, size: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+}
+
 /// Main game scene
 class GameScene: SKScene {
 
@@ -45,6 +56,9 @@ class GameScene: SKScene {
     // Freeze effect
     private var freezeTimer: Int = 0
     private var playerFreezeTimer: Int = 0  // Player frozen by enemy power-up
+
+    // Victory delay (5 seconds to collect remaining power-ups)
+    private var victoryDelayTimer: Int = 0
 
     // Base protection
     private var baseProtectionTimer: Int = 0
@@ -114,7 +128,7 @@ class GameScene: SKScene {
         addChild(gameCamera)
     }
 
-    /// Setup Gzhel (Russian blue ceramic) style border decoration
+    /// Setup Gzhel (Russian blue ceramic) style border decoration (optimized with textures)
     private func setupGzhelBorder() {
         let gzhelLayer = SKNode()
         gzhelLayer.zPosition = -10  // Behind everything
@@ -122,59 +136,61 @@ class GameScene: SKScene {
         // Gzhel colors
         let gzhelBlue = SKColor(red: 0.0, green: 0.3, blue: 0.7, alpha: 1.0)
         let gzhelLightBlue = SKColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 1.0)
-        let gzhelWhite = SKColor.white
 
-        // Calculate border areas (screen edges outside game area)
+        // Calculate border areas
         let mapWidth = CGFloat(GameConstants.mapWidth) * GameConstants.tileSize
         let mapHeight = CGFloat(GameConstants.mapHeight) * GameConstants.tileSize
         let totalWidth = mapWidth + GameConstants.sidebarWidth
 
-        // White background for borders
-        let leftBorder = SKShapeNode(rectOf: CGSize(width: 200, height: mapHeight + 400))
-        leftBorder.fillColor = gzhelWhite
-        leftBorder.strokeColor = .clear
+        // Pre-render flower and vine textures (much faster than SKShapeNodes)
+        let flowerTexture30 = renderGzhelFlowerTexture(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+        let flowerTexture25 = renderGzhelFlowerTexture(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+        let vineTexture = renderGzhelVineTexture(length: 50, color: gzhelBlue)
+
+        // White background sprites (single texture, very efficient)
+        let whiteTexture = SKTexture(image: UIImage.solidColor(.white, size: CGSize(width: 4, height: 4)))
+
+        let leftBorder = SKSpriteNode(texture: whiteTexture)
+        leftBorder.size = CGSize(width: 200, height: mapHeight + 400)
         leftBorder.position = CGPoint(x: -100, y: mapHeight / 2)
         gzhelLayer.addChild(leftBorder)
 
-        let rightBorder = SKShapeNode(rectOf: CGSize(width: 200, height: mapHeight + 400))
-        rightBorder.fillColor = gzhelWhite
-        rightBorder.strokeColor = .clear
+        let rightBorder = SKSpriteNode(texture: whiteTexture)
+        rightBorder.size = CGSize(width: 200, height: mapHeight + 400)
         rightBorder.position = CGPoint(x: totalWidth + 100, y: mapHeight / 2)
         gzhelLayer.addChild(rightBorder)
 
-        let topBorder = SKShapeNode(rectOf: CGSize(width: totalWidth + 400, height: 200))
-        topBorder.fillColor = gzhelWhite
-        topBorder.strokeColor = .clear
+        let topBorder = SKSpriteNode(texture: whiteTexture)
+        topBorder.size = CGSize(width: totalWidth + 400, height: 200)
         topBorder.position = CGPoint(x: totalWidth / 2, y: mapHeight + 100)
         gzhelLayer.addChild(topBorder)
 
-        let bottomBorder = SKShapeNode(rectOf: CGSize(width: totalWidth + 400, height: 200))
-        bottomBorder.fillColor = gzhelWhite
-        bottomBorder.strokeColor = .clear
+        let bottomBorder = SKSpriteNode(texture: whiteTexture)
+        bottomBorder.size = CGSize(width: totalWidth + 400, height: 200)
         bottomBorder.position = CGPoint(x: totalWidth / 2, y: -100)
         gzhelLayer.addChild(bottomBorder)
 
-        // Add Gzhel flowers along borders
+        // Add flowers using pre-rendered texture
         let flowerSpacing: CGFloat = 80
 
         // Left side flowers
         for y in stride(from: CGFloat(40), to: mapHeight, by: flowerSpacing) {
-            let flower = createGzhelFlower(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            let flower = SKSpriteNode(texture: flowerTexture30)
             flower.position = CGPoint(x: -30, y: y)
             gzhelLayer.addChild(flower)
         }
 
         // Right side flowers
         for y in stride(from: CGFloat(40), to: mapHeight, by: flowerSpacing) {
-            let flower = createGzhelFlower(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            let flower = SKSpriteNode(texture: flowerTexture30)
             flower.position = CGPoint(x: totalWidth + 30, y: y)
-            flower.xScale = -1  // Mirror
+            flower.xScale = -1
             gzhelLayer.addChild(flower)
         }
 
         // Top flowers
         for x in stride(from: CGFloat(40), to: totalWidth, by: flowerSpacing) {
-            let flower = createGzhelFlower(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            let flower = SKSpriteNode(texture: flowerTexture25)
             flower.position = CGPoint(x: x, y: mapHeight + 30)
             flower.zRotation = -.pi / 2
             gzhelLayer.addChild(flower)
@@ -182,19 +198,19 @@ class GameScene: SKScene {
 
         // Bottom flowers
         for x in stride(from: CGFloat(40), to: totalWidth, by: flowerSpacing) {
-            let flower = createGzhelFlower(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            let flower = SKSpriteNode(texture: flowerTexture25)
             flower.position = CGPoint(x: x, y: -30)
             flower.zRotation = .pi / 2
             gzhelLayer.addChild(flower)
         }
 
-        // Add decorative vines/scrollwork between flowers
+        // Add vines using pre-rendered texture
         for y in stride(from: CGFloat(70), to: mapHeight - 40, by: flowerSpacing) {
-            let vine = createGzhelVine(length: 50, color: gzhelBlue)
+            let vine = SKSpriteNode(texture: vineTexture)
             vine.position = CGPoint(x: -45, y: y + flowerSpacing / 2)
             gzhelLayer.addChild(vine)
 
-            let vine2 = createGzhelVine(length: 50, color: gzhelBlue)
+            let vine2 = SKSpriteNode(texture: vineTexture)
             vine2.position = CGPoint(x: totalWidth + 45, y: y + flowerSpacing / 2)
             vine2.xScale = -1
             gzhelLayer.addChild(vine2)
@@ -203,75 +219,111 @@ class GameScene: SKScene {
         addChild(gzhelLayer)
     }
 
-    /// Create a Gzhel-style flower
-    private func createGzhelFlower(size: CGFloat, blueColor: SKColor, lightBlue: SKColor) -> SKNode {
-        let flower = SKNode()
+    /// Render Gzhel flower to texture for performance
+    private func renderGzhelFlowerTexture(size: CGFloat, blueColor: SKColor, lightBlue: SKColor) -> SKTexture {
+        let textureSize = CGSize(width: size * 1.5, height: size * 1.5)
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
 
-        // Outer petals (5 petals)
-        for i in 0..<5 {
-            let angle = CGFloat(i) * .pi * 2 / 5
-            let petal = SKShapeNode(ellipseOf: CGSize(width: size * 0.4, height: size * 0.7))
-            petal.fillColor = blueColor
-            petal.strokeColor = lightBlue
-            petal.lineWidth = 1
-            petal.position = CGPoint(x: cos(angle) * size * 0.3, y: sin(angle) * size * 0.3)
-            petal.zRotation = angle + .pi / 2
-            flower.addChild(petal)
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            let center = CGPoint(x: textureSize.width / 2, y: textureSize.height / 2)
+
+            // Outer petals
+            for i in 0..<5 {
+                let angle = CGFloat(i) * .pi * 2 / 5
+                let petalCenter = CGPoint(
+                    x: center.x + cos(angle) * size * 0.3,
+                    y: center.y + sin(angle) * size * 0.3
+                )
+
+                ctx.saveGState()
+                ctx.translateBy(x: petalCenter.x, y: petalCenter.y)
+                ctx.rotate(by: angle + .pi / 2)
+
+                let petalRect = CGRect(x: -size * 0.2, y: -size * 0.35, width: size * 0.4, height: size * 0.7)
+                ctx.setFillColor(blueColor.cgColor)
+                ctx.setStrokeColor(lightBlue.cgColor)
+                ctx.setLineWidth(1)
+                ctx.fillEllipse(in: petalRect)
+                ctx.strokeEllipse(in: petalRect)
+                ctx.restoreGState()
+            }
+
+            // Inner petals
+            for i in 0..<5 {
+                let angle = CGFloat(i) * .pi * 2 / 5 + .pi / 5
+                let petalCenter = CGPoint(
+                    x: center.x + cos(angle) * size * 0.15,
+                    y: center.y + sin(angle) * size * 0.15
+                )
+
+                ctx.saveGState()
+                ctx.translateBy(x: petalCenter.x, y: petalCenter.y)
+                ctx.rotate(by: angle + .pi / 2)
+
+                let petalRect = CGRect(x: -size * 0.125, y: -size * 0.225, width: size * 0.25, height: size * 0.45)
+                ctx.setFillColor(lightBlue.cgColor)
+                ctx.setStrokeColor(blueColor.cgColor)
+                ctx.setLineWidth(0.5)
+                ctx.fillEllipse(in: petalRect)
+                ctx.strokeEllipse(in: petalRect)
+                ctx.restoreGState()
+            }
+
+            // Center
+            let centerRect = CGRect(x: center.x - size * 0.15, y: center.y - size * 0.15, width: size * 0.3, height: size * 0.3)
+            ctx.setFillColor(UIColor.white.cgColor)
+            ctx.setStrokeColor(blueColor.cgColor)
+            ctx.setLineWidth(1)
+            ctx.fillEllipse(in: centerRect)
+            ctx.strokeEllipse(in: centerRect)
+
+            // Center dot
+            let dotRect = CGRect(x: center.x - size * 0.06, y: center.y - size * 0.06, width: size * 0.12, height: size * 0.12)
+            ctx.setFillColor(blueColor.cgColor)
+            ctx.fillEllipse(in: dotRect)
         }
 
-        // Inner petals
-        for i in 0..<5 {
-            let angle = CGFloat(i) * .pi * 2 / 5 + .pi / 5
-            let petal = SKShapeNode(ellipseOf: CGSize(width: size * 0.25, height: size * 0.45))
-            petal.fillColor = lightBlue
-            petal.strokeColor = blueColor
-            petal.lineWidth = 0.5
-            petal.position = CGPoint(x: cos(angle) * size * 0.15, y: sin(angle) * size * 0.15)
-            petal.zRotation = angle + .pi / 2
-            flower.addChild(petal)
-        }
-
-        // Center
-        let center = SKShapeNode(circleOfRadius: size * 0.15)
-        center.fillColor = .white
-        center.strokeColor = blueColor
-        center.lineWidth = 1
-        flower.addChild(center)
-
-        // Center dot
-        let dot = SKShapeNode(circleOfRadius: size * 0.06)
-        dot.fillColor = blueColor
-        dot.strokeColor = .clear
-        flower.addChild(dot)
-
-        return flower
+        return SKTexture(image: image)
     }
 
-    /// Create a Gzhel-style curling vine
-    private func createGzhelVine(length: CGFloat, color: SKColor) -> SKNode {
-        let vine = SKNode()
+    /// Render Gzhel vine to texture for performance
+    private func renderGzhelVineTexture(length: CGFloat, color: SKColor) -> SKTexture {
+        let textureSize = CGSize(width: 40, height: length + 10)
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
 
-        // Main curl
-        let curl = SKShapeNode()
-        let curlPath = CGMutablePath()
-        curlPath.move(to: CGPoint(x: 0, y: -length / 2))
-        curlPath.addQuadCurve(to: CGPoint(x: 15, y: length / 2), control: CGPoint(x: 25, y: 0))
-        curlPath.addQuadCurve(to: CGPoint(x: 10, y: length / 2 - 10), control: CGPoint(x: 20, y: length / 2 + 5))
-        curl.path = curlPath
-        curl.strokeColor = color
-        curl.lineWidth = 2
-        curl.fillColor = .clear
-        vine.addChild(curl)
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            let centerX: CGFloat = 15
+            let centerY = textureSize.height / 2
 
-        // Small leaf
-        let leaf = SKShapeNode(ellipseOf: CGSize(width: 8, height: 14))
-        leaf.fillColor = color
-        leaf.strokeColor = .clear
-        leaf.position = CGPoint(x: 8, y: 0)
-        leaf.zRotation = .pi / 4
-        vine.addChild(leaf)
+            // Main curl
+            ctx.setStrokeColor(color.cgColor)
+            ctx.setLineWidth(2)
+            ctx.setLineCap(.round)
 
-        return vine
+            ctx.move(to: CGPoint(x: centerX, y: centerY - length / 2))
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX + 15, y: centerY + length / 2),
+                control: CGPoint(x: centerX + 25, y: centerY)
+            )
+            ctx.addQuadCurve(
+                to: CGPoint(x: centerX + 10, y: centerY + length / 2 - 10),
+                control: CGPoint(x: centerX + 20, y: centerY + length / 2 + 5)
+            )
+            ctx.strokePath()
+
+            // Small leaf
+            ctx.saveGState()
+            ctx.translateBy(x: centerX + 8, y: centerY)
+            ctx.rotate(by: .pi / 4)
+            let leafRect = CGRect(x: -4, y: -7, width: 8, height: 14)
+            ctx.setFillColor(color.cgColor)
+            ctx.fillEllipse(in: leafRect)
+            ctx.restoreGState()
+        }
+
+        return SKTexture(image: image)
     }
 
     private func setupGame() {
@@ -404,6 +456,15 @@ class GameScene: SKScene {
         // Update player freeze timer
         if playerFreezeTimer > 0 {
             playerFreezeTimer -= 1
+        }
+
+        // Update victory delay timer (5 seconds to collect power-ups)
+        if victoryDelayTimer > 0 {
+            victoryDelayTimer -= 1
+            if victoryDelayTimer == 0 {
+                levelComplete()
+                return
+            }
         }
 
         // Update base protection timer
@@ -1257,9 +1318,10 @@ class GameScene: SKScene {
     // MARK: - Game State
 
     private func checkGameState() {
-        // Check win condition
-        if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) {
-            levelComplete()
+        // Check win condition - start 5 second delay for power-up collection
+        if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) && victoryDelayTimer == 0 && !isGameOver {
+            victoryDelayTimer = 300  // 5 seconds at 60fps
+            showEffect(text: "VICTORY! Collect power-ups!", color: .green)
         }
 
         // Check lose condition

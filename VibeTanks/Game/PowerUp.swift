@@ -136,15 +136,16 @@ class PowerUp: SKSpriteNode {
     static func randomType() -> PowerUpType {
         // Weighted random selection - some power-ups are rarer
         let rand = Double.random(in: 0...1)
-        if rand < 0.15 { return .star }
-        if rand < 0.30 { return .car }
-        if rand < 0.40 { return .gun }
-        if rand < 0.50 { return .shield }
-        if rand < 0.60 { return .tank }
-        if rand < 0.70 { return .freeze }
-        if rand < 0.80 { return .bomb }
-        if rand < 0.87 { return .ship }
-        if rand < 0.94 { return .saw }
+        if rand < 0.14 { return .star }
+        if rand < 0.27 { return .car }
+        if rand < 0.37 { return .gun }
+        if rand < 0.46 { return .shield }
+        if rand < 0.55 { return .tank }
+        if rand < 0.64 { return .freeze }
+        if rand < 0.73 { return .bomb }
+        if rand < 0.80 { return .ship }
+        if rand < 0.87 { return .saw }
+        if rand < 0.94 { return .shovel }
         return .machinegun
     }
 }
