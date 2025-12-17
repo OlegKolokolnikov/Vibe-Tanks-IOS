@@ -57,11 +57,23 @@ class GameScene: SKScene {
     // Player lives to carry across levels
     private var initialLives: Int = 3
 
+    // Power-ups to carry across levels
+    struct PlayerPowerUps {
+        var starCount: Int = 0
+        var machinegunCount: Int = 0
+        var bulletPower: Int = 1
+        var speedMultiplier: CGFloat = 1.0
+        var canSwim: Bool = false
+        var canDestroyTrees: Bool = false
+    }
+    private var initialPowerUps = PlayerPowerUps()
+
     // Level initialization
-    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0) {
+    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps()) {
         self.level = level
         self.score = score
         self.initialLives = lives
+        self.initialPowerUps = powerUps
         self.sessionSeed = sessionSeed == 0 ? UInt64.random(in: 0..<UInt64.max) : sessionSeed
         super.init(size: size)
     }
@@ -138,6 +150,15 @@ class GameScene: SKScene {
             playerNumber: 1
         )
         playerTank.lives = initialLives  // Carry lives from previous level
+
+        // Apply power-ups from previous level
+        playerTank.starCount = initialPowerUps.starCount
+        playerTank.machinegunCount = initialPowerUps.machinegunCount
+        playerTank.bulletPower = initialPowerUps.bulletPower
+        playerTank.speedMultiplier = initialPowerUps.speedMultiplier
+        playerTank.canSwim = initialPowerUps.canSwim
+        playerTank.canDestroyTrees = initialPowerUps.canDestroyTrees
+
         gameLayer.addChild(playerTank)
 
         // Calculate enemies for this level (base 20 + 2 per level)
@@ -1280,8 +1301,16 @@ class GameScene: SKScene {
 
     private func nextLevel() {
         // Keep same session seed for consistent level generation within this game session
-        // Carry over player's lives to next level
-        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed)
+        // Carry over player's lives and power-ups to next level
+        var powerUps = PlayerPowerUps()
+        powerUps.starCount = playerTank.starCount
+        powerUps.machinegunCount = playerTank.machinegunCount
+        powerUps.bulletPower = playerTank.bulletPower
+        powerUps.speedMultiplier = playerTank.speedMultiplier
+        powerUps.canSwim = playerTank.canSwim
+        powerUps.canDestroyTrees = playerTank.canDestroyTrees
+
+        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
