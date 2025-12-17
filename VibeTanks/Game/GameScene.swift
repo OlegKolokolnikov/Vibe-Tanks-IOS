@@ -24,6 +24,9 @@ class GameScene: SKScene {
     // Gzhel decoration state (accessible for cat color)
     private(set) static var isGzhelActive: Bool = false
 
+    // Alien mode state (accessible for enemy spawner)
+    private(set) static var isAlienModeActive: Bool = false
+
     // Game objects
     private var gameMap: GameMap!
     private var playerTank: Tank!
@@ -482,6 +485,7 @@ class GameScene: SKScene {
         // Add Gzhel border decoration if earned from previous level (must be after gameLayer exists)
         print("DEBUG setupGame: showGzhelBorder=\(showGzhelBorder), level=\(level)")
         GameScene.isGzhelActive = showGzhelBorder
+        GameScene.isAlienModeActive = alienMode
         if showGzhelBorder {
             setupGzhelBorder()
             print("DEBUG: Gzhel border setup called!")
@@ -1223,11 +1227,9 @@ class GameScene: SKScene {
             addFreezeEffectToPlayer()
             showEffect(text: "PLAYER FROZEN!", color: .red)
         case .bomb:
-            // Damages player!
-            if !playerTank.hasShield {
-                playerTank.damage()
-                showEffect(text: "PLAYER HIT!", color: .red)
-            }
+            // Kills player instantly! Bypasses ship AND shield protection
+            playerTank.damage(bypassShip: true, bypassShield: true)
+            showEffect(text: "BOMB!", color: .red)
         case .shovel:
             // Enemy removes base protection
             removeBaseProtection()
@@ -1386,10 +1388,11 @@ class GameScene: SKScene {
             if enemy.isAlive {
                 addScore(GameConstants.scoreForEnemyType(enemy.enemyType))
                 killsByType[enemy.enemyType, default: 0] += 1
-                enemy.removeFromParent()
+                // Force kill - bypasses shield and any other protection
+                enemy.damage(bypassShip: true, bypassShield: true)
             }
         }
-        enemyTanks.removeAll()
+        enemyTanks.removeAll { !$0.isAlive }
     }
 
     // MARK: - Base Protection

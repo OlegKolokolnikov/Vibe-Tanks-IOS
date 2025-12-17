@@ -35,14 +35,29 @@ class EnemySpawner {
     }
 
     /// Plan enemy types ensuring guaranteed heavy and power tank counts
+    /// Alien mode: exactly 10 heavy, max 5 power (tough challenge!)
     /// Easy mode: exactly 3 heavy, at least 10 power
     /// Normal mode: exactly 5 heavy, at least 5 power
     private func planEnemyTypes(total: Int) -> [Tank.EnemyType] {
         var types: [Tank.EnemyType] = []
 
-        // Heavy and power counts differ by difficulty
-        let heavyCount = GameScene.isEasyMode ? 3 : 5
-        let powerCount = GameScene.isEasyMode ? 10 : 5
+        // Heavy and power counts differ by mode
+        let heavyCount: Int
+        let powerCount: Int
+
+        if GameScene.isAlienModeActive {
+            // Alien mode - tough challenge with many heavy tanks
+            heavyCount = 10
+            powerCount = 5
+        } else if GameScene.isEasyMode {
+            // Easy mode - fewer heavy, more power-ups
+            heavyCount = 3
+            powerCount = 10
+        } else {
+            // Normal mode
+            heavyCount = 5
+            powerCount = 5
+        }
 
         for _ in 0..<heavyCount {
             types.append(.heavy)

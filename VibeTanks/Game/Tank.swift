@@ -781,11 +781,11 @@ class Tank: SKSpriteNode {
         }
     }
 
-    func damage() {
-        if hasShield { return }
+    func damage(bypassShip: Bool = false, bypassShield: Bool = false) {
+        if hasShield && !bypassShield { return }
 
-        // Ship acts as extra protection - first shot removes ship
-        if canSwim {
+        // Ship acts as extra protection - first shot removes ship (unless bypassed by bomb)
+        if canSwim && !bypassShip {
             canSwim = false
             drawTank()  // Remove ship indicator
             // Flash to indicate ship was lost
