@@ -1944,7 +1944,9 @@ class GameScene: SKScene {
 
         // If UFO escaped this level, next level has alien at base (only one level, then back to cat)
         // If currently in alien mode, alien leaves so next level is normal
-        let nextAlienMode = ufoEscapedThisLevel && !alienMode
+        // UFO escaped if: it spawned this level AND wasn't killed (still alive or escaped earlier)
+        let ufoEscaped = ufoEscapedThisLevel || (ufoSpawnedThisLevel && !ufoWasKilled)
+        let nextAlienMode = ufoEscaped && !alienMode
 
         let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode)
         newScene.scaleMode = scaleMode
