@@ -31,6 +31,7 @@ class GameScene: SKScene {
     private var sessionSeed: UInt64 = 0
     private var isGameOver: Bool = false
     private var isGamePaused: Bool = false
+    private var didWinLevel: Bool = false
 
     // Freeze effect
     private var freezeTimer: Int = 0
@@ -1040,6 +1041,7 @@ class GameScene: SKScene {
 
     private func levelComplete() {
         isGameOver = true
+        didWinLevel = true
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playVictory()
 
@@ -1170,7 +1172,7 @@ class GameScene: SKScene {
 
         if isGameOver {
             // Check if we completed the level or lost
-            if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) {
+            if didWinLevel {
                 nextLevel()
             } else {
                 restartGame()
