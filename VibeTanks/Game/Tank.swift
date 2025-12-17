@@ -810,10 +810,60 @@ class Tank: SKSpriteNode {
             lives -= 1
             isHidden = true
             health = 0  // Ensure health is 0
+            createExplosion()
         } else {
             // Enemy death handled by game scene
             health = 0
         }
+    }
+
+    private func createExplosion() {
+        guard let parent = self.parent else { return }
+
+        let explosion = SKNode()
+        explosion.position = self.position
+        explosion.zPosition = 100
+
+        // Create expanding circles for explosion effect
+        for i in 0..<3 {
+            let circle = SKShapeNode(circleOfRadius: 5)
+            circle.fillColor = [SKColor.red, SKColor.orange, SKColor.yellow][i]
+            circle.strokeColor = .clear
+            explosion.addChild(circle)
+
+            let delay = Double(i) * 0.05
+            let expand = SKAction.scale(to: 3.0 - CGFloat(i) * 0.5, duration: 0.3)
+            let fade = SKAction.fadeOut(withDuration: 0.3)
+            let group = SKAction.group([expand, fade])
+            let sequence = SKAction.sequence([SKAction.wait(forDuration: delay), group])
+            circle.run(sequence)
+        }
+
+        // Add particles
+        for _ in 0..<8 {
+            let particle = SKShapeNode(circleOfRadius: 3)
+            particle.fillColor = [SKColor.red, SKColor.orange, SKColor.yellow].randomElement()!
+            particle.strokeColor = .clear
+            explosion.addChild(particle)
+
+            let angle = CGFloat.random(in: 0...(.pi * 2))
+            let distance: CGFloat = CGFloat.random(in: 20...40)
+            let dx = cos(angle) * distance
+            let dy = sin(angle) * distance
+
+            let move = SKAction.moveBy(x: dx, y: dy, duration: 0.4)
+            let fade = SKAction.fadeOut(withDuration: 0.4)
+            let group = SKAction.group([move, fade])
+            particle.run(group)
+        }
+
+        parent.addChild(explosion)
+
+        // Remove explosion after animation
+        explosion.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.5),
+            SKAction.removeFromParent()
+        ]))
     }
 
     var isAlive: Bool {
@@ -831,15 +881,7 @@ class Tank: SKSpriteNode {
     func respawn(at position: CGPoint) {
         pendingRespawnPosition = position
         respawnTimer = GameConstants.respawnDelay
-
-        // Show blinking spawn indicator while waiting
-        isHidden = false
-        alpha = 0.3
-        let blink = SKAction.repeatForever(SKAction.sequence([
-            SKAction.fadeAlpha(to: 0.5, duration: 0.2),
-            SKAction.fadeAlpha(to: 0.2, duration: 0.2)
-        ]))
-        run(blink, withKey: "respawnBlink")
+        // Player stays hidden until respawn completes
     }
 
     func updateRespawnTimer() {
@@ -852,10 +894,6 @@ class Tank: SKSpriteNode {
     }
 
     private func completeRespawn() {
-        // Stop blinking
-        removeAction(forKey: "respawnBlink")
-        alpha = 1.0
-
         // Set position (use pending or default spawn point)
         let spawnPos = pendingRespawnPosition ?? CGPoint(
             x: GameConstants.tileSize * 8,
@@ -863,9 +901,10 @@ class Tank: SKSpriteNode {
         )
         position = spawnPos
 
-        // Restore health
+        // Restore health and visibility
         health = maxHealth
         isHidden = false
+        alpha = 1.0
 
         // Reset all power-ups on respawn
         resetPowerUps()
