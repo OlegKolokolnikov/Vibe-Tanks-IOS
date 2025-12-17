@@ -1388,8 +1388,10 @@ class GameScene: SKScene {
             if enemy.isAlive {
                 addScore(GameConstants.scoreForEnemyType(enemy.enemyType))
                 killsByType[enemy.enemyType, default: 0] += 1
-                // Force kill - bypasses shield and any other protection
-                enemy.damage(bypassShip: true, bypassShield: true)
+                // Force kill - keep damaging until dead (for heavy tanks with multiple health)
+                while enemy.isAlive {
+                    enemy.damage(bypassShip: true, bypassShield: true)
+                }
             }
         }
         enemyTanks.removeAll { !$0.isAlive }
