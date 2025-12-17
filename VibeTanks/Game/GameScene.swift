@@ -28,11 +28,16 @@ class GameScene: SKScene {
 
     // Game state
     private var score: Int = 0
+    private var lastBonusLifeScore: Int = 0  // Track last 100-point milestone
     private var level: Int = 1
     private var sessionSeed: UInt64 = 0
     private var isGameOver: Bool = false
     private var isGamePaused: Bool = false
     private var didWinLevel: Bool = false
+
+    // Level stats for score breakdown
+    private var levelStartScore: Int = 0
+    private var killsByType: [Tank.EnemyType: Int] = [:]
 
     // Freeze effect
     private var freezeTimer: Int = 0
@@ -103,6 +108,10 @@ class GameScene: SKScene {
     }
 
     private func setupGame() {
+        // Initialize level stats tracking
+        levelStartScore = score
+        killsByType = [:]
+
         // Create game layer
         gameLayer = SKNode()
         addChild(gameLayer)
@@ -562,17 +571,25 @@ class GameScene: SKScene {
             if !bullet.isFromEnemy {
                 for enemy in enemyTanks {
                     if enemy.isAlive && bullet.collidesWith(enemy) {
+                        let wasPowerTank = enemy.enemyType == .power
                         enemy.damage()
                         bulletsToRemove.append(bullet)
 
+                        // Power tanks drop power-up every time they are shot
+                        if wasPowerTank {
+                            spawnPowerUp(at: enemy.position)
+                        }
+
                         if !enemy.isAlive {
                             enemiesToRemove.append(enemy)
-                            score += GameConstants.scoreForEnemyType(enemy.enemyType)
+                            let killedType = wasPowerTank ? Tank.EnemyType.power : enemy.enemyType
+                            addScore(GameConstants.scoreForEnemyType(killedType))
                             playerKills += 1
+                            killsByType[killedType, default: 0] += 1
                             SoundManager.shared.playExplosion()
 
-                            // Power enemies drop power-ups
-                            if enemy.enemyType == .power {
+                            // Other enemies have 20% chance to drop power-up when killed
+                            if !wasPowerTank && Int.random(in: 1...5) == 1 {
                                 spawnPowerUp(at: enemy.position)
                             }
                         }
@@ -594,6 +611,9 @@ class GameScene: SKScene {
 
                         if !playerTank.isAlive {
                             SoundManager.shared.playPlayerDeath()
+                            // Reset player freeze when killed
+                            playerFreezeTimer = 0
+                            playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
                         }
 
                         if !playerTank.isAlive && playerTank.lives > 0 {
@@ -876,6 +896,9 @@ class GameScene: SKScene {
     }
 
     private func handlePowerUpCollection(_ powerUp: PowerUp) {
+        // All power-ups give 1 point
+        addScore(1)
+
         switch powerUp.type {
         case .freeze:
             // Freeze enemies for 30 seconds with animation
@@ -947,7 +970,8 @@ class GameScene: SKScene {
     private func destroyAllEnemies() {
         for enemy in enemyTanks {
             if enemy.isAlive {
-                score += GameConstants.scoreForEnemyType(enemy.enemyType)
+                addScore(GameConstants.scoreForEnemyType(enemy.enemyType))
+                killsByType[enemy.enemyType, default: 0] += 1
                 enemy.removeFromParent()
             }
         }
@@ -1078,38 +1102,7 @@ class GameScene: SKScene {
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playVictory()
 
-        let cameraScale = gameCamera.xScale
-
-        let label = SKLabelNode(text: "LEVEL \(level) COMPLETE!")
-        label.fontName = "Helvetica-Bold"
-        label.fontSize = 36 * cameraScale
-        label.fontColor = .green
-        label.position = CGPoint(x: 0, y: 50 * cameraScale)
-        label.zPosition = 200
-        gameCamera.addChild(label)
-
-        // Score
-        let scoreText = SKLabelNode(text: "Score: \(score)")
-        scoreText.fontName = "Helvetica-Bold"
-        scoreText.fontSize = 20 * cameraScale
-        scoreText.fontColor = .yellow
-        scoreText.position = CGPoint(x: 0, y: 10 * cameraScale)
-        scoreText.zPosition = 200
-        gameCamera.addChild(scoreText)
-
-        // Next level button
-        let nextButton = createPauseButton(text: "NEXT LEVEL", cameraScale: cameraScale)
-        nextButton.position = CGPoint(x: 0, y: -40 * cameraScale)
-        nextButton.zPosition = 200
-        nextButton.name = "nextLevelButton"
-        gameCamera.addChild(nextButton)
-
-        // Menu button
-        let menuButton = createPauseButton(text: "MENU", cameraScale: cameraScale)
-        menuButton.position = CGPoint(x: 0, y: -100 * cameraScale)
-        menuButton.zPosition = 200
-        menuButton.name = "menuButton"
-        gameCamera.addChild(menuButton)
+        showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false)
 
         // If player collected easter egg, cat plays with toy!
         if playerCollectedEasterEgg {
@@ -1193,39 +1186,187 @@ class GameScene: SKScene {
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playGameOver()
 
+        showScoreBreakdown(title: "GAME OVER", titleColor: .red, showRestart: true)
+    }
+
+    /// Show score breakdown screen with tank kill stats
+    private func showScoreBreakdown(title: String, titleColor: SKColor, showRestart: Bool) {
         let cameraScale = gameCamera.xScale
+        let lineHeight: CGFloat = 28 * cameraScale
+        var yPos: CGFloat = 140 * cameraScale
 
-        let message = won ? "VICTORY!" : "GAME OVER"
-        let label = SKLabelNode(text: message)
-        label.fontName = "Helvetica-Bold"
-        label.fontSize = 48 * cameraScale
-        label.fontColor = won ? .green : .red
-        label.position = CGPoint(x: 0, y: 50 * cameraScale)
-        label.zPosition = 200
-        gameCamera.addChild(label)
+        // Level number at the top
+        let levelLabel = SKLabelNode(text: "Level \(level)")
+        levelLabel.fontName = "Helvetica-Bold"
+        levelLabel.fontSize = 28 * cameraScale
+        levelLabel.fontColor = .white
+        levelLabel.position = CGPoint(x: 0, y: yPos)
+        levelLabel.zPosition = 200
+        gameCamera.addChild(levelLabel)
+        yPos -= lineHeight * 1.5
 
-        // Show final score
-        let scoreText = SKLabelNode(text: "Final Score: \(score)")
-        scoreText.fontName = "Helvetica-Bold"
-        scoreText.fontSize = 24 * cameraScale
-        scoreText.fontColor = .yellow
-        scoreText.position = CGPoint(x: 0, y: 0 * cameraScale)
-        scoreText.zPosition = 200
-        gameCamera.addChild(scoreText)
+        // Title (GAME OVER or LEVEL COMPLETE)
+        let titleLabel = SKLabelNode(text: title)
+        titleLabel.fontName = "Helvetica-Bold"
+        titleLabel.fontSize = 36 * cameraScale
+        titleLabel.fontColor = titleColor
+        titleLabel.position = CGPoint(x: 0, y: yPos)
+        titleLabel.zPosition = 200
+        gameCamera.addChild(titleLabel)
+        yPos -= lineHeight * 1.5
 
-        // Restart button
-        let restartButton = createPauseButton(text: "RESTART", cameraScale: cameraScale)
-        restartButton.position = CGPoint(x: 0, y: -50 * cameraScale)
-        restartButton.zPosition = 200
-        restartButton.name = "restartButton"
-        gameCamera.addChild(restartButton)
+        // Kill breakdown for each enemy type (only show types with kills)
+        let enemyTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power, .heavy, .boss]
+        for type in enemyTypes {
+            let count = killsByType[type] ?? 0
+            if count > 0 {
+                let points = GameConstants.scoreForEnemyType(type) * count
+                let row = createKillRow(enemyType: type, count: count, points: points, cameraScale: cameraScale)
+                row.position = CGPoint(x: 0, y: yPos)
+                row.zPosition = 200
+                gameCamera.addChild(row)
+                yPos -= lineHeight
+            }
+        }
 
-        // Menu button
+        // Separator line
+        yPos -= lineHeight * 0.3
+        let separator = SKShapeNode(rectOf: CGSize(width: 200 * cameraScale, height: 2 * cameraScale))
+        separator.fillColor = .white
+        separator.strokeColor = .clear
+        separator.position = CGPoint(x: 0, y: yPos)
+        separator.zPosition = 200
+        gameCamera.addChild(separator)
+        yPos -= lineHeight * 0.8
+
+        // Round score
+        let roundScore = score - levelStartScore
+        let roundScoreLabel = SKLabelNode(text: "Round Score: \(roundScore)")
+        roundScoreLabel.fontName = "Helvetica-Bold"
+        roundScoreLabel.fontSize = 20 * cameraScale
+        roundScoreLabel.fontColor = .yellow
+        roundScoreLabel.position = CGPoint(x: 0, y: yPos)
+        roundScoreLabel.zPosition = 200
+        gameCamera.addChild(roundScoreLabel)
+        yPos -= lineHeight
+
+        // Total score
+        let totalScoreLabel = SKLabelNode(text: "Total Score: \(score)")
+        totalScoreLabel.fontName = "Helvetica-Bold"
+        totalScoreLabel.fontSize = 22 * cameraScale
+        totalScoreLabel.fontColor = .cyan
+        totalScoreLabel.position = CGPoint(x: 0, y: yPos)
+        totalScoreLabel.zPosition = 200
+        gameCamera.addChild(totalScoreLabel)
+        yPos -= lineHeight * 1.5
+
+        // Buttons
+        if showRestart {
+            let restartButton = createPauseButton(text: "RESTART", cameraScale: cameraScale)
+            restartButton.position = CGPoint(x: 0, y: yPos)
+            restartButton.zPosition = 200
+            restartButton.name = "restartButton"
+            gameCamera.addChild(restartButton)
+            yPos -= 60 * cameraScale
+        } else {
+            let nextButton = createPauseButton(text: "NEXT LEVEL", cameraScale: cameraScale)
+            nextButton.position = CGPoint(x: 0, y: yPos)
+            nextButton.zPosition = 200
+            nextButton.name = "nextLevelButton"
+            gameCamera.addChild(nextButton)
+            yPos -= 60 * cameraScale
+        }
+
         let menuButton = createPauseButton(text: "MENU", cameraScale: cameraScale)
-        menuButton.position = CGPoint(x: 0, y: -110 * cameraScale)
+        menuButton.position = CGPoint(x: 0, y: yPos)
         menuButton.zPosition = 200
         menuButton.name = "menuButton"
         gameCamera.addChild(menuButton)
+    }
+
+    /// Create a row showing: [tank icon] x [count] : [points]
+    private func createKillRow(enemyType: Tank.EnemyType, count: Int, points: Int, cameraScale: CGFloat) -> SKNode {
+        let container = SKNode()
+        let iconSize: CGFloat = 20 * cameraScale
+
+        // Tank icon
+        let tankIcon = createMiniTankIcon(type: enemyType, size: iconSize)
+        tankIcon.position = CGPoint(x: -80 * cameraScale, y: 0)
+        container.addChild(tankIcon)
+
+        // "x count"
+        let countLabel = SKLabelNode(text: "× \(count)")
+        countLabel.fontName = "Helvetica-Bold"
+        countLabel.fontSize = 16 * cameraScale
+        countLabel.fontColor = .white
+        countLabel.horizontalAlignmentMode = .left
+        countLabel.verticalAlignmentMode = .center
+        countLabel.position = CGPoint(x: -50 * cameraScale, y: 0)
+        container.addChild(countLabel)
+
+        // ": points"
+        let pointsLabel = SKLabelNode(text: ": \(points)")
+        pointsLabel.fontName = "Helvetica-Bold"
+        pointsLabel.fontSize = 16 * cameraScale
+        pointsLabel.fontColor = .yellow
+        pointsLabel.horizontalAlignmentMode = .left
+        pointsLabel.verticalAlignmentMode = .center
+        pointsLabel.position = CGPoint(x: 20 * cameraScale, y: 0)
+        container.addChild(pointsLabel)
+
+        return container
+    }
+
+    /// Create a mini tank icon for score breakdown
+    private func createMiniTankIcon(type: Tank.EnemyType, size: CGFloat) -> SKNode {
+        let container = SKNode()
+
+        // Get color based on enemy type
+        let color: SKColor
+        switch type {
+        case .regular:
+            color = SKColor(red: 0.75, green: 0.75, blue: 0.75, alpha: 1.0)  // Silver
+        case .fast:
+            color = SKColor(red: 0.6, green: 0.8, blue: 1.0, alpha: 1.0)  // Light blue
+        case .armored:
+            color = SKColor(red: 0.0, green: 0.6, blue: 0.0, alpha: 1.0)  // Green
+        case .power:
+            color = SKColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)  // Red (rainbow simplified)
+        case .heavy:
+            color = SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)  // Dark gray
+        case .boss:
+            color = SKColor(red: 0.5, green: 0.0, blue: 0.5, alpha: 1.0)  // Purple
+        }
+
+        // Tank body
+        let body = SKShapeNode(rectOf: CGSize(width: size * 0.6, height: size * 0.5))
+        body.fillColor = color
+        body.strokeColor = .clear
+        container.addChild(body)
+
+        // Tracks
+        let trackW = size * 0.15
+        let trackH = size * 0.7
+        let leftTrack = SKShapeNode(rectOf: CGSize(width: trackW, height: trackH))
+        leftTrack.fillColor = color
+        leftTrack.strokeColor = .clear
+        leftTrack.position = CGPoint(x: -size * 0.35, y: 0)
+        container.addChild(leftTrack)
+
+        let rightTrack = SKShapeNode(rectOf: CGSize(width: trackW, height: trackH))
+        rightTrack.fillColor = color
+        rightTrack.strokeColor = .clear
+        rightTrack.position = CGPoint(x: size * 0.35, y: 0)
+        container.addChild(rightTrack)
+
+        // Barrel
+        let barrel = SKShapeNode(rectOf: CGSize(width: size * 0.15, height: size * 0.4))
+        barrel.fillColor = color
+        barrel.strokeColor = .clear
+        barrel.position = CGPoint(x: 0, y: size * 0.35)
+        container.addChild(barrel)
+
+        return container
     }
 
     private func updateUI() {
@@ -1248,6 +1389,20 @@ class GameScene: SKScene {
             level: level,
             powerUps: powerUps
         )
+    }
+
+    /// Add score and check for bonus life every 100 points
+    private func addScore(_ points: Int) {
+        let oldMilestone = score / 100
+        score += points
+        let newMilestone = score / 100
+
+        // Award bonus life for each 100-point milestone reached
+        if newMilestone > oldMilestone {
+            let bonusLives = newMilestone - oldMilestone
+            playerTank.addLives(bonusLives)
+            showEffect(text: "+\(bonusLives) LIFE!", color: .magenta)
+        }
     }
 
     // MARK: - Helpers
