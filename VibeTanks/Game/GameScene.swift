@@ -220,7 +220,7 @@ class GameScene: SKScene {
             gzhelLayer.addChild(vine2)
         }
 
-        addChild(gzhelLayer)
+        gameLayer.addChild(gzhelLayer)
     }
 
     /// Render Gzhel flower to texture for performance
@@ -335,14 +335,14 @@ class GameScene: SKScene {
         levelStartScore = score
         killsByType = [:]
 
-        // Add Gzhel border decoration if earned from previous level
-        if showGzhelBorder {
-            setupGzhelBorder()
-        }
-
         // Create game layer
         gameLayer = SKNode()
         addChild(gameLayer)
+
+        // Add Gzhel border decoration if earned from previous level (must be after gameLayer exists)
+        if showGzhelBorder {
+            setupGzhelBorder()
+        }
 
         // Create map with session seed + level for deterministic but session-unique generation
         let mapSeed = sessionSeed + UInt64(level * 12345)
