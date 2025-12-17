@@ -77,12 +77,16 @@ class GameScene: SKScene {
     }
     private var initialPowerUps = PlayerPowerUps()
 
+    // Gzhel decoration (reward for cat victory)
+    private var showGzhelBorder: Bool = false
+
     // Level initialization
-    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps()) {
+    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false) {
         self.level = level
         self.score = score
         self.initialLives = lives
         self.initialPowerUps = powerUps
+        self.showGzhelBorder = gzhelBorder
         self.sessionSeed = sessionSeed == 0 ? UInt64.random(in: 0..<UInt64.max) : sessionSeed
         super.init(size: size)
     }
@@ -110,10 +114,175 @@ class GameScene: SKScene {
         addChild(gameCamera)
     }
 
+    /// Setup Gzhel (Russian blue ceramic) style border decoration
+    private func setupGzhelBorder() {
+        let gzhelLayer = SKNode()
+        gzhelLayer.zPosition = -10  // Behind everything
+
+        // Gzhel colors
+        let gzhelBlue = SKColor(red: 0.0, green: 0.3, blue: 0.7, alpha: 1.0)
+        let gzhelLightBlue = SKColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 1.0)
+        let gzhelWhite = SKColor.white
+
+        // Calculate border areas (screen edges outside game area)
+        let mapWidth = CGFloat(GameConstants.mapWidth) * GameConstants.tileSize
+        let mapHeight = CGFloat(GameConstants.mapHeight) * GameConstants.tileSize
+        let totalWidth = mapWidth + GameConstants.sidebarWidth
+
+        // White background for borders
+        let leftBorder = SKShapeNode(rectOf: CGSize(width: 200, height: mapHeight + 400))
+        leftBorder.fillColor = gzhelWhite
+        leftBorder.strokeColor = .clear
+        leftBorder.position = CGPoint(x: -100, y: mapHeight / 2)
+        gzhelLayer.addChild(leftBorder)
+
+        let rightBorder = SKShapeNode(rectOf: CGSize(width: 200, height: mapHeight + 400))
+        rightBorder.fillColor = gzhelWhite
+        rightBorder.strokeColor = .clear
+        rightBorder.position = CGPoint(x: totalWidth + 100, y: mapHeight / 2)
+        gzhelLayer.addChild(rightBorder)
+
+        let topBorder = SKShapeNode(rectOf: CGSize(width: totalWidth + 400, height: 200))
+        topBorder.fillColor = gzhelWhite
+        topBorder.strokeColor = .clear
+        topBorder.position = CGPoint(x: totalWidth / 2, y: mapHeight + 100)
+        gzhelLayer.addChild(topBorder)
+
+        let bottomBorder = SKShapeNode(rectOf: CGSize(width: totalWidth + 400, height: 200))
+        bottomBorder.fillColor = gzhelWhite
+        bottomBorder.strokeColor = .clear
+        bottomBorder.position = CGPoint(x: totalWidth / 2, y: -100)
+        gzhelLayer.addChild(bottomBorder)
+
+        // Add Gzhel flowers along borders
+        let flowerSpacing: CGFloat = 80
+
+        // Left side flowers
+        for y in stride(from: CGFloat(40), to: mapHeight, by: flowerSpacing) {
+            let flower = createGzhelFlower(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            flower.position = CGPoint(x: -30, y: y)
+            gzhelLayer.addChild(flower)
+        }
+
+        // Right side flowers
+        for y in stride(from: CGFloat(40), to: mapHeight, by: flowerSpacing) {
+            let flower = createGzhelFlower(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            flower.position = CGPoint(x: totalWidth + 30, y: y)
+            flower.xScale = -1  // Mirror
+            gzhelLayer.addChild(flower)
+        }
+
+        // Top flowers
+        for x in stride(from: CGFloat(40), to: totalWidth, by: flowerSpacing) {
+            let flower = createGzhelFlower(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            flower.position = CGPoint(x: x, y: mapHeight + 30)
+            flower.zRotation = -.pi / 2
+            gzhelLayer.addChild(flower)
+        }
+
+        // Bottom flowers
+        for x in stride(from: CGFloat(40), to: totalWidth, by: flowerSpacing) {
+            let flower = createGzhelFlower(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
+            flower.position = CGPoint(x: x, y: -30)
+            flower.zRotation = .pi / 2
+            gzhelLayer.addChild(flower)
+        }
+
+        // Add decorative vines/scrollwork between flowers
+        for y in stride(from: CGFloat(70), to: mapHeight - 40, by: flowerSpacing) {
+            let vine = createGzhelVine(length: 50, color: gzhelBlue)
+            vine.position = CGPoint(x: -45, y: y + flowerSpacing / 2)
+            gzhelLayer.addChild(vine)
+
+            let vine2 = createGzhelVine(length: 50, color: gzhelBlue)
+            vine2.position = CGPoint(x: totalWidth + 45, y: y + flowerSpacing / 2)
+            vine2.xScale = -1
+            gzhelLayer.addChild(vine2)
+        }
+
+        addChild(gzhelLayer)
+    }
+
+    /// Create a Gzhel-style flower
+    private func createGzhelFlower(size: CGFloat, blueColor: SKColor, lightBlue: SKColor) -> SKNode {
+        let flower = SKNode()
+
+        // Outer petals (5 petals)
+        for i in 0..<5 {
+            let angle = CGFloat(i) * .pi * 2 / 5
+            let petal = SKShapeNode(ellipseOf: CGSize(width: size * 0.4, height: size * 0.7))
+            petal.fillColor = blueColor
+            petal.strokeColor = lightBlue
+            petal.lineWidth = 1
+            petal.position = CGPoint(x: cos(angle) * size * 0.3, y: sin(angle) * size * 0.3)
+            petal.zRotation = angle + .pi / 2
+            flower.addChild(petal)
+        }
+
+        // Inner petals
+        for i in 0..<5 {
+            let angle = CGFloat(i) * .pi * 2 / 5 + .pi / 5
+            let petal = SKShapeNode(ellipseOf: CGSize(width: size * 0.25, height: size * 0.45))
+            petal.fillColor = lightBlue
+            petal.strokeColor = blueColor
+            petal.lineWidth = 0.5
+            petal.position = CGPoint(x: cos(angle) * size * 0.15, y: sin(angle) * size * 0.15)
+            petal.zRotation = angle + .pi / 2
+            flower.addChild(petal)
+        }
+
+        // Center
+        let center = SKShapeNode(circleOfRadius: size * 0.15)
+        center.fillColor = .white
+        center.strokeColor = blueColor
+        center.lineWidth = 1
+        flower.addChild(center)
+
+        // Center dot
+        let dot = SKShapeNode(circleOfRadius: size * 0.06)
+        dot.fillColor = blueColor
+        dot.strokeColor = .clear
+        flower.addChild(dot)
+
+        return flower
+    }
+
+    /// Create a Gzhel-style curling vine
+    private func createGzhelVine(length: CGFloat, color: SKColor) -> SKNode {
+        let vine = SKNode()
+
+        // Main curl
+        let curl = SKShapeNode()
+        let curlPath = CGMutablePath()
+        curlPath.move(to: CGPoint(x: 0, y: -length / 2))
+        curlPath.addQuadCurve(to: CGPoint(x: 15, y: length / 2), control: CGPoint(x: 25, y: 0))
+        curlPath.addQuadCurve(to: CGPoint(x: 10, y: length / 2 - 10), control: CGPoint(x: 20, y: length / 2 + 5))
+        curl.path = curlPath
+        curl.strokeColor = color
+        curl.lineWidth = 2
+        curl.fillColor = .clear
+        vine.addChild(curl)
+
+        // Small leaf
+        let leaf = SKShapeNode(ellipseOf: CGSize(width: 8, height: 14))
+        leaf.fillColor = color
+        leaf.strokeColor = .clear
+        leaf.position = CGPoint(x: 8, y: 0)
+        leaf.zRotation = .pi / 4
+        vine.addChild(leaf)
+
+        return vine
+    }
+
     private func setupGame() {
         // Initialize level stats tracking
         levelStartScore = score
         killsByType = [:]
+
+        // Add Gzhel border decoration if earned from previous level
+        if showGzhelBorder {
+            setupGzhelBorder()
+        }
 
         // Create game layer
         gameLayer = SKNode()
@@ -1502,7 +1671,10 @@ class GameScene: SKScene {
         powerUps.canSwim = playerTank.canSwim
         powerUps.canDestroyTrees = playerTank.canDestroyTrees
 
-        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps)
+        // If player collected easter egg and cat played, next level gets Gzhel decoration
+        let earnedGzhel = playerCollectedEasterEgg
+
+        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
