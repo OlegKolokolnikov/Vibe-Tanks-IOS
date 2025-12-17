@@ -3,6 +3,9 @@ import SpriteKit
 /// Main game scene
 class GameScene: SKScene {
 
+    // Highscore (persists across games until app restart)
+    private static var highScore: Int = 250
+
     // Game objects
     private var gameMap: GameMap!
     private var playerTank: Tank!
@@ -1258,7 +1261,29 @@ class GameScene: SKScene {
         totalScoreLabel.position = CGPoint(x: 0, y: yPos)
         totalScoreLabel.zPosition = 200
         gameCamera.addChild(totalScoreLabel)
-        yPos -= lineHeight * 1.5
+        yPos -= lineHeight
+
+        // Highscore check (only on game over, not level complete)
+        if showRestart && score > GameScene.highScore {
+            GameScene.highScore = score
+
+            let highScoreLabel = SKLabelNode(text: "HIGHSCORE \(score)")
+            highScoreLabel.fontName = "Helvetica-Bold"
+            highScoreLabel.fontSize = 26 * cameraScale
+            highScoreLabel.fontColor = .magenta
+            highScoreLabel.position = CGPoint(x: 0, y: yPos)
+            highScoreLabel.zPosition = 200
+            gameCamera.addChild(highScoreLabel)
+
+            // Blinking animation
+            let fadeOut = SKAction.fadeAlpha(to: 0.2, duration: 0.3)
+            let fadeIn = SKAction.fadeAlpha(to: 1.0, duration: 0.3)
+            let blink = SKAction.sequence([fadeOut, fadeIn])
+            highScoreLabel.run(SKAction.repeatForever(blink))
+
+            yPos -= lineHeight
+        }
+        yPos -= lineHeight * 0.5
 
         // Buttons
         if showRestart {
