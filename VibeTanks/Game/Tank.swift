@@ -809,11 +809,10 @@ class Tank: SKSpriteNode {
         if isPlayer {
             lives -= 1
             isHidden = true
-            if lives > 0 {
-                // Will respawn
-            }
+            health = 0  // Ensure health is 0
         } else {
             // Enemy death handled by game scene
+            health = 0
         }
     }
 
@@ -832,20 +831,39 @@ class Tank: SKSpriteNode {
     func respawn(at position: CGPoint) {
         pendingRespawnPosition = position
         respawnTimer = GameConstants.respawnDelay
+
+        // Show blinking spawn indicator while waiting
+        isHidden = false
+        alpha = 0.3
+        let blink = SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.5, duration: 0.2),
+            SKAction.fadeAlpha(to: 0.2, duration: 0.2)
+        ]))
+        run(blink, withKey: "respawnBlink")
     }
 
     func updateRespawnTimer() {
-        if respawnTimer > 0 {
-            respawnTimer -= 1
-            if respawnTimer == 0 {
-                completeRespawn()
-            }
+        guard respawnTimer > 0 else { return }
+
+        respawnTimer -= 1
+        if respawnTimer == 0 {
+            completeRespawn()
         }
     }
 
     private func completeRespawn() {
-        guard let pos = pendingRespawnPosition else { return }
-        position = pos
+        // Stop blinking
+        removeAction(forKey: "respawnBlink")
+        alpha = 1.0
+
+        // Set position (use pending or default spawn point)
+        let spawnPos = pendingRespawnPosition ?? CGPoint(
+            x: GameConstants.tileSize * 8,
+            y: GameConstants.tileSize * 2
+        )
+        position = spawnPos
+
+        // Restore health
         health = maxHealth
         isHidden = false
 
@@ -856,6 +874,9 @@ class Tank: SKSpriteNode {
         hasShield = true
         shieldTimer = 180 // 3 seconds of shield
         drawTank()
+
+        // Clear pending position
+        pendingRespawnPosition = nil
     }
 
     /// Reset all power-ups (called when player dies)
