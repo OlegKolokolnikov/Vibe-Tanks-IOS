@@ -57,12 +57,16 @@ class GameScene: SKScene {
     // Player lives to carry across levels
     private var initialLives: Int = 3
 
+    // Test mode - override enemy count
+    private var testEnemyCount: Int?
+
     // Level initialization
-    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0) {
+    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, testEnemyCount: Int? = nil) {
         self.level = level
         self.score = score
         self.initialLives = lives
         self.sessionSeed = sessionSeed == 0 ? UInt64.random(in: 0..<UInt64.max) : sessionSeed
+        self.testEnemyCount = testEnemyCount
         super.init(size: size)
     }
 
@@ -140,8 +144,8 @@ class GameScene: SKScene {
         playerTank.lives = initialLives  // Carry lives from previous level
         gameLayer.addChild(playerTank)
 
-        // Calculate enemies for this level (base 20 + 2 per level)
-        let totalEnemies = min(20 + (level - 1) * 2, 50)
+        // Calculate enemies for this level (base 20 + 2 per level), or use test override
+        let totalEnemies = testEnemyCount ?? min(20 + (level - 1) * 2, 50)
 
         // Setup enemy spawner
         enemySpawner = EnemySpawner(

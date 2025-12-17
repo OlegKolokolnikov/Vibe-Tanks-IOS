@@ -25,9 +25,14 @@ class MenuScene: SKScene {
         addChild(subtitle)
 
         // Play button
-        let playButton = createButton(text: "PLAY", position: CGPoint(x: size.width / 2, y: size.height * 0.45))
+        let playButton = createButton(text: "PLAY", position: CGPoint(x: size.width / 2, y: size.height * 0.48))
         playButton.name = "playButton"
         addChild(playButton)
+
+        // Test button (5 enemies only)
+        let testButton = createButton(text: "TEST (5)", position: CGPoint(x: size.width / 2, y: size.height * 0.38), smaller: true)
+        testButton.name = "testButton"
+        addChild(testButton)
 
         // Instructions
         let instructions = SKLabelNode(text: "Defend your base from enemy tanks!")
@@ -58,22 +63,23 @@ class MenuScene: SKScene {
         addTankDecoration(at: CGPoint(x: size.width * 0.8, y: size.height * 0.5), direction: .left)
     }
 
-    private func createButton(text: String, position: CGPoint) -> SKNode {
+    private func createButton(text: String, position: CGPoint, smaller: Bool = false) -> SKNode {
         let container = SKNode()
         container.position = position
 
         // Button background
-        let background = SKShapeNode(rectOf: CGSize(width: 200, height: 50), cornerRadius: 8)
+        let buttonSize = smaller ? CGSize(width: 140, height: 36) : CGSize(width: 200, height: 50)
+        let background = SKShapeNode(rectOf: buttonSize, cornerRadius: 8)
         background.fillColor = SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)
-        background.strokeColor = .yellow
+        background.strokeColor = smaller ? .gray : .yellow
         background.lineWidth = 2
         container.addChild(background)
 
         // Button text
         let label = SKLabelNode(text: text)
         label.fontName = "Helvetica-Bold"
-        label.fontSize = 24
-        label.fontColor = .white
+        label.fontSize = smaller ? 16 : 24
+        label.fontColor = smaller ? .lightGray : .white
         label.verticalAlignmentMode = .center
         container.addChild(label)
 
@@ -127,13 +133,17 @@ class MenuScene: SKScene {
                 startGame()
                 return
             }
+            if node.name == "testButton" || node.parent?.name == "testButton" {
+                startGame(testEnemyCount: 5)
+                return
+            }
         }
     }
 
-    private func startGame() {
+    private func startGame(testEnemyCount: Int? = nil) {
         // Generate a new random session seed for this game session
         let sessionSeed = UInt64.random(in: 0..<UInt64.max)
-        let gameScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed)
+        let gameScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed, testEnemyCount: testEnemyCount)
         gameScene.scaleMode = scaleMode
 
         let transition = SKTransition.fade(withDuration: 0.5)
