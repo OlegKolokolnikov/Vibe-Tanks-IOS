@@ -146,6 +146,16 @@ class TouchController: SKNode {
         pauseButton.setScale(scale)
     }
 
+    func setGzhelMode(_ isGzhel: Bool) {
+        let barColor: SKColor = isGzhel ? .blue : .white
+        for child in pauseButton.children {
+            if let bar = child as? SKShapeNode {
+                bar.fillColor = barColor
+            }
+        }
+        pauseButton.strokeColor = isGzhel ? SKColor.blue.withAlphaComponent(0.6) : SKColor.white.withAlphaComponent(0.6)
+    }
+
     // MARK: - Touch Handling
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {

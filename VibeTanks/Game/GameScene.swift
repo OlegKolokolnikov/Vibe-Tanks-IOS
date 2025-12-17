@@ -101,13 +101,18 @@ class GameScene: SKScene {
     // Gzhel decoration (reward for cat victory)
     private var showGzhelBorder: Bool = false
 
+    // Alien mode (when UFO escaped previous level - alien is at base instead of cat)
+    private var alienMode: Bool = false
+    private var ufoEscapedThisLevel: Bool = false  // Track if UFO escapes to trigger alien mode next level
+
     // Level initialization
-    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false) {
+    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false) {
         self.level = level
         self.score = score
         self.initialLives = lives
         self.initialPowerUps = powerUps
         self.showGzhelBorder = gzhelBorder
+        self.alienMode = alienMode
         self.sessionSeed = sessionSeed == 0 ? UInt64.random(in: 0..<UInt64.max) : sessionSeed
         super.init(size: size)
     }
@@ -511,7 +516,7 @@ class GameScene: SKScene {
             x: CGFloat(baseCol) * GameConstants.tileSize + GameConstants.tileSize / 2,
             y: CGFloat(GameConstants.mapHeight - 1 - baseRow) * GameConstants.tileSize + GameConstants.tileSize / 2
         )
-        base = Base(position: basePosition)
+        base = Base(position: basePosition, isAlien: alienMode)
         gameLayer.addChild(base)
 
         // Create player tank
@@ -561,13 +566,14 @@ class GameScene: SKScene {
         touchController = TouchController()
         let visibleSize = CGSize(width: size.width * cameraScale, height: size.height * cameraScale)
         touchController.setupForScreen(size: visibleSize)
+        touchController.setGzhelMode(showGzhelBorder)
         gameCamera.addChild(touchController)
 
         // Score label - positioned at top left with safe margin
         scoreLabel = SKLabelNode(text: "Score: 0")
         scoreLabel.fontName = "Helvetica-Bold"
         scoreLabel.fontSize = 18
-        scoreLabel.fontColor = .white
+        scoreLabel.fontColor = showGzhelBorder ? .blue : .white
         scoreLabel.horizontalAlignmentMode = .left
         scoreLabel.position = CGPoint(
             x: -visibleSize.width / 2 + 80,
@@ -880,8 +886,8 @@ class GameScene: SKScene {
             }
         }
 
-        // Check UFO spawn conditions
-        if !ufoSpawnedThisLevel && ufo == nil {
+        // Check UFO spawn conditions (no UFO in alien mode - alien is already here!)
+        if !ufoSpawnedThisLevel && ufo == nil && !alienMode {
             // UFO spawns when player has machinegun and 5+ kills
             if playerTank.machinegunCount > 0 && playerKills >= GameConstants.ufoKillsRequired {
                 // Random chance each frame
@@ -896,6 +902,7 @@ class GameScene: SKScene {
             // Check if UFO escaped (died but wasn't killed by player)
             if ufo != nil && !ufoWasKilled {
                 showUFOMessage("UFO ESCAPED!", color: .red)
+                ufoEscapedThisLevel = true  // Next level will have alien at base
             }
             if ufo != nil && !ufo!.isAlive {
                 ufo?.removeFromParent()
@@ -1515,9 +1522,16 @@ class GameScene: SKScene {
 
         showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false)
 
-        // If player collected easter egg, cat plays with toy!
-        if playerCollectedEasterEgg {
-            // Find a position above the base for the cat to play
+        // Victory animations
+        if alienMode {
+            // Alien gets picked up by UFO and flies away
+            let flyAwayPosition = CGPoint(
+                x: base.position.x,
+                y: base.position.y + GameConstants.tileSize * 5
+            )
+            base.playAlienVictoryAnimation(to: flyAwayPosition)
+        } else if playerCollectedEasterEgg {
+            // Cat plays with toy!
             let playPosition = CGPoint(
                 x: base.position.x,
                 y: base.position.y + GameConstants.tileSize * 3
@@ -1921,14 +1935,18 @@ class GameScene: SKScene {
         print("DEBUG nextLevel: playerCollectedEasterEgg=\(playerCollectedEasterEgg), earnedGzhel=\(earnedGzhel)")
         print("DEBUG nextLevel powerUps: stars=\(powerUps.starCount), machinegun=\(powerUps.machinegunCount), bulletPower=\(powerUps.bulletPower), speed=\(powerUps.speedMultiplier), swim=\(powerUps.canSwim), trees=\(powerUps.canDestroyTrees)")
 
-        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel)
+        // If UFO escaped this level, next level has alien at base (only one level, then back to cat)
+        // If currently in alien mode, alien leaves so next level is normal
+        let nextAlienMode = ufoEscapedThisLevel && !alienMode
+
+        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
 
     private func restartGame() {
-        // Restart the SAME level (keep level number and session seed, reset score to level start)
-        let newScene = GameScene(size: size, level: level, score: levelStartScore, sessionSeed: sessionSeed)
+        // Restart the SAME level with score reset to 0 (high score persists until menu or app close)
+        let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
@@ -1936,6 +1954,8 @@ class GameScene: SKScene {
     private func goToMenu() {
         // Reset consecutive losses on menu (exits easy mode)
         GameScene.consecutiveLosses = 0
+        // Reset high score when going to menu
+        GameScene.highScore = 250
 
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.stopBackgroundMusic()
