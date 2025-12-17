@@ -82,7 +82,7 @@ class CollisionHandler {
             )
 
             let tile = map.getTile(at: checkPoint)
-            if tile == .brick || tile == .steel {
+            if tile == GameMap.TileType.brick || tile == GameMap.TileType.steel || tile == GameMap.TileType.water {
                 return false
             }
         }

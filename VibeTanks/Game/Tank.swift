@@ -22,7 +22,7 @@ class Tank: SKSpriteNode {
     var health: Int = 1
     var maxHealth: Int = 1
     var lives: Int = 3
-    var speed: CGFloat
+    var moveSpeed: CGFloat
 
     // Combat
     var bulletPower: Int = 1
@@ -33,15 +33,19 @@ class Tank: SKSpriteNode {
     // Power-ups
     var hasShield: Bool = false
     var shieldTimer: Int = 0
-    var hasRapidFire: Bool = false
     var speedMultiplier: CGFloat = 1.0
+    var starCount: Int = 0           // Faster shooting (stackable)
+    var canSwim: Bool = false         // SHIP power-up
+    var canDestroyTrees: Bool = false // SAW power-up
+    var machinegunCount: Int = 0      // Extra bullets (stackable)
 
     // Respawn
     var respawnTimer: Int = 0
     var pendingRespawnPosition: CGPoint?
 
-    // Animation
+    // Track animation
     private var trackFrame: Int = 0
+    private var cachedTextures: [SKTexture] = []
 
     // AI (for enemies)
     var ai: TankAI?
@@ -53,15 +57,15 @@ class Tank: SKSpriteNode {
 
         // Set speed based on type
         if isPlayer {
-            self.speed = GameConstants.tankSpeed
+            self.moveSpeed = GameConstants.tankSpeed
         } else {
             switch enemyType {
             case .fast:
-                self.speed = GameConstants.enemyTankSpeed * 1.5
+                self.moveSpeed = GameConstants.enemyTankSpeed * 1.5
             case .boss:
-                self.speed = GameConstants.enemyTankSpeed * 0.6
+                self.moveSpeed = GameConstants.enemyTankSpeed * 0.6
             default:
-                self.speed = GameConstants.enemyTankSpeed
+                self.moveSpeed = GameConstants.enemyTankSpeed
             }
         }
 
@@ -73,7 +77,7 @@ class Tank: SKSpriteNode {
         case .power:
             self.health = 2
             self.maxHealth = 2
-            self.bulletPower = 2
+            // POWER tanks don't have bulletPower 2 - only player gets that from GUN power-up
         case .heavy:
             self.health = 3
             self.maxHealth = 3
@@ -123,50 +127,295 @@ class Tank: SKSpriteNode {
     private func drawTank() {
         // Remove old children
         removeAllChildren()
+        cachedTextures.removeAll()
 
         let tankSize = self.size.width
-        let bodySize = tankSize * 0.7
-        let trackWidth = tankSize * 0.15
-        let gunLength = tankSize * 0.5
-        let gunWidth = tankSize * 0.12
 
-        // Tank body
-        let body = SKShapeNode(rectOf: CGSize(width: bodySize, height: bodySize))
-        body.fillColor = isPlayer ? playerColor : enemyColor
-        body.strokeColor = .black
-        body.lineWidth = 1
-        addChild(body)
+        // Get colors based on type
+        let (mainColor, darkColor) = getTankColors()
 
-        // Left track
-        let leftTrack = SKShapeNode(rectOf: CGSize(width: trackWidth, height: tankSize))
-        leftTrack.position = CGPoint(x: -(bodySize/2 + trackWidth/2), y: 0)
-        leftTrack.fillColor = .darkGray
-        leftTrack.strokeColor = .black
-        addChild(leftTrack)
-
-        // Right track
-        let rightTrack = SKShapeNode(rectOf: CGSize(width: trackWidth, height: tankSize))
-        rightTrack.position = CGPoint(x: bodySize/2 + trackWidth/2, y: 0)
-        rightTrack.fillColor = .darkGray
-        rightTrack.strokeColor = .black
-        addChild(rightTrack)
-
-        // Gun
-        let gun = SKShapeNode(rectOf: CGSize(width: gunWidth, height: gunLength))
-        gun.position = CGPoint(x: 0, y: bodySize/2 + gunLength/2 - 5)
-        gun.fillColor = isPlayer ? playerColor.darker() : enemyColor.darker()
-        gun.strokeColor = .black
-        addChild(gun)
-
-        // Shield indicator
-        if hasShield {
-            let shield = SKShapeNode(circleOfRadius: tankSize * 0.6)
-            shield.strokeColor = .cyan
-            shield.lineWidth = 2
-            shield.fillColor = SKColor.cyan.withAlphaComponent(0.2)
-            shield.name = "shield"
-            addChild(shield)
+        // Pre-render 2 frames for track animation (alternating)
+        let scale = tankSize / GameConstants.tankSize
+        for i in 0..<2 {
+            let offset = CGFloat(i) * 2.5 * scale
+            let texture = Tank.renderTankTexture(
+                size: tankSize,
+                mainColor: mainColor,
+                darkColor: darkColor,
+                isPlayer: isPlayer,
+                enemyType: enemyType,
+                trackOffset: offset
+            )
+            cachedTextures.append(texture)
         }
+
+        // Use single sprite with first frame
+        let tankSprite = SKSpriteNode(texture: cachedTextures[0])
+        tankSprite.size = CGSize(width: tankSize, height: tankSize)
+        tankSprite.name = "tankBody"
+        addChild(tankSprite)
+
+        // === Shield indicator ===
+        if hasShield {
+            addShieldEffect(tankSize: tankSize)
+        }
+
+        // === SHIP indicator (can swim) ===
+        if canSwim {
+            addShipIndicator(tankSize: tankSize)
+        }
+
+        // === Start rainbow animation for POWER tanks ===
+        if !isPlayer && enemyType == .power {
+            startRainbowAnimation()
+        }
+    }
+
+    /// Render tank to texture for better performance (no SKShapeNodes at runtime)
+    private static func renderTankTexture(size: CGFloat, mainColor: SKColor, darkColor: SKColor, isPlayer: Bool, enemyType: EnemyType, trackOffset: CGFloat = 0) -> SKTexture {
+        let scale = size / GameConstants.tankSize
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            let center = size / 2
+
+            // Flip coordinate system to match SpriteKit (origin at bottom-left)
+            ctx.translateBy(x: 0, y: size)
+            ctx.scaleBy(x: 1, y: -1)
+
+            // Draw tracks (left and right)
+            ctx.setFillColor(darkColor.cgColor)
+            ctx.fill(CGRect(x: 0, y: 0, width: 8 * scale, height: size))
+            ctx.fill(CGRect(x: size - 8 * scale, y: 0, width: 8 * scale, height: size))
+
+            // Track grooves with animation offset
+            let grooveColor = UIColor(red: 0.12, green: 0.12, blue: 0.12, alpha: 1.0)
+            ctx.setFillColor(grooveColor.cgColor)
+            let grooveSpacing: CGFloat = 5 * scale
+            let grooveHeight: CGFloat = 2 * scale
+            let numGrooves = Int(size / grooveSpacing) + 2
+
+            for i in 0..<numGrooves {
+                let baseY = CGFloat(i) * grooveSpacing + trackOffset
+                let y = baseY.truncatingRemainder(dividingBy: size + grooveSpacing) - grooveSpacing
+                if y >= -grooveHeight && y <= size {
+                    // Left track groove
+                    ctx.fill(CGRect(x: 1 * scale, y: y, width: 6 * scale, height: grooveHeight))
+                    // Right track groove
+                    ctx.fill(CGRect(x: size - 7 * scale, y: y, width: 6 * scale, height: grooveHeight))
+                }
+            }
+
+            // Body
+            let bodyWidth = size - 12 * scale
+            let bodyHeight = size - 8 * scale
+            ctx.setFillColor(mainColor.cgColor)
+            ctx.fill(CGRect(x: center - bodyWidth/2, y: center - bodyHeight/2, width: bodyWidth, height: bodyHeight))
+
+            // Turret outer
+            ctx.setFillColor(darkColor.cgColor)
+            ctx.fillEllipse(in: CGRect(x: center - 7 * scale, y: center - 7 * scale, width: 14 * scale, height: 14 * scale))
+
+            // Turret inner
+            ctx.setFillColor(mainColor.cgColor)
+            ctx.fillEllipse(in: CGRect(x: center - 5 * scale, y: center - 5 * scale, width: 10 * scale, height: 10 * scale))
+
+            // Cannon (pointing UP from center)
+            let cannonWidth = 4 * scale
+            let cannonHeight = size/2 + 2 * scale
+            ctx.setFillColor(UIColor.darkGray.cgColor)
+            ctx.fill(CGRect(x: center - cannonWidth/2, y: center, width: cannonWidth, height: cannonHeight))
+
+            // Cannon highlight
+            ctx.setFillColor(UIColor.gray.cgColor)
+            ctx.fill(CGRect(x: center - 1 * scale, y: center, width: 2 * scale, height: cannonHeight - 2 * scale))
+
+            // Enemy markings
+            if !isPlayer {
+                switch enemyType {
+                case .fast:
+                    // Speed stripe
+                    ctx.setFillColor(UIColor.white.withAlphaComponent(0.5).cgColor)
+                    ctx.fill(CGRect(x: center - 1 * scale, y: 4 * scale, width: 2 * scale, height: size - 8 * scale))
+                case .armored:
+                    // Armor plates
+                    ctx.setFillColor(UIColor.gray.cgColor)
+                    ctx.fill(CGRect(x: center - 6 * scale, y: center - 3 * scale, width: 3 * scale, height: 6 * scale))
+                    ctx.fill(CGRect(x: center + 3 * scale, y: center - 3 * scale, width: 3 * scale, height: 6 * scale))
+                case .heavy:
+                    // Heavy cross
+                    ctx.setFillColor(UIColor.darkGray.cgColor)
+                    ctx.fill(CGRect(x: center - 6 * scale, y: center - 1 * scale, width: 12 * scale, height: 2 * scale))
+                    ctx.fill(CGRect(x: center - 1 * scale, y: center - 6 * scale, width: 2 * scale, height: 12 * scale))
+                case .boss:
+                    // Boss star
+                    ctx.setFillColor(UIColor.red.cgColor)
+                    ctx.fillEllipse(in: CGRect(x: center - 4 * scale, y: center - 4 * scale, width: 8 * scale, height: 8 * scale))
+                default:
+                    break
+                }
+            }
+        }
+
+        return SKTexture(image: image)
+    }
+
+    private func getTankColors() -> (main: SKColor, dark: SKColor) {
+        if isPlayer {
+            let main = playerColor
+            return (main, main.darker())
+        } else {
+            switch enemyType {
+            case .regular:
+                return (.red, SKColor(red: 0.55, green: 0, blue: 0, alpha: 1))
+            case .armored:
+                return (SKColor(red: 0.55, green: 0, blue: 0, alpha: 1), SKColor(red: 0.31, green: 0, blue: 0, alpha: 1))
+            case .fast:
+                return (SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1), SKColor(red: 0.78, green: 0.24, blue: 0.24, alpha: 1))
+            case .power:
+                // Start with red, rainbow animation will be added separately
+                return (.red, SKColor(red: 0.55, green: 0, blue: 0, alpha: 1))
+            case .boss:
+                // Pulsing red/orange
+                let pulse = (sin(CACurrentMediaTime() * 4) + 1) / 2
+                let red = 0.59 + pulse * 0.41
+                let green = pulse * 0.2
+                return (SKColor(red: red, green: green, blue: 0, alpha: 1), SKColor(red: red * 0.6, green: 0, blue: 0, alpha: 1))
+            case .heavy:
+                return (.darkGray, .black)
+            }
+        }
+    }
+
+    private func startRainbowAnimation() {
+        // Rainbow colors for POWER tanks
+        let rainbowColors: [SKColor] = [.red, .orange, .yellow, .green, .cyan, .blue, .purple]
+
+        // Create color cycling action
+        var colorActions: [SKAction] = []
+        for color in rainbowColors {
+            let changeColor = SKAction.run { [weak self] in
+                self?.updateTankColor(main: color, dark: color.darker())
+            }
+            let wait = SKAction.wait(forDuration: 0.15)
+            colorActions.append(changeColor)
+            colorActions.append(wait)
+        }
+
+        let rainbowCycle = SKAction.sequence(colorActions)
+        let repeatForever = SKAction.repeatForever(rainbowCycle)
+        run(repeatForever, withKey: "rainbowAnimation")
+    }
+
+    private func updateTankColor(main: SKColor, dark: SKColor) {
+        // Update body color
+        if let body = childNode(withName: "body") as? SKShapeNode {
+            body.fillColor = main
+        }
+
+        // Update turret color
+        if let turret = childNode(withName: "turret") as? SKShapeNode {
+            turret.fillColor = main
+        }
+
+        // Update track backgrounds
+        for child in children {
+            if let shape = child as? SKShapeNode {
+                // Track backgrounds are the large rectangles without names
+                if shape.name == nil && shape.frame.width > 6 && shape.frame.height > 20 {
+                    shape.fillColor = dark
+                }
+            }
+        }
+    }
+
+
+
+    private func addShieldEffect(tankSize: CGFloat) {
+        let shieldContainer = SKNode()
+        shieldContainer.name = "shield"
+
+        // Create waving shield effect with multiple circles
+        let radius = tankSize * 0.65
+
+        // Main shield circle
+        let shield1 = SKShapeNode(circleOfRadius: radius)
+        shield1.strokeColor = .cyan
+        shield1.lineWidth = 2
+        shield1.fillColor = .clear
+        shieldContainer.addChild(shield1)
+
+        // Second circle slightly offset for wave effect
+        let shield2 = SKShapeNode(circleOfRadius: radius)
+        shield2.strokeColor = SKColor.cyan.withAlphaComponent(0.6)
+        shield2.lineWidth = 2
+        shield2.fillColor = .clear
+        shieldContainer.addChild(shield2)
+
+        // Third circle
+        let shield3 = SKShapeNode(circleOfRadius: radius)
+        shield3.strokeColor = SKColor.white.withAlphaComponent(0.4)
+        shield3.lineWidth = 1
+        shield3.fillColor = .clear
+        shieldContainer.addChild(shield3)
+
+        // Waving animation - circles pulse at different phases
+        let wave1 = SKAction.sequence([
+            SKAction.scale(to: 1.1, duration: 0.15),
+            SKAction.scale(to: 0.95, duration: 0.15)
+        ])
+        shield1.run(SKAction.repeatForever(wave1))
+
+        let wave2 = SKAction.sequence([
+            SKAction.scale(to: 0.95, duration: 0.15),
+            SKAction.scale(to: 1.1, duration: 0.15)
+        ])
+        shield2.run(SKAction.repeatForever(wave2))
+
+        let wave3 = SKAction.sequence([
+            SKAction.scale(to: 1.05, duration: 0.1),
+            SKAction.scale(to: 1.0, duration: 0.1)
+        ])
+        shield3.run(SKAction.repeatForever(wave3))
+
+        // Rotate the whole shield
+        let rotate = SKAction.rotate(byAngle: .pi * 2, duration: 1.0)
+        shieldContainer.run(SKAction.repeatForever(rotate))
+
+        addChild(shieldContainer)
+    }
+
+    private func addShipIndicator(tankSize: CGFloat) {
+        let shipContainer = SKNode()
+        shipContainer.name = "shipIndicator"
+
+        // Create triangle around tank
+        let triangleSize = tankSize * 0.8
+        let triangle = SKShapeNode()
+        let path = CGMutablePath()
+
+        // Triangle pointing up, surrounding the tank
+        path.move(to: CGPoint(x: 0, y: triangleSize))           // Top
+        path.addLine(to: CGPoint(x: -triangleSize * 0.7, y: -triangleSize * 0.5))  // Bottom left
+        path.addLine(to: CGPoint(x: triangleSize * 0.7, y: -triangleSize * 0.5))   // Bottom right
+        path.closeSubpath()
+
+        triangle.path = path
+        triangle.fillColor = SKColor.blue.withAlphaComponent(0.2)
+        triangle.strokeColor = .cyan
+        triangle.lineWidth = 2
+        triangle.glowWidth = 1
+        shipContainer.addChild(triangle)
+
+        // Subtle bobbing animation
+        let bob = SKAction.sequence([
+            SKAction.moveBy(x: 0, y: 2, duration: 0.3),
+            SKAction.moveBy(x: 0, y: -2, duration: 0.3)
+        ])
+        shipContainer.run(SKAction.repeatForever(bob))
+
+        addChild(shipContainer)
     }
 
     private var playerColor: SKColor {
@@ -181,30 +430,34 @@ class Tank: SKSpriteNode {
 
     private var enemyColor: SKColor {
         switch enemyType {
-        case .regular: return .lightGray
-        case .fast: return SKColor(hex: "#87CEEB") // Light blue
-        case .armored: return SKColor(hex: "#228B22") // Forest green
-        case .power: return SKColor(hex: "#FF4444") // Red
-        case .heavy: return SKColor(hex: "#8B0000") // Dark red
-        case .boss: return SKColor(hex: "#4B0082") // Indigo
+        case .regular: return SKColor(hex: "#FF0000") // Red
+        case .fast: return SKColor(hex: "#FF6666") // Light red
+        case .armored: return SKColor(hex: "#8B0000") // Dark red
+        case .power: return SKColor(hex: "#FF0000") // Red (will be rainbow animated)
+        case .heavy: return SKColor(hex: "#505050") // Dark gray
+        case .boss: return SKColor(hex: "#FF4500") // Orange-red
         }
     }
 
     // MARK: - Movement
 
     func move(direction: Direction, map: GameMap, allTanks: [Tank]) {
+        // First, update direction and rotation
         self.direction = direction
         self.zRotation = direction.rotation
 
         let velocity = direction.velocity
-        let moveSpeed = speed * speedMultiplier
-        let newX = position.x + velocity.dx * moveSpeed
-        let newY = position.y + velocity.dy * moveSpeed
+        let actualMoveSpeed = moveSpeed * speedMultiplier
+        let newX = position.x + velocity.dx * actualMoveSpeed
+        let newY = position.y + velocity.dy * actualMoveSpeed
 
         let newPosition = CGPoint(x: newX, y: newY)
 
+        var didMove = false
+        var finalPosition = newPosition
+
         // Check collision with map
-        if !map.checkTankCollision(position: newPosition, size: self.size.width) {
+        if !map.checkTankCollision(position: newPosition, size: self.size.width, canSwim: canSwim) {
             // Check collision with other tanks
             var canMove = true
             for tank in allTanks {
@@ -217,13 +470,93 @@ class Tank: SKSpriteNode {
             }
 
             if canMove {
-                position = newPosition
+                finalPosition = newPosition
+                didMove = true
             }
         }
 
-        // Animate tracks
-        trackFrame = (trackFrame + 1) % 4
+        // If blocked, try sliding to align with tile grid (like original Battle City)
+        if !didMove {
+            if let slidePosition = trySlideMove(direction: direction, map: map, allTanks: allTanks) {
+                finalPosition = slidePosition
+                didMove = true
+            }
+        }
+
+        if didMove {
+            position = finalPosition
+            animateTracks()
+        }
     }
+
+    private func animateTracks() {
+        guard cachedTextures.count >= 2 else { return }
+        // Alternate between 2 frames every 4 movement updates
+        trackFrame = (trackFrame + 1) % 8
+        let textureIndex = (trackFrame / 4) % 2
+        if let tankSprite = childNode(withName: "tankBody") as? SKSpriteNode {
+            tankSprite.texture = cachedTextures[textureIndex]
+        }
+    }
+
+    /// Try to slide perpendicular to movement direction to align with a gap (like original Battle City)
+    private func trySlideMove(direction: Direction, map: GameMap, allTanks: [Tank]) -> CGPoint? {
+        let tileSize = GameConstants.tileSize
+
+        // Very subtle slide amount - same as original game (max 0.5 pixels per frame)
+        let slideAmount = min(moveSpeed * speedMultiplier, 0.5)
+
+        // Calculate offset from tile CENTER (not edge)
+        // Tank position is its center, gaps are at tile centers
+        let tileCenterX = (floor(position.x / tileSize) + 0.5) * tileSize
+        let tileCenterY = (floor(position.y / tileSize) + 0.5) * tileSize
+        let offsetFromCenterX = position.x - tileCenterX  // Negative = left of center, Positive = right of center
+        let offsetFromCenterY = position.y - tileCenterY  // Negative = below center, Positive = above center
+
+        switch direction {
+        case .left, .right:
+            // Moving horizontally - try to slide vertically to align with tile center
+            if abs(offsetFromCenterY) > 1 {
+                // Slide toward tile center
+                let slideDir: CGFloat = offsetFromCenterY > 0 ? -1 : 1  // If above center, slide down; if below, slide up
+                let slideY = position.y + slideDir * min(slideAmount, abs(offsetFromCenterY))
+                let testPos = CGPoint(x: position.x, y: slideY)
+
+                if !map.checkTankCollision(position: testPos, size: self.size.width, canSwim: canSwim) &&
+                   !checkCollisionWithTanks(at: testPos, allTanks: allTanks) {
+                    return testPos
+                }
+            }
+
+        case .up, .down:
+            // Moving vertically - try to slide horizontally to align with tile center
+            if abs(offsetFromCenterX) > 1 {
+                // Slide toward tile center
+                let slideDir: CGFloat = offsetFromCenterX > 0 ? -1 : 1  // If right of center, slide left; if left, slide right
+                let slideX = position.x + slideDir * min(slideAmount, abs(offsetFromCenterX))
+                let testPos = CGPoint(x: slideX, y: position.y)
+
+                if !map.checkTankCollision(position: testPos, size: self.size.width, canSwim: canSwim) &&
+                   !checkCollisionWithTanks(at: testPos, allTanks: allTanks) {
+                    return testPos
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func checkCollisionWithTanks(at testPosition: CGPoint, allTanks: [Tank]) -> Bool {
+        for tank in allTanks {
+            if tank !== self && tank.isAlive {
+                if checkCollision(with: tank, at: testPosition) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
 
     private func checkCollision(with other: Tank, at newPosition: CGPoint) -> Bool {
         let mySize = self.size.width / 2
@@ -242,37 +575,84 @@ class Tank: SKSpriteNode {
         return activeBullets < maxBullets && shootCooldown <= 0 && isAlive
     }
 
-    func shoot() -> Bullet? {
-        guard canShoot else { return nil }
+    func shoot() -> [Bullet] {
+        guard canShoot else { return [] }
 
-        activeBullets += 1
-        shootCooldown = hasRapidFire ? 10 : 20
+        var bullets: [Bullet] = []
+
+        // Number of bullets based on machinegun power-up (1 + machinegunCount, max 4)
+        let bulletCount = min(1 + machinegunCount, 4)
+
+        // Base cooldown reduced by star power-ups (min 5 frames)
+        let baseCooldown = max(5, 30 - (starCount * 5))
+        shootCooldown = baseCooldown
 
         let bulletOffset: CGFloat = size.width / 2 + GameConstants.bulletSize / 2
-        let bulletPosition = CGPoint(
-            x: position.x + direction.velocity.dx * bulletOffset,
-            y: position.y + direction.velocity.dy * bulletOffset
-        )
+        let bulletSpacing: CGFloat = GameConstants.bulletSize * 2
 
-        return Bullet(
-            position: bulletPosition,
-            direction: direction,
-            owner: self,
-            power: bulletPower
-        )
+        for i in 0..<bulletCount {
+            let spacing = CGFloat(i) * bulletSpacing
+            let bulletPosition = CGPoint(
+                x: position.x + direction.velocity.dx * (bulletOffset + spacing),
+                y: position.y + direction.velocity.dy * (bulletOffset + spacing)
+            )
+
+            let bullet = Bullet(
+                position: bulletPosition,
+                direction: direction,
+                owner: self,
+                power: bulletPower
+            )
+            bullets.append(bullet)
+            activeBullets += 1
+        }
+
+        return bullets
     }
 
     func bulletDestroyed() {
         activeBullets = max(0, activeBullets - 1)
+        // Reset cooldown so player can shoot immediately when bullet is destroyed
+        // This matches original Battle City behavior
+        if activeBullets == 0 {
+            shootCooldown = 0
+        }
     }
 
     func damage() {
         if hasShield { return }
 
+        // Ship acts as extra protection - first shot removes ship
+        if canSwim {
+            canSwim = false
+            drawTank()  // Remove ship indicator
+            // Flash to indicate ship was lost
+            let flash = SKAction.sequence([
+                SKAction.colorize(with: .cyan, colorBlendFactor: 1.0, duration: 0.1),
+                SKAction.colorize(withColorBlendFactor: 0, duration: 0.1)
+            ])
+            run(flash)
+            return
+        }
+
         health -= 1
         if health <= 0 {
             die()
         } else {
+            // Enemy tank type transformation when damaged
+            if !isPlayer {
+                if enemyType == .heavy {
+                    // HEAVY → ARMORED (bulletPower becomes 1)
+                    enemyType = .armored
+                    bulletPower = 1
+                    drawTank()
+                } else if enemyType == .armored {
+                    // ARMORED → REGULAR
+                    enemyType = .regular
+                    drawTank()
+                }
+            }
+
             // Flash red
             let flash = SKAction.sequence([
                 SKAction.colorize(with: .red, colorBlendFactor: 1.0, duration: 0.1),
@@ -298,6 +678,10 @@ class Tank: SKSpriteNode {
         return health > 0
     }
 
+    var tankSize: CGFloat {
+        return enemyType == .boss ? GameConstants.bossTankSize : GameConstants.tankSize
+    }
+
     var isWaitingToRespawn: Bool {
         return respawnTimer > 0
     }
@@ -321,8 +705,82 @@ class Tank: SKSpriteNode {
         position = pos
         health = maxHealth
         isHidden = false
+
+        // Reset all power-ups on respawn
+        resetPowerUps()
+
+        // Give temporary shield after respawn
         hasShield = true
         shieldTimer = 180 // 3 seconds of shield
+        drawTank()
+    }
+
+    /// Reset all power-ups (called when player dies)
+    func resetPowerUps() {
+        starCount = 0
+        bulletPower = 1
+        speedMultiplier = 1.0
+        canSwim = false
+        canDestroyTrees = false
+        machinegunCount = 0
+        moveSpeed = isPlayer ? GameConstants.tankSpeed : GameConstants.enemyTankSpeed
+    }
+
+    func addLives(_ count: Int) {
+        lives += count
+    }
+
+    func activateShield(duration: Int) {
+        hasShield = true
+        shieldTimer = duration
+        // Redraw to show shield effect
+        drawTank()
+    }
+
+    func activateShip() {
+        canSwim = true
+        // Redraw to show ship indicator
+        drawTank()
+    }
+
+    func convertToType(_ newType: EnemyType) {
+        guard !isPlayer else { return }
+
+        // Stop any existing rainbow animation
+        removeAction(forKey: "rainbowAnimation")
+
+        self.enemyType = newType
+
+        // Update stats based on new type
+        switch newType {
+        case .fast:
+            self.moveSpeed = GameConstants.enemyTankSpeed * 1.5
+            self.health = 1
+            self.maxHealth = 1
+            self.bulletPower = 1
+        case .armored:
+            self.moveSpeed = GameConstants.enemyTankSpeed
+            self.health = 2
+            self.maxHealth = 2
+            self.bulletPower = 1
+        case .power:
+            self.moveSpeed = GameConstants.enemyTankSpeed
+            self.health = 2
+            self.maxHealth = 2
+            self.bulletPower = 1  // Enemies can't destroy steel
+        case .heavy:
+            self.moveSpeed = GameConstants.enemyTankSpeed * 0.8
+            self.health = 3
+            self.maxHealth = 3
+            self.bulletPower = 2
+        default:
+            self.moveSpeed = GameConstants.enemyTankSpeed
+            self.health = 1
+            self.maxHealth = 1
+            self.bulletPower = 1
+        }
+
+        // Redraw tank with new appearance (this will start rainbow animation for POWER)
         drawTank()
     }
 

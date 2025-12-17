@@ -8,6 +8,9 @@ struct GameConstants {
     static let mapHeight = 26
     static let tileSize: CGFloat = 32
 
+    // Sidebar (like original Battle City)
+    static let sidebarWidth: CGFloat = 64
+
     // Game area size
     static let gameWidth: CGFloat = CGFloat(mapWidth) * tileSize
     static let gameHeight: CGFloat = CGFloat(mapHeight) * tileSize
@@ -25,8 +28,8 @@ struct GameConstants {
 
     // Spawn settings
     static let totalEnemies = 20
-    static let maxEnemiesOnScreen = 4
-    static let spawnDelay = 120 // frames
+    static let maxEnemiesOnScreen = 5
+    static let spawnDelay = 50 // frames (~0.8 seconds)
 
     // Boss settings
     static let bossBaseHealth = 12
@@ -37,10 +40,31 @@ struct GameConstants {
     static let spawnArmoredThreshold = 0.85
 
     // Victory delay (frames)
-    static let victoryDelay = 600 // 10 seconds at 60fps
+    static let victoryDelay = 300 // 5 seconds at 60fps
 
     // Respawn delay (frames)
     static let respawnDelay = 60 // 1 second
+
+    // Shield duration
+    static let shieldDuration = 3600 // 1 minute (full shield power-up)
+    static let temporaryShieldDuration = 180 // 3 seconds (respawn/start)
+
+    // Power-up settings
+    static let powerUpLifetime = 600 // 10 seconds
+    static let freezeTime = 600 // 10 seconds
+    static let baseProtectionTime = 3600 // 1 minute (shovel power-up)
+
+    // UFO settings
+    static let ufoLifetime = 1800 // 30 seconds
+    static let ufoShootCooldown = 90 // frames between shots
+    static let ufoDirectionChange = 60 // change direction every second
+    static let ufoSpawnChance: Double = 0.0035 // ~4.8 seconds average at 60 FPS
+    static let ufoMessageDuration = 180 // 3 seconds
+    static let ufoKillsRequired = 5 // kills needed before UFO can spawn
+
+    // Easter Egg settings
+    static let easterEggLifetime = 600 // 10 seconds
+    static let easterEggLivesBonus = 3 // extra lives when player collects
 
     // Colors
     struct Colors {
@@ -51,6 +75,7 @@ struct GameConstants {
         static let steel = "#808080"   // Gray
         static let water = "#4169E1"   // Blue
         static let forest = "#228B22"  // Forest green
+        static let sidebarBg = "#636363" // Gray sidebar
     }
 
     // Score values
@@ -61,7 +86,7 @@ struct GameConstants {
         case .armored: return 3
         case .power: return 4
         case .heavy: return 5
-        case .boss: return 20
+        case .boss: return 10
         }
     }
 }

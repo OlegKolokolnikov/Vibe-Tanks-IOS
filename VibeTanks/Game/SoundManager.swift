@@ -1,12 +1,38 @@
+import SpriteKit
 import AVFoundation
 
-/// Manages game sound effects and music
+/// Manages game sound effects and music using pre-loaded AVAudioPlayers for performance
 class SoundManager {
 
     static let shared = SoundManager()
 
-    private var soundEffects: [String: AVAudioPlayer] = [:]
+    // Pre-loaded sound players (reusable)
+    private var shootPlayers: [AVAudioPlayer] = []
+    private var explosionPlayers: [AVAudioPlayer] = []
+    private var introPlayer: AVAudioPlayer?
+    private var sadPlayer: AVAudioPlayer?
+    private var victoryPlayer: AVAudioPlayer?
+    private var playerDeathPlayer: AVAudioPlayer?
+    private var baseDestroyedPlayer: AVAudioPlayer?
+    private var treeBurnPlayer: AVAudioPlayer?
+    private var laserPlayer: AVAudioPlayer?
+    private var powerUpSpawnPlayer: AVAudioPlayer?
+
+    // Pool settings
+    private let shootPoolSize = 3
+    private let explosionPoolSize = 3
+    private var shootIndex = 0
+    private var explosionIndex = 0
+
+    // Rate limiting for rapid sounds
+    private var lastShootTime: TimeInterval = 0
+    private var lastExplosionTime: TimeInterval = 0
+    private let minSoundInterval: TimeInterval = 0.05  // 50ms minimum between same sounds
+
+    // Music player
     private var musicPlayer: AVAudioPlayer?
+
+    var isMuted: Bool = false
 
     private init() {
         setupAudioSession()
@@ -15,58 +41,176 @@ class SoundManager {
 
     private func setupAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("Failed to setup audio session: \(error)")
+            // Audio session setup failed
         }
     }
 
     private func preloadSounds() {
-        // Sound effects would be loaded from bundle
-        // For now, we'll generate simple sounds programmatically
+        // Pre-load shoot sounds (pool for rapid fire)
+        if let url = Bundle.main.url(forResource: "shoot", withExtension: "wav") {
+            for _ in 0..<shootPoolSize {
+                if let player = try? AVAudioPlayer(contentsOf: url) {
+                    player.volume = 0.4
+                    player.prepareToPlay()
+                    shootPlayers.append(player)
+                }
+            }
+        }
+
+        // Pre-load explosion sounds (pool)
+        if let url = Bundle.main.url(forResource: "explosion", withExtension: "wav") {
+            for _ in 0..<explosionPoolSize {
+                if let player = try? AVAudioPlayer(contentsOf: url) {
+                    player.volume = 0.5
+                    player.prepareToPlay()
+                    explosionPlayers.append(player)
+                }
+            }
+        }
+
+        // Pre-load single-instance sounds
+        introPlayer = loadPlayer("intro", volume: 0.6)
+        sadPlayer = loadPlayer("sad", volume: 0.6)
+        victoryPlayer = loadPlayer("victory", volume: 0.6)
+        playerDeathPlayer = loadPlayer("player_death", volume: 0.6)
+        baseDestroyedPlayer = loadPlayer("base_destroyed", volume: 0.7)
+        treeBurnPlayer = loadPlayer("tree_burn", volume: 0.5)
+        laserPlayer = loadPlayer("laser", volume: 0.4)
+        powerUpSpawnPlayer = loadPlayer("powerup_spawn", volume: 0.5)
+    }
+
+    private func loadPlayer(_ name: String, volume: Float) -> AVAudioPlayer? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "wav") else { return nil }
+        guard let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
+        player.volume = volume
+        player.prepareToPlay()
+        return player
     }
 
     // MARK: - Sound Effects
 
     func playShoot() {
-        playSystemSound(id: 1104) // Keyboard tap
+        guard !isMuted, !shootPlayers.isEmpty else { return }
+
+        // Rate limit rapid fire sounds
+        let now = CACurrentMediaTime()
+        guard now - lastShootTime >= minSoundInterval else { return }
+        lastShootTime = now
+
+        // Round-robin through the pool
+        let player = shootPlayers[shootIndex]
+        shootIndex = (shootIndex + 1) % shootPlayers.count
+
+        if player.isPlaying {
+            player.currentTime = 0
+        }
+        player.play()
     }
 
     func playExplosion() {
-        playSystemSound(id: 1105) // Delete
+        guard !isMuted, !explosionPlayers.isEmpty else { return }
+
+        // Rate limit
+        let now = CACurrentMediaTime()
+        guard now - lastExplosionTime >= minSoundInterval else { return }
+        lastExplosionTime = now
+
+        let player = explosionPlayers[explosionIndex]
+        explosionIndex = (explosionIndex + 1) % explosionPlayers.count
+
+        if player.isPlaying {
+            player.currentTime = 0
+        }
+        player.play()
     }
 
-    func playPowerUp() {
-        playSystemSound(id: 1025) // New mail
+    func playIntro() {
+        guard !isMuted else { return }
+        introPlayer?.currentTime = 0
+        introPlayer?.play()
     }
 
-    func playPlayerDeath() {
-        playSystemSound(id: 1073) // Low power
+    func playSad() {
+        guard !isMuted else { return }
+        sadPlayer?.currentTime = 0
+        sadPlayer?.play()
     }
 
     func playVictory() {
-        playSystemSound(id: 1111) // Payment success
+        guard !isMuted else { return }
+        victoryPlayer?.currentTime = 0
+        victoryPlayer?.play()
+    }
+
+    func playPlayerDeath() {
+        guard !isMuted else { return }
+        playerDeathPlayer?.currentTime = 0
+        playerDeathPlayer?.play()
+    }
+
+    func playBaseDestroyed() {
+        guard !isMuted else { return }
+        baseDestroyedPlayer?.currentTime = 0
+        baseDestroyedPlayer?.play()
+    }
+
+    func playTreeBurn() {
+        guard !isMuted else { return }
+        treeBurnPlayer?.currentTime = 0
+        treeBurnPlayer?.play()
+    }
+
+    func playLaser() {
+        guard !isMuted else { return }
+        laserPlayer?.currentTime = 0
+        laserPlayer?.play()
+    }
+
+    func playPowerUpSpawn() {
+        guard !isMuted else { return }
+        powerUpSpawnPlayer?.currentTime = 0
+        powerUpSpawnPlayer?.play()
+    }
+
+    func playPowerUp() {
+        playPowerUpSpawn()
     }
 
     func playGameOver() {
-        playSystemSound(id: 1112) // Payment failure
-    }
-
-    private func playSystemSound(id: UInt32) {
-        AudioServicesPlaySystemSound(SystemSoundID(id))
+        playSad()
     }
 
     // MARK: - Music
 
+    func playExplanationMusic() {
+        guard !isMuted else { return }
+
+        if let url = Bundle.main.url(forResource: "explanation_music", withExtension: "wav") {
+            do {
+                musicPlayer = try AVAudioPlayer(contentsOf: url)
+                musicPlayer?.numberOfLoops = -1
+                musicPlayer?.volume = 0.3
+                musicPlayer?.play()
+            } catch {
+                print("Failed to play explanation music: \(error)")
+            }
+        }
+    }
+
     func playBackgroundMusic() {
-        // Would load from bundle
-        // For now, no background music
+        playExplanationMusic()
     }
 
     func stopBackgroundMusic() {
         musicPlayer?.stop()
         musicPlayer = nil
+    }
+
+    func stopExplanationMusic() {
+        stopBackgroundMusic()
     }
 
     func pauseBackgroundMusic() {
@@ -77,11 +221,12 @@ class SoundManager {
         musicPlayer?.play()
     }
 
-    // MARK: - Volume Control
-
-    var isMuted: Bool = false {
-        didSet {
-            musicPlayer?.volume = isMuted ? 0 : 1
+    func stopGameplaySounds() {
+        for player in shootPlayers {
+            player.stop()
+        }
+        for player in explosionPlayers {
+            player.stop()
         }
     }
 }

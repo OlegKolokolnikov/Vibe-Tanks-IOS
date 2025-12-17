@@ -6,20 +6,25 @@ class TouchController: SKNode {
     // Joystick
     private let joystickBase: SKShapeNode
     private let joystickKnob: SKShapeNode
-    private let joystickRadius: CGFloat = 60
-    private let knobRadius: CGFloat = 25
+    private let joystickRadius: CGFloat = 80
+    private let knobRadius: CGFloat = 35
 
     // Fire button
     private let fireButton: SKShapeNode
-    private let fireButtonRadius: CGFloat = 40
+    private let fireButtonRadius: CGFloat = 65
+
+    // Pause button
+    private let pauseButton: SKShapeNode
+    private let pauseButtonSize: CGFloat = 50
 
     // State
     private(set) var currentDirection: Direction?
     private(set) var isFiring: Bool = false
+    private(set) var pausePressed: Bool = false
     private var joystickTouch: UITouch?
     private var fireTouch: UITouch?
 
-    // Positions (set based on screen size)
+    // Positions (set based on screen size - coordinates relative to camera center)
     var joystickPosition: CGPoint = .zero {
         didSet {
             joystickBase.position = joystickPosition
@@ -30,6 +35,12 @@ class TouchController: SKNode {
     var fireButtonPosition: CGPoint = .zero {
         didSet {
             fireButton.position = fireButtonPosition
+        }
+    }
+
+    var pauseButtonPosition: CGPoint = .zero {
+        didSet {
+            pauseButton.position = pauseButtonPosition
         }
     }
 
@@ -58,16 +69,41 @@ class TouchController: SKNode {
         // Add "FIRE" label
         let fireLabel = SKLabelNode(text: "FIRE")
         fireLabel.fontName = "Helvetica-Bold"
-        fireLabel.fontSize = 14
+        fireLabel.fontSize = 20
         fireLabel.fontColor = .white
         fireLabel.verticalAlignmentMode = .center
         fireButton.addChild(fireLabel)
+
+        // Create pause button
+        pauseButton = SKShapeNode(rectOf: CGSize(width: pauseButtonSize, height: pauseButtonSize), cornerRadius: 8)
+        pauseButton.fillColor = SKColor.gray.withAlphaComponent(0.4)
+        pauseButton.strokeColor = SKColor.white.withAlphaComponent(0.6)
+        pauseButton.lineWidth = 2
+        pauseButton.zPosition = 250  // Above pause overlay
+
+        // Add pause icon (two vertical bars)
+        let barWidth: CGFloat = 8
+        let barHeight: CGFloat = 24
+        let barSpacing: CGFloat = 10
+
+        let leftBar = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight))
+        leftBar.fillColor = .white
+        leftBar.strokeColor = .clear
+        leftBar.position = CGPoint(x: -barSpacing/2, y: 0)
+        pauseButton.addChild(leftBar)
+
+        let rightBar = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight))
+        rightBar.fillColor = .white
+        rightBar.strokeColor = .clear
+        rightBar.position = CGPoint(x: barSpacing/2, y: 0)
+        pauseButton.addChild(rightBar)
 
         super.init()
 
         addChild(joystickBase)
         addChild(joystickKnob)
         addChild(fireButton)
+        addChild(pauseButton)
 
         isUserInteractionEnabled = true
     }
@@ -79,9 +115,23 @@ class TouchController: SKNode {
     // MARK: - Setup
 
     func setupForScreen(size: CGSize) {
-        let margin: CGFloat = 100
-        joystickPosition = CGPoint(x: margin, y: margin)
-        fireButtonPosition = CGPoint(x: size.width - margin, y: margin)
+        // Coordinates are relative to camera center (0,0)
+        // Bottom-left for joystick, bottom-right for fire button
+        // Use larger margins to keep controls well inside screen
+        let sideMargin: CGFloat = 130
+        let bottomMargin: CGFloat = 100
+        let topMargin: CGFloat = 80
+
+        joystickPosition = CGPoint(x: -size.width / 2 + sideMargin, y: -size.height / 2 + bottomMargin)
+        fireButtonPosition = CGPoint(x: size.width / 2 - sideMargin, y: -size.height / 2 + bottomMargin)
+        pauseButtonPosition = CGPoint(x: size.width / 2 - sideMargin, y: size.height / 2 - topMargin)
+    }
+
+    func setControlsScale(_ scale: CGFloat) {
+        joystickBase.setScale(scale)
+        joystickKnob.setScale(scale)
+        fireButton.setScale(scale)
+        pauseButton.setScale(scale)
     }
 
     // MARK: - Touch Handling
@@ -90,8 +140,13 @@ class TouchController: SKNode {
         for touch in touches {
             let location = touch.location(in: self)
 
+            // Check if touch is on pause button
+            if location.distance(to: pauseButtonPosition) < pauseButtonSize {
+                pausePressed = true
+                pauseButton.fillColor = SKColor.white.withAlphaComponent(0.6)
+            }
             // Check if touch is on joystick
-            if joystickTouch == nil && location.distance(to: joystickPosition) < joystickRadius * 1.5 {
+            else if joystickTouch == nil && location.distance(to: joystickPosition) < joystickRadius * 1.5 {
                 joystickTouch = touch
                 updateJoystick(touch: touch)
             }
@@ -124,6 +179,12 @@ class TouchController: SKNode {
                 fireButton.fillColor = SKColor.red.withAlphaComponent(0.5)
             }
         }
+        // Reset pause button visual
+        pauseButton.fillColor = SKColor.gray.withAlphaComponent(0.4)
+    }
+
+    func resetPausePressed() {
+        pausePressed = false
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {

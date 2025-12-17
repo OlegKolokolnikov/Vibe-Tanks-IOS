@@ -1,23 +1,29 @@
 import SpriteKit
 
-/// Power-up items that can be collected
+/// Power-up items that can be collected (matching original Vibe-Tanks)
 class PowerUp: SKSpriteNode {
 
     enum PowerUpType: CaseIterable {
-        case shield      // Temporary invincibility
-        case life        // Extra life
-        case speedUp     // Faster movement
-        case rapidFire   // Faster shooting
-        case bomb        // Destroy all enemies
-        case freeze      // Freeze all enemies
+        case gun        // Ability to break steel walls
+        case star       // Shooting faster (stackable)
+        case car        // Tank becomes faster (stackable)
+        case ship       // Tank can swim through water
+        case shovel     // Base surrounded by steel for 1 minute
+        case saw        // Able to destroy forest/trees
+        case tank       // Extra life
+        case shield     // Shield for 1 minute
+        case machinegun // Multiple bullets
+        case freeze     // Freeze enemies for 10 seconds
+        case bomb       // Explode all enemies
     }
 
     let type: PowerUpType
-    private var lifetime: Int = 600 // 10 seconds at 60fps
+    private var lifetime: Int
     private var blinkTimer: Int = 0
 
-    init(position: CGPoint, type: PowerUpType) {
-        self.type = type
+    init(position: CGPoint, type: PowerUpType? = nil) {
+        self.type = type ?? PowerUp.randomType()
+        self.lifetime = GameConstants.powerUpLifetime
 
         let size = CGSize(width: 28, height: 28)
         super.init(texture: nil, color: .clear, size: size)
@@ -48,30 +54,40 @@ class PowerUp: SKSpriteNode {
 
         // Add icon
         let icon = SKLabelNode(text: iconForType)
-        icon.fontSize = 18
+        icon.fontSize = 16
         icon.verticalAlignmentMode = .center
         addChild(icon)
     }
 
     private var colorForType: SKColor {
         switch type {
-        case .shield: return SKColor(hex: "#00BFFF") // Deep sky blue
-        case .life: return SKColor(hex: "#FF69B4")   // Hot pink
-        case .speedUp: return SKColor(hex: "#32CD32") // Lime green
-        case .rapidFire: return SKColor(hex: "#FF4500") // Orange red
-        case .bomb: return SKColor(hex: "#8B0000")    // Dark red
-        case .freeze: return SKColor(hex: "#00CED1")  // Dark turquoise
+        case .gun: return SKColor(red: 0.8, green: 0.4, blue: 0.0, alpha: 1.0) // Orange-brown
+        case .star: return SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Gold
+        case .car: return SKColor(red: 0.0, green: 0.8, blue: 0.0, alpha: 1.0) // Green
+        case .ship: return SKColor(red: 0.0, green: 0.5, blue: 1.0, alpha: 1.0) // Blue
+        case .shovel: return SKColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1.0) // Brown
+        case .saw: return SKColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0) // Gray
+        case .tank: return SKColor(red: 1.0, green: 0.4, blue: 0.7, alpha: 1.0) // Pink
+        case .shield: return SKColor(red: 0.0, green: 0.75, blue: 1.0, alpha: 1.0) // Cyan
+        case .machinegun: return SKColor(red: 0.8, green: 0.0, blue: 0.0, alpha: 1.0) // Red
+        case .freeze: return SKColor(red: 0.5, green: 0.8, blue: 1.0, alpha: 1.0) // Light blue
+        case .bomb: return SKColor(red: 0.5, green: 0.0, blue: 0.0, alpha: 1.0) // Dark red
         }
     }
 
     private var iconForType: String {
         switch type {
-        case .shield: return "🛡"
-        case .life: return "❤️"
-        case .speedUp: return "⚡"
-        case .rapidFire: return "🔫"
-        case .bomb: return "💣"
+        case .gun: return "🔫"
+        case .star: return "⭐"
+        case .car: return "🚗"
+        case .ship: return "🚢"
+        case .shovel: return "⛏️"
+        case .saw: return "🪚"
+        case .tank: return "❤️"
+        case .shield: return "🛡️"
+        case .machinegun: return "💥"
         case .freeze: return "❄️"
+        case .bomb: return "💣"
         }
     }
 
@@ -89,27 +105,46 @@ class PowerUp: SKSpriteNode {
 
     func apply(to tank: Tank) {
         switch type {
-        case .shield:
-            tank.hasShield = true
-            tank.shieldTimer = 600 // 10 seconds
-        case .life:
+        case .gun:
+            tank.bulletPower = 2 // Can break steel
+        case .star:
+            tank.starCount = min(tank.starCount + 1, 3) // Max 3 stars
+        case .car:
+            tank.speedMultiplier = min(tank.speedMultiplier + 0.3, 2.5) // Max 2.5x
+        case .ship:
+            tank.activateShip()
+        case .shovel:
+            // Handled by game scene (affects map, not tank)
+            break
+        case .saw:
+            tank.canDestroyTrees = true
+        case .tank:
             tank.lives += 1
-        case .speedUp:
-            tank.speedMultiplier = 1.5
-            // Would need timer to reset
-        case .rapidFire:
-            tank.hasRapidFire = true
-            // Would need timer to reset
-        case .bomb:
+        case .shield:
+            tank.activateShield(duration: GameConstants.shieldDuration)
+        case .machinegun:
+            tank.machinegunCount = min(tank.machinegunCount + 1, 3) // Max 4 total bullets
+        case .freeze:
             // Handled by game scene
             break
-        case .freeze:
+        case .bomb:
             // Handled by game scene
             break
         }
     }
 
     static func randomType() -> PowerUpType {
-        return PowerUpType.allCases.randomElement()!
+        // Weighted random selection - some power-ups are rarer
+        let rand = Double.random(in: 0...1)
+        if rand < 0.15 { return .star }
+        if rand < 0.30 { return .car }
+        if rand < 0.40 { return .gun }
+        if rand < 0.50 { return .shield }
+        if rand < 0.60 { return .tank }
+        if rand < 0.70 { return .freeze }
+        if rand < 0.80 { return .bomb }
+        if rand < 0.87 { return .ship }
+        if rand < 0.94 { return .saw }
+        return .machinegun
     }
 }

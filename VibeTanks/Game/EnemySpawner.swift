@@ -3,7 +3,7 @@ import SpriteKit
 /// Handles spawning of enemy tanks
 class EnemySpawner {
 
-    private let totalEnemies: Int
+    private var totalEnemies: Int
     private let maxOnScreen: Int
     private var spawnedCount: Int = 0
     private var spawnCooldown: Int
@@ -67,11 +67,6 @@ class EnemySpawner {
     private func determineEnemyType() -> Tank.EnemyType {
         let remaining = totalEnemies - spawnedCount
 
-        // Last enemy is BOSS
-        if remaining == 1 {
-            return .boss
-        }
-
         // Last few are HEAVY
         if remaining <= 6 {
             return .heavy
@@ -96,16 +91,7 @@ class EnemySpawner {
         existingEnemies: [Tank],
         map: GameMap
     ) -> CGPoint? {
-        let tankSize = type == .boss ? GameConstants.bossTankSize : GameConstants.tankSize
-
-        // BOSS spawns in center
-        if type == .boss {
-            let centerPos = spawnPositions[1]
-            if isPositionValid(centerPos, tankSize: tankSize, existingEnemies: existingEnemies, map: map) {
-                return centerPos
-            }
-            return nil // Wait for center to be clear
-        }
+        let tankSize = GameConstants.tankSize
 
         // Try random spawn position
         let shuffled = spawnPositions.shuffled()
@@ -141,10 +127,49 @@ class EnemySpawner {
     }
 
     func allEnemiesDefeated(currentEnemies: [Tank]) -> Bool {
-        return spawnedCount >= totalEnemies && currentEnemies.isEmpty
+        return spawnedCount >= totalEnemies && currentEnemies.isEmpty && extraEnemiesToSpawn == 0
     }
 
     var remainingEnemies: Int {
-        return totalEnemies - spawnedCount
+        return totalEnemies - spawnedCount + extraEnemiesToSpawn
+    }
+
+    // Extra enemies from tank power-up (spawned separately, don't affect boss logic)
+    private var extraEnemiesToSpawn: Int = 0
+
+    /// Queue an extra enemy to spawn (when enemy collects tank power-up)
+    func addExtraEnemy() {
+        extraEnemiesToSpawn += 1
+    }
+
+    /// Try to spawn an extra enemy (called from GameScene)
+    func spawnExtraEnemy(existingEnemies: [Tank], map: GameMap) -> Tank? {
+        guard extraEnemiesToSpawn > 0 else { return nil }
+        guard existingEnemies.count < maxOnScreen else { return nil }
+
+        // Pick a random non-boss type
+        let types: [Tank.EnemyType] = [.regular, .fast, .armored, .power]
+        let type = types.randomElement() ?? .regular
+
+        // Find valid spawn position
+        guard let position = findValidSpawnPosition(
+            type: type,
+            existingEnemies: existingEnemies,
+            map: map
+        ) else {
+            return nil
+        }
+
+        // Create extra enemy
+        let enemy = Tank(
+            position: position,
+            direction: .down,
+            isPlayer: false,
+            playerNumber: 0,
+            enemyType: type
+        )
+
+        extraEnemiesToSpawn -= 1
+        return enemy
     }
 }
