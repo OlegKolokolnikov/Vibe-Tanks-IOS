@@ -616,8 +616,8 @@ class GameScene: SKScene {
 
         gameLayer.addChild(playerTank)
 
-        // Calculate enemies for this level (base 20 + 2 per level)
-        let totalEnemies = min(20 + (level - 1) * 2, 50)
+        // Calculate enemies for this level (easy mode: 18, normal: base 20 + 2 per level)
+        let totalEnemies = GameScene.isEasyMode ? 18 : min(20 + (level - 1) * 2, 50)
 
         // Setup enemy spawner
         enemySpawner = EnemySpawner(
