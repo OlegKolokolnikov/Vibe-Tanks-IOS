@@ -767,8 +767,8 @@ class GameScene: SKScene {
                 // No input - continue ice slide if player was on ice
                 _ = playerTank.continueIceSlide(map: gameMap, allTanks: allTanks)
             }
-        } else if GameScene.isEasyMode, let dir = direction {
-            // Easy mode: can turn while frozen (but not move)
+        } else if (GameScene.isEasyMode || GameScene.isGzhelActive), let dir = direction {
+            // Easy/gzhel mode: can turn while frozen (but not move)
             playerTank.turn(to: dir)
         }
 
