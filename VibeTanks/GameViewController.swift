@@ -124,6 +124,10 @@ class GameViewController: UIViewController {
         return true
     }
 
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
+        return .all
+    }
+
     // MARK: - Keyboard Support
 
     override var canBecomeFirstResponder: Bool {
