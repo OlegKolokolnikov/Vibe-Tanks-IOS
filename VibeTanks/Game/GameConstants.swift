@@ -59,7 +59,7 @@ struct GameConstants {
     static let ufoLifetime = 1800 // 30 seconds
     static let ufoShootCooldown = 90 // frames between shots
     static let ufoDirectionChange = 60 // change direction every second
-    static let ufoSpawnChance: Double = 0.0035 // ~4.8 seconds average at 60 FPS
+    static let ufoSpawnChance: Double = 0.003 // ~5.5 seconds average at 60 FPS
     static let ufoMessageDuration = 180 // 3 seconds
     static let ufoKillsRequired = 5 // kills needed before UFO can spawn
 
