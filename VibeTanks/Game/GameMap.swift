@@ -787,7 +787,6 @@ class GameMap: SKNode {
         textureCache[.water] = generateWaterTexture(tileSize: tileSize)
         textureCache[.forest] = generateForestTexture(tileSize: tileSize)
         textureCache[.ice] = generateIceTexture(tileSize: tileSize)
-        print("Generated tile textures for \(textureCache.count) tile types")
     }
 
     private static func renderShapeToTexture(_ node: SKNode, size: CGSize) -> SKTexture {

@@ -32,7 +32,7 @@ class GameScene: SKScene {
     private static var spawnFlashTexture: SKTexture?
 
     /// Get or create lightning bolt texture
-    private static func getLightningBoltTexture() -> SKTexture {
+    static func getLightningBoltTexture() -> SKTexture {
         if let cached = lightningBoltTexture {
             return cached
         }
@@ -64,7 +64,7 @@ class GameScene: SKScene {
     }
 
     /// Get or create spawn flash texture
-    private static func getSpawnFlashTexture() -> SKTexture {
+    static func getSpawnFlashTexture() -> SKTexture {
         if let cached = spawnFlashTexture {
             return cached
         }
@@ -89,56 +89,56 @@ class GameScene: SKScene {
         return texture
     }
 
-    // Game objects
-    private var gameMap: GameMap!
-    private var playerTank: Tank!
-    private var enemyTanks: [Tank] = []
+    // Game objects (internal for extension access)
+    var gameMap: GameMap!
+    var playerTank: Tank!
+    var enemyTanks: [Tank] = []
     private var _cachedAllTanks: [Tank] = []
     private var _allTanksDirty: Bool = true
-    private var bullets: [Bullet] = []
-    private var bulletsMarkedForRemoval: Set<ObjectIdentifier> = []
-    private var powerUps: [PowerUp] = []
-    private var base: Base!
+    var bullets: [Bullet] = []
+    var bulletsMarkedForRemoval: Set<ObjectIdentifier> = []
+    var powerUps: [PowerUp] = []
+    var base: Base!
 
     // UFO and Easter Egg
-    private var ufo: UFO?
-    private var easterEgg: EasterEgg?
-    private var ufoSpawnedThisLevel: Bool = false
-    private var ufoWasKilled: Bool = false
-    private var playerCollectedEasterEgg: Bool = false
-    private var playerKills: Int = 0
+    var ufo: UFO?
+    var easterEgg: EasterEgg?
+    var ufoSpawnedThisLevel: Bool = false
+    var ufoWasKilled: Bool = false
+    var playerCollectedEasterEgg: Bool = false
+    var playerKills: Int = 0
     private var ufoMessageTimer: Int = 0
     private var ufoMessageLabel: SKLabelNode?
 
     // UI
-    private var touchController: TouchController!
-    private var sidebar: Sidebar!
-    private var scoreLabel: SKLabelNode!
+    var touchController: TouchController!
+    var sidebar: Sidebar!
+    var scoreLabel: SKLabelNode!
 
     // Game state
-    private var score: Int = 0
+    var score: Int = 0
     private var lastBonusLifeScore: Int = 0  // Track last 100-point milestone
-    private var level: Int = 1
+    var level: Int = 1
     private var sessionSeed: UInt64 = 0
-    private var isGameOver: Bool = false
-    private var isGamePaused: Bool = false
-    private var didWinLevel: Bool = false
+    var isGameOver: Bool = false
+    var isGamePaused: Bool = false
+    var didWinLevel: Bool = false
 
     // Level stats for score breakdown
     private var levelStartScore: Int = 0
-    private var killsByType: [Tank.EnemyType: Int] = [:]
+    var killsByType: [Tank.EnemyType: Int] = [:]
 
     // Freeze effect
-    private var freezeTimer: Int = 0
-    private var playerFreezeTimer: Int = 0  // Player frozen by enemy power-up
+    var freezeTimer: Int = 0
+    var playerFreezeTimer: Int = 0  // Player frozen by enemy power-up
 
     // Victory delay (5 seconds to collect remaining power-ups)
     private var victoryDelayTimer: Int = 0
 
     // Base protection
-    private var baseProtectionTimer: Int = 0
-    private var baseFlashTimer: Int = 0
-    private var baseIsSteel: Bool = false
+    var baseProtectionTimer: Int = 0
+    var baseFlashTimer: Int = 0
+    var baseIsSteel: Bool = false
 
     // Keyboard input (for simulator)
     private var keyboardDirection: Direction?
@@ -150,7 +150,7 @@ class GameScene: SKScene {
 
     // Camera for scrolling (if needed)
     private var gameCamera: SKCameraNode!
-    private var gameLayer: SKNode!
+    var gameLayer: SKNode!
 
     // Player lives to carry across levels
     private var initialLives: Int = 3
@@ -226,7 +226,6 @@ class GameScene: SKScene {
         let flowerTexture30 = renderGzhelFlowerTexture(size: 30, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
         let flowerTexture25 = renderGzhelFlowerTexture(size: 25, blueColor: gzhelBlue, lightBlue: gzhelLightBlue)
         let vineTexture = renderGzhelVineTexture(length: 50, color: gzhelBlue)
-        print("DEBUG Gzhel: flowerTexture30 size=\(flowerTexture30.size()), flowerTexture25 size=\(flowerTexture25.size()), vineTexture size=\(vineTexture.size())")
 
         // White background sprites (single texture, very efficient)
         let whiteTexture = SKTexture(image: UIImage.solidColor(.white, size: CGSize(width: 4, height: 4)))
@@ -548,12 +547,10 @@ class GameScene: SKScene {
         addChild(gameLayer)
 
         // Add Gzhel border decoration if earned from previous level (must be after gameLayer exists)
-        print("DEBUG setupGame: showGzhelBorder=\(showGzhelBorder), level=\(level)")
         GameScene.isGzhelActive = showGzhelBorder
         GameScene.isAlienModeActive = alienMode
         if showGzhelBorder {
             setupGzhelBorder()
-            print("DEBUG: Gzhel border setup called!")
         }
 
         // Create map with session seed + level for deterministic but session-unique generation
@@ -602,7 +599,6 @@ class GameScene: SKScene {
         playerTank.lives = initialLives  // Carry lives from previous level
 
         // Apply power-ups from previous level
-        print("DEBUG setupGame: applying initialPowerUps - stars=\(initialPowerUps.starCount), machinegun=\(initialPowerUps.machinegunCount), bulletPower=\(initialPowerUps.bulletPower), speed=\(initialPowerUps.speedMultiplier), swim=\(initialPowerUps.canSwim), trees=\(initialPowerUps.canDestroyTrees)")
         playerTank.starCount = initialPowerUps.starCount
         playerTank.machinegunCount = initialPowerUps.machinegunCount
         playerTank.bulletPower = initialPowerUps.bulletPower
@@ -612,7 +608,6 @@ class GameScene: SKScene {
 
         // Always redraw tank to show power-up indicators
         playerTank.drawTank()
-        print("DEBUG setupGame: after applying - tank.stars=\(playerTank.starCount), tank.machinegun=\(playerTank.machinegunCount), tank.bulletPower=\(playerTank.bulletPower)")
 
         gameLayer.addChild(playerTank)
 
@@ -987,7 +982,7 @@ class GameScene: SKScene {
         showUFOMessage("UFO INCOMING!", color: .yellow)
     }
 
-    private func showUFOMessage(_ text: String, color: SKColor) {
+    func showUFOMessage(_ text: String, color: SKColor) {
         ufoMessageLabel?.removeFromParent()
 
         let cameraScale = gameCamera.xScale
@@ -1017,150 +1012,10 @@ class GameScene: SKScene {
     // MARK: - Collision Detection
 
     private func checkCollisions() {
-        checkBulletTankCollisions()
-        checkBulletBulletCollisions()
-        checkBulletBaseCollision()
-        checkBulletUFOCollisions()
+        // Bullet collisions are handled in GameScene+Collision extension
+        checkAllCollisions()
         checkPowerUpCollisions()
         checkEasterEggCollisions()
-    }
-
-    private func checkBulletTankCollisions() {
-        var bulletsToRemove: [Bullet] = []
-        var enemiesToRemove: [Tank] = []
-
-        for bullet in bullets {
-            // Player bullets hit enemies
-            if !bullet.isFromEnemy {
-                for enemy in enemyTanks {
-                    if enemy.isAlive && bullet.collidesWith(enemy) {
-                        let wasPowerTank = enemy.enemyType == .power
-                        enemy.damage()
-                        bulletsToRemove.append(bullet)
-
-                        // Power tanks drop power-up every time they are shot
-                        if wasPowerTank {
-                            spawnPowerUp(at: enemy.position)
-                        }
-
-                        if !enemy.isAlive {
-                            enemiesToRemove.append(enemy)
-                            let killedType = wasPowerTank ? Tank.EnemyType.power : enemy.enemyType
-                            addScore(GameConstants.scoreForEnemyType(killedType))
-                            playerKills += 1
-                            killsByType[killedType, default: 0] += 1
-                            SoundManager.shared.playExplosion()
-
-                            // Other enemies have 20% chance to drop power-up when killed
-                            if !wasPowerTank && Int.random(in: 1...5) == 1 {
-                                spawnPowerUp(at: enemy.position)
-                            }
-                        }
-                        break
-                    }
-                }
-            }
-            // Enemy bullets hit player
-            else {
-                if playerTank.isAlive && bullet.collidesWith(playerTank) {
-                    if playerTank.hasShield {
-                        // Bullet hits shield - destroy bullet but don't damage player
-                        bulletsToRemove.append(bullet)
-                        // Optional: play shield hit sound
-                    } else {
-                        // No shield - damage player
-                        playerTank.damage()
-                        bulletsToRemove.append(bullet)
-
-                        if !playerTank.isAlive {
-                            SoundManager.shared.playPlayerDeath()
-                            // Reset player freeze when killed
-                            playerFreezeTimer = 0
-                            playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
-                        }
-
-                        if !playerTank.isAlive && playerTank.lives > 0 {
-                            playerTank.respawn(at: CGPoint(
-                                x: GameConstants.tileSize * 8,
-                                y: GameConstants.tileSize * 2
-                            ))
-                        }
-                    }
-                }
-            }
-        }
-
-        // Remove destroyed bullets
-        for bullet in bulletsToRemove {
-            removeBullet(bullet)
-        }
-
-        // Remove destroyed enemies
-        if !enemiesToRemove.isEmpty {
-            for enemy in enemiesToRemove {
-                enemy.removeFromParent()
-                enemyTanks.removeAll { $0 === enemy }
-            }
-            invalidateAllTanksCache()
-        }
-    }
-
-    private func checkBulletBulletCollisions() {
-        guard bullets.count >= 2 else { return }
-
-        var bulletsToRemove: Set<Bullet> = []
-
-        for i in 0..<bullets.count {
-            for j in (i+1)..<bullets.count {
-                if bullets[i].collidesWith(bullets[j]) {
-                    bulletsToRemove.insert(bullets[i])
-                    bulletsToRemove.insert(bullets[j])
-                }
-            }
-        }
-
-        // Bullet vs bullet collision counts as obstacle (prevents enemy spam in easy mode)
-        for bullet in bulletsToRemove {
-            removeBullet(bullet, hitObstacle: true)
-        }
-    }
-
-    private func checkBulletBaseCollision() {
-        for bullet in bullets {
-            if base.checkCollision(bulletPosition: bullet.position) {
-                base.destroy()
-                removeBullet(bullet)
-                SoundManager.shared.playBaseDestroyed()
-                gameOver(won: false)
-                break
-            }
-        }
-    }
-
-    private func checkBulletUFOCollisions() {
-        guard let currentUFO = ufo, currentUFO.isAlive else { return }
-
-        for bullet in bullets {
-            if currentUFO.collidesWith(bullet) {
-                removeBullet(bullet)
-
-                if currentUFO.damage() {
-                    // UFO destroyed - spawn easter egg at random empty position
-                    ufoWasKilled = true
-                    currentUFO.createDestroyEffect()
-                    currentUFO.removeFromParent()
-
-                    // Spawn easter egg at random empty position (like original game)
-                    let eggPosition = findRandomEmptyPosition()
-                    easterEgg = EasterEgg(x: eggPosition.x, y: eggPosition.y)
-                    gameLayer.addChild(easterEgg!)
-
-                    showUFOMessage("UFO DESTROYED!", color: .green)
-                    ufo = nil
-                }
-                break
-            }
-        }
     }
 
     private func checkEasterEggCollisions() {
@@ -1172,7 +1027,6 @@ class GameScene: SKScene {
             egg.collect()
             easterEgg = nil
             playerCollectedEasterEgg = true
-            print("DEBUG: Easter egg collected! playerCollectedEasterEgg=\(playerCollectedEasterEgg)")
 
             // Give player 3 extra lives
             playerTank.addLives(GameConstants.easterEggLivesBonus)
@@ -1377,7 +1231,7 @@ class GameScene: SKScene {
         case .shovel:
             // Base gets steel protection for 60 seconds
             activateBaseProtection()
-            showEffect(text: "STEEL BASE!", color: .gray)
+            showEffect(text: "STEEL BASE!", color: .white)
         case .saw:
             // Player can break forest
             playerTank.canDestroyTrees = true
@@ -1493,7 +1347,7 @@ class GameScene: SKScene {
         }
     }
 
-    private func spawnPowerUp(at position: CGPoint) {
+    func spawnPowerUp(at position: CGPoint) {
         // Find random empty position instead of spawning at enemy location
         let spawnPosition = findRandomEmptyPosition()
         let powerUp = PowerUp(position: spawnPosition)
@@ -1502,27 +1356,31 @@ class GameScene: SKScene {
         SoundManager.shared.playPowerUpSpawn()
     }
 
-    private func findRandomEmptyPosition() -> CGPoint {
+    func findRandomEmptyPosition() -> CGPoint {
         let tileSize = GameConstants.tileSize
-        let maxAttempts = 100
 
-        for _ in 0..<maxAttempts {
-            // Random position within playable area (avoiding borders)
-            let col = 2 + Int.random(in: 0..<22) // 2 to 23
-            let row = 2 + Int.random(in: 0..<22)
+        // First, collect all empty positions
+        var emptyPositions: [CGPoint] = []
 
-            // Check if position is clear (only spawn on empty tiles)
-            let checkPosition = CGPoint(
-                x: CGFloat(col) * tileSize + tileSize / 2,
-                y: CGFloat(GameConstants.mapHeight - 1 - row) * tileSize + tileSize / 2
-            )
+        for row in 2..<24 {
+            for col in 2..<24 {
+                let position = CGPoint(
+                    x: CGFloat(col) * tileSize + tileSize / 2,
+                    y: CGFloat(GameConstants.mapHeight - 1 - row) * tileSize + tileSize / 2
+                )
 
-            if gameMap.getTile(at: checkPosition) == .empty {
-                return checkPosition
+                if gameMap.getTile(at: position) == .empty {
+                    emptyPositions.append(position)
+                }
             }
         }
 
-        // Fallback to center if no valid position found
+        // Return random empty position, or center of map if none found
+        if let randomPosition = emptyPositions.randomElement() {
+            return randomPosition
+        }
+
+        // Fallback - should rarely happen
         return CGPoint(
             x: 13 * tileSize + tileSize / 2,
             y: 13 * tileSize + tileSize / 2
@@ -1548,7 +1406,7 @@ class GameScene: SKScene {
         label.run(fadeOut)
     }
 
-    private func removeBullet(_ bullet: Bullet, hitObstacle: Bool = false) {
+    func removeBullet(_ bullet: Bullet, hitObstacle: Bool = false) {
         bullet.owner?.bulletDestroyed(hitObstacle: hitObstacle)
         bullet.removeFromParent()
         // Mark for batch removal instead of O(n) removeAll per bullet
@@ -1672,7 +1530,7 @@ class GameScene: SKScene {
         return container
     }
 
-    private func gameOver(won: Bool) {
+    func gameOver(won: Bool) {
         isGameOver = true
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playGameOver()
@@ -1908,7 +1766,7 @@ class GameScene: SKScene {
     }
 
     /// Add score and check for bonus life every 100 points
-    private func addScore(_ points: Int) {
+    func addScore(_ points: Int) {
         let oldMilestone = score / 100
         score += points
         let newMilestone = score / 100
@@ -1931,7 +1789,7 @@ class GameScene: SKScene {
         return _cachedAllTanks
     }
 
-    private func invalidateAllTanksCache() {
+    func invalidateAllTanksCache() {
         _allTanksDirty = true
     }
 
@@ -1981,12 +1839,9 @@ class GameScene: SKScene {
             }
 
             // Tap anywhere else - next level if won, restart if lost
-            print("DEBUG tap: isGameOver=\(isGameOver), didWinLevel=\(didWinLevel)")
             if didWinLevel {
-                print("DEBUG: calling nextLevel()")
                 nextLevel()
             } else {
-                print("DEBUG: calling restartGame()")
                 restartGame()
             }
             return
@@ -2006,8 +1861,6 @@ class GameScene: SKScene {
 
         // If player collected easter egg and cat played, next level gets Gzhel decoration (one level only)
         let earnedGzhel = playerCollectedEasterEgg
-        print("DEBUG nextLevel: playerCollectedEasterEgg=\(playerCollectedEasterEgg), earnedGzhel=\(earnedGzhel)")
-        print("DEBUG nextLevel powerUps: stars=\(powerUps.starCount), machinegun=\(powerUps.machinegunCount), bulletPower=\(powerUps.bulletPower), speed=\(powerUps.speedMultiplier), swim=\(powerUps.canSwim), trees=\(powerUps.canDestroyTrees)")
 
         // If UFO escaped this level, next level has alien at base (only one level, then back to cat)
         // If currently in alien mode, alien leaves so next level is normal

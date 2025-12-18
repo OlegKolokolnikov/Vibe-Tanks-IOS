@@ -43,7 +43,7 @@ class MenuScene: SKScene {
         let instructions = SKLabelNode(text: "Defend your base from enemy tanks!")
         instructions.fontName = "Helvetica"
         instructions.fontSize = 14
-        instructions.fontColor = .lightGray
+        instructions.fontColor = .white
         instructions.position = CGPoint(x: size.width / 2, y: size.height * 0.12)
         addChild(instructions)
 
@@ -51,7 +51,7 @@ class MenuScene: SKScene {
         let credits = SKLabelNode(text: "Designed by Oleg")
         credits.fontName = "Helvetica-Bold"
         credits.fontSize = 14
-        credits.fontColor = .gray
+        credits.fontColor = .lightGray
         credits.position = CGPoint(x: size.width / 2, y: size.height * 0.05)
         addChild(credits)
     }
