@@ -1984,6 +1984,12 @@ class GameScene: SKScene {
             case .keyboardSpacebar, .keyboardJ:
                 keyboardFiring = true
 
+            // Pause: Escape or P
+            case .keyboardEscape, .keyboardP:
+                if !isGameOver {
+                    togglePause()
+                }
+
             // Continue/restart on Enter when game over
             case .keyboardReturnOrEnter:
                 if isGameOver {

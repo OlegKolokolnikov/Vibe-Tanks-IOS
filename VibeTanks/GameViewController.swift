@@ -23,7 +23,11 @@ class GameViewController: UIViewController {
         hasSetupScene = true
 
         let scene = MenuScene(size: skView.bounds.size)
+        #if targetEnvironment(macCatalyst)
+        scene.scaleMode = .aspectFit
+        #else
         scene.scaleMode = .aspectFill
+        #endif
 
         skView.presentScene(scene)
         skView.ignoresSiblingOrder = true

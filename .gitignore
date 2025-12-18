@@ -52,3 +52,6 @@ playground.xcworkspace
 *.swp
 *~.nib
 *.log
+
+# Build artifacts
+VibeTanks.app/
