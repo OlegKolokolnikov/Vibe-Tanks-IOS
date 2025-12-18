@@ -645,19 +645,10 @@ class Tank: SKSpriteNode {
         }
     }
 
-    /// Continue sliding on ice when player stops input
+    /// Continue sliding on ice when player stops input (slides one extra tile then stops)
     func continueIceSlide(map: GameMap, allTanks: [Tank]) -> Bool {
-        guard isOnIce || slideDistance < iceSlideDistance else {
-            slideDirection = nil
-            slideDistance = 0
-            return false
-        }
-
-        guard let dir = slideDirection else { return false }
-
-        // Check if still on ice or still have slide distance remaining
-        let stillOnIce = map.isIceTile(at: position)
-        if !stillOnIce && slideDistance >= iceSlideDistance {
+        // Only slide if we have a direction and haven't slid one full tile yet
+        guard let dir = slideDirection, slideDistance < iceSlideDistance else {
             slideDirection = nil
             slideDistance = 0
             isOnIce = false
@@ -691,8 +682,8 @@ class Tank: SKSpriteNode {
                 // Update ice status
                 isOnIce = map.isIceTile(at: position)
 
-                // Stop sliding if we've slid enough and left the ice
-                if !isOnIce && slideDistance >= iceSlideDistance {
+                // Stop sliding after one tile
+                if slideDistance >= iceSlideDistance {
                     slideDirection = nil
                     slideDistance = 0
                     return false
@@ -709,7 +700,7 @@ class Tank: SKSpriteNode {
 
     /// Check if tank is currently sliding on ice
     var isSliding: Bool {
-        return slideDirection != nil && (isOnIce || slideDistance < iceSlideDistance)
+        return slideDirection != nil && slideDistance < iceSlideDistance
     }
 
     private func animateTracks() {
