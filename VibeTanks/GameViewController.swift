@@ -5,6 +5,12 @@ class GameViewController: UIViewController {
 
     private var hasSetupScene = false
 
+    #if targetEnvironment(macCatalyst)
+    // Mac overlay UI elements (positioned in letterbox area)
+    private var scoreLabel: UILabel?
+    private var pauseButton: UIButton?
+    #endif
+
     override func loadView() {
         // Create SKView as the main view
         self.view = SKView()
@@ -13,7 +19,71 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
+
+        #if targetEnvironment(macCatalyst)
+        setupMacOverlay()
+        setupNotificationObservers()
+        #endif
     }
+
+    #if targetEnvironment(macCatalyst)
+    private func setupMacOverlay() {
+        // Score label - positioned at top left in letterbox area
+        let score = UILabel()
+        score.text = "Score: 0"
+        score.font = UIFont.boldSystemFont(ofSize: 24)
+        score.textColor = .white
+        score.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(score)
+        scoreLabel = score
+
+        // Pause button - positioned at top right in letterbox area
+        let pause = UIButton(type: .system)
+        pause.setTitle("⏸ Pause", for: .normal)
+        pause.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
+        pause.setTitleColor(.white, for: .normal)
+        pause.backgroundColor = UIColor.gray.withAlphaComponent(0.5)
+        pause.layer.cornerRadius = 8
+        pause.contentEdgeInsets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
+        pause.addTarget(self, action: #selector(pauseButtonTapped), for: .touchUpInside)
+        pause.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(pause)
+        pauseButton = pause
+
+        NSLayoutConstraint.activate([
+            score.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            score.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+
+            pause.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            pause.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20)
+        ])
+    }
+
+    private func setupNotificationObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleScoreChange(_:)),
+            name: .gameScoreDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func handleScoreChange(_ notification: Notification) {
+        if let score = notification.userInfo?["score"] as? Int {
+            DispatchQueue.main.async {
+                self.scoreLabel?.text = "Score: \(score)"
+            }
+        }
+    }
+
+    @objc private func pauseButtonTapped() {
+        NotificationCenter.default.post(name: .gamePauseRequested, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    #endif
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()

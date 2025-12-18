@@ -205,8 +205,33 @@ class GameScene: SKScene {
         setupGame()
         setupUI()
 
+        #if targetEnvironment(macCatalyst)
+        // Listen for pause button from UIKit overlay
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePauseRequest),
+            name: .gamePauseRequested,
+            object: nil
+        )
+        #endif
+
         // Play intro sound when game starts
         SoundManager.shared.playIntro()
+    }
+
+    #if targetEnvironment(macCatalyst)
+    @objc private func handlePauseRequest() {
+        if !isGameOver {
+            togglePause()
+        }
+    }
+    #endif
+
+    override func willMove(from view: SKView) {
+        super.willMove(from: view)
+        #if targetEnvironment(macCatalyst)
+        NotificationCenter.default.removeObserver(self)
+        #endif
     }
 
     // MARK: - Setup
@@ -634,10 +659,15 @@ class GameScene: SKScene {
         // Get the camera scale to properly size UI elements
         let cameraScale = gameCamera.xScale
 
+        let visibleSize = CGSize(width: size.width * cameraScale, height: size.height * cameraScale)
+
+        #if targetEnvironment(macCatalyst)
+        // On Mac, don't show touch controls or in-game score (use UIKit overlay instead)
+        touchController = TouchController()  // Create but don't add to scene
+        #else
         // Touch controller - add to camera so it stays on screen
         // Use the visible screen size in camera coordinates
         touchController = TouchController()
-        let visibleSize = CGSize(width: size.width * cameraScale, height: size.height * cameraScale)
         touchController.setupForScreen(size: visibleSize)
         touchController.setGzhelMode(showGzhelBorder)
         gameCamera.addChild(touchController)
@@ -654,6 +684,7 @@ class GameScene: SKScene {
         )
         scoreLabel.zPosition = 100
         gameCamera.addChild(scoreLabel)
+        #endif
 
         // Initial sidebar update
         sidebar.update(
@@ -1808,7 +1839,12 @@ class GameScene: SKScene {
     }
 
     private func updateUI() {
+        #if targetEnvironment(macCatalyst)
+        // Post notification for UIKit overlay to update
+        NotificationCenter.default.post(name: .gameScoreDidChange, object: nil, userInfo: ["score": score])
+        #else
         scoreLabel.text = "Score: \(score)"
+        #endif
 
         // Build power-up data from player tank
         var powerUps = Sidebar.PowerUpData()
@@ -2143,4 +2179,11 @@ class GameScene: SKScene {
         return nil
     }
     #endif
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let gameScoreDidChange = Notification.Name("gameScoreDidChange")
+    static let gamePauseRequested = Notification.Name("gamePauseRequested")
 }
