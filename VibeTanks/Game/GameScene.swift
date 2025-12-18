@@ -938,8 +938,8 @@ class GameScene: SKScene {
             }
         }
 
-        // Check UFO spawn conditions (no UFO in alien mode - alien is already here!)
-        if !ufoSpawnedThisLevel && ufo == nil && !alienMode {
+        // Check UFO spawn conditions (no UFO in alien mode or easy mode)
+        if !ufoSpawnedThisLevel && ufo == nil && !alienMode && !GameScene.isEasyMode {
             // UFO spawns when player has machinegun and 5+ kills
             if playerTank.machinegunCount > 0 && playerKills >= GameConstants.ufoKillsRequired {
                 // Random chance each frame
