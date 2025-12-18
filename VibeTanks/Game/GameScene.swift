@@ -27,6 +27,68 @@ class GameScene: SKScene {
     // Alien mode state (accessible for enemy spawner)
     private(set) static var isAlienModeActive: Bool = false
 
+    // Pre-rendered spawn effect textures (static for reuse)
+    private static var lightningBoltTexture: SKTexture?
+    private static var spawnFlashTexture: SKTexture?
+
+    /// Get or create lightning bolt texture
+    private static func getLightningBoltTexture() -> SKTexture {
+        if let cached = lightningBoltTexture {
+            return cached
+        }
+
+        // Render lightning bolt to texture
+        let size = CGSize(width: 20, height: 35)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+
+            // Draw lightning bolt path
+            ctx.setStrokeColor(UIColor.cyan.cgColor)
+            ctx.setLineWidth(2)
+            ctx.setLineCap(.round)
+
+            ctx.move(to: CGPoint(x: 10, y: 5))
+            ctx.addLine(to: CGPoint(x: 13, y: 12))
+            ctx.addLine(to: CGPoint(x: 8, y: 18))
+            ctx.addLine(to: CGPoint(x: 14, y: 28))
+            ctx.addLine(to: CGPoint(x: 9, y: 22))
+            ctx.addLine(to: CGPoint(x: 12, y: 15))
+            ctx.addLine(to: CGPoint(x: 7, y: 8))
+            ctx.strokePath()
+        }
+
+        let texture = SKTexture(image: image)
+        lightningBoltTexture = texture
+        return texture
+    }
+
+    /// Get or create spawn flash texture
+    private static func getSpawnFlashTexture() -> SKTexture {
+        if let cached = spawnFlashTexture {
+            return cached
+        }
+
+        let size: CGFloat = 40
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            let center = size / 2
+
+            // Outer glow (cyan)
+            ctx.setFillColor(UIColor.cyan.withAlphaComponent(0.3).cgColor)
+            ctx.fillEllipse(in: CGRect(x: center - 18, y: center - 18, width: 36, height: 36))
+
+            // Inner flash (white)
+            ctx.setFillColor(UIColor.white.cgColor)
+            ctx.fillEllipse(in: CGRect(x: center - 15, y: center - 15, width: 30, height: 30))
+        }
+
+        let texture = SKTexture(image: image)
+        spawnFlashTexture = texture
+        return texture
+    }
+
     // Game objects
     private var gameMap: GameMap!
     private var playerTank: Tank!
@@ -34,6 +96,7 @@ class GameScene: SKScene {
     private var _cachedAllTanks: [Tank] = []
     private var _allTanksDirty: Bool = true
     private var bullets: [Bullet] = []
+    private var bulletsMarkedForRemoval: Set<ObjectIdentifier> = []
     private var powerUps: [PowerUp] = []
     private var base: Base!
 
@@ -637,6 +700,7 @@ class GameScene: SKScene {
         updateUFO()
         updateEasterEgg()
         checkCollisions()
+        flushBulletRemovals()  // Batch remove all bullets marked for removal
         checkGameState()
         updateUI()
     }
@@ -836,19 +900,21 @@ class GameScene: SKScene {
         effectNode.position = position
         effectNode.zPosition = 50
 
-        // Create multiple lightning bolts
+        // Get cached textures
+        let boltTexture = GameScene.getLightningBoltTexture()
+        let flashTexture = GameScene.getSpawnFlashTexture()
+
+        // Create multiple lightning bolts using cached texture
         for i in 0..<6 {
-            let bolt = createLightningBolt()
+            let bolt = SKSpriteNode(texture: boltTexture)
+            bolt.size = CGSize(width: 20, height: 35)
             bolt.zRotation = CGFloat(i) * .pi / 3  // Spread around 360 degrees
             effectNode.addChild(bolt)
         }
 
-        // Add center flash
-        let flash = SKShapeNode(circleOfRadius: 15)
-        flash.fillColor = .white
-        flash.strokeColor = .cyan
-        flash.lineWidth = 2
-        flash.glowWidth = 5
+        // Add center flash using cached texture
+        let flash = SKSpriteNode(texture: flashTexture)
+        flash.size = CGSize(width: 40, height: 40)
         effectNode.addChild(flash)
 
         gameLayer.addChild(effectNode)
@@ -859,29 +925,6 @@ class GameScene: SKScene {
         let remove = SKAction.removeFromParent()
 
         effectNode.run(SKAction.sequence([scaleUp, fadeOut, remove]))
-    }
-
-    /// Create a single lightning bolt shape
-    private func createLightningBolt() -> SKShapeNode {
-        let bolt = SKShapeNode()
-        let path = CGMutablePath()
-
-        // Zigzag lightning pattern
-        path.move(to: CGPoint(x: 0, y: 5))
-        path.addLine(to: CGPoint(x: 3, y: 12))
-        path.addLine(to: CGPoint(x: -2, y: 18))
-        path.addLine(to: CGPoint(x: 4, y: 28))
-        path.addLine(to: CGPoint(x: -1, y: 22))
-        path.addLine(to: CGPoint(x: 2, y: 15))
-        path.addLine(to: CGPoint(x: -3, y: 8))
-
-        bolt.path = path
-        bolt.strokeColor = .cyan
-        bolt.lineWidth = 2
-        bolt.glowWidth = 3
-        bolt.lineCap = .round
-
-        return bolt
     }
 
     private func updateUFO() {
@@ -1508,7 +1551,15 @@ class GameScene: SKScene {
     private func removeBullet(_ bullet: Bullet, hitObstacle: Bool = false) {
         bullet.owner?.bulletDestroyed(hitObstacle: hitObstacle)
         bullet.removeFromParent()
-        bullets.removeAll { $0 === bullet }
+        // Mark for batch removal instead of O(n) removeAll per bullet
+        bulletsMarkedForRemoval.insert(ObjectIdentifier(bullet))
+    }
+
+    /// Remove all marked bullets in one pass (O(n) total instead of O(n) per bullet)
+    private func flushBulletRemovals() {
+        guard !bulletsMarkedForRemoval.isEmpty else { return }
+        bullets.removeAll { bulletsMarkedForRemoval.contains(ObjectIdentifier($0)) }
+        bulletsMarkedForRemoval.removeAll()
     }
 
     // MARK: - Game State

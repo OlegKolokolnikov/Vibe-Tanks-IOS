@@ -8,6 +8,39 @@ class Tank: SKSpriteNode {
     private static var rainbowTextureCache: [String: [[SKTexture]]] = [:]
     private static let rainbowFrameCount = 30  // 30 hue steps for smooth animation
 
+    // Static explosion texture cache - pre-rendered circles for explosion effects
+    private static var explosionTextureCache: [String: SKTexture] = [:]
+
+    /// Get or create cached explosion circle texture
+    private static func getExplosionTexture(color: SKColor, radius: CGFloat, key: String) -> SKTexture {
+        if let cached = explosionTextureCache[key] {
+            return cached
+        }
+
+        let size = radius * 2
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            ctx.setFillColor(color.cgColor)
+            ctx.fillEllipse(in: CGRect(x: 0, y: 0, width: size, height: size))
+        }
+        let texture = SKTexture(image: image)
+        explosionTextureCache[key] = texture
+        return texture
+    }
+
+    /// Pre-generate all explosion textures (call once at startup)
+    static func preloadExplosionTextures() {
+        // Main explosion circles
+        _ = getExplosionTexture(color: .red, radius: 5, key: "explosion_red")
+        _ = getExplosionTexture(color: .orange, radius: 5, key: "explosion_orange")
+        _ = getExplosionTexture(color: .yellow, radius: 5, key: "explosion_yellow")
+        // Particles
+        _ = getExplosionTexture(color: .red, radius: 3, key: "particle_red")
+        _ = getExplosionTexture(color: .orange, radius: 3, key: "particle_orange")
+        _ = getExplosionTexture(color: .yellow, radius: 3, key: "particle_yellow")
+    }
+
     /// Get or create cached rainbow textures for a given tank size
     private static func getRainbowTextures(size: CGFloat) -> [[SKTexture]] {
         let key = "\(Int(size))"
@@ -875,11 +908,18 @@ class Tank: SKSpriteNode {
         explosion.position = self.position
         explosion.zPosition = 100
 
-        // Create expanding circles for explosion effect
+        // Texture keys for circles
+        let circleKeys = ["explosion_red", "explosion_orange", "explosion_yellow"]
+
+        // Create expanding circles for explosion effect (using cached textures)
         for i in 0..<3 {
-            let circle = SKShapeNode(circleOfRadius: 5)
-            circle.fillColor = [SKColor.red, SKColor.orange, SKColor.yellow][i]
-            circle.strokeColor = .clear
+            let texture = Tank.getExplosionTexture(
+                color: [SKColor.red, SKColor.orange, SKColor.yellow][i],
+                radius: 5,
+                key: circleKeys[i]
+            )
+            let circle = SKSpriteNode(texture: texture)
+            circle.size = CGSize(width: 10, height: 10)
             explosion.addChild(circle)
 
             let delay = Double(i) * 0.05
@@ -890,11 +930,20 @@ class Tank: SKSpriteNode {
             circle.run(sequence)
         }
 
-        // Add particles
+        // Particle texture keys
+        let particleKeys = ["particle_red", "particle_orange", "particle_yellow"]
+        let particleColors: [SKColor] = [.red, .orange, .yellow]
+
+        // Add particles (using cached textures)
         for _ in 0..<8 {
-            let particle = SKShapeNode(circleOfRadius: 3)
-            particle.fillColor = [SKColor.red, SKColor.orange, SKColor.yellow].randomElement()!
-            particle.strokeColor = .clear
+            let colorIndex = Int.random(in: 0..<3)
+            let texture = Tank.getExplosionTexture(
+                color: particleColors[colorIndex],
+                radius: 3,
+                key: particleKeys[colorIndex]
+            )
+            let particle = SKSpriteNode(texture: texture)
+            particle.size = CGSize(width: 6, height: 6)
             explosion.addChild(particle)
 
             let angle = CGFloat.random(in: 0...(.pi * 2))

@@ -12,6 +12,66 @@ class Sidebar: SKNode {
     private static let textColor = SKColor.black
     private static let flagPoleColor = SKColor.black
 
+    // Cached enemy icon texture (pre-rendered once)
+    private static var enemyIconTexture: SKTexture?
+
+    /// Get or create cached enemy icon texture
+    private static func getEnemyIconTexture(size: CGFloat) -> SKTexture {
+        if let cached = enemyIconTexture {
+            return cached
+        }
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            ctx.setFillColor(UIColor.black.cgColor)
+
+            let center = size / 2
+
+            // Tank body
+            let bodyWidth = size * 0.7
+            let bodyHeight = size * 0.6
+            ctx.fill(CGRect(
+                x: center - bodyWidth / 2,
+                y: center - bodyHeight / 2 + size * 0.1,
+                width: bodyWidth,
+                height: bodyHeight
+            ))
+
+            // Left track
+            let trackWidth = size * 0.2
+            let trackHeight = size * 0.7
+            ctx.fill(CGRect(
+                x: center - size * 0.35 - trackWidth / 2,
+                y: center - trackHeight / 2 + size * 0.05,
+                width: trackWidth,
+                height: trackHeight
+            ))
+
+            // Right track
+            ctx.fill(CGRect(
+                x: center + size * 0.35 - trackWidth / 2,
+                y: center - trackHeight / 2 + size * 0.05,
+                width: trackWidth,
+                height: trackHeight
+            ))
+
+            // Barrel
+            let barrelWidth = size * 0.2
+            let barrelHeight = size * 0.4
+            ctx.fill(CGRect(
+                x: center - barrelWidth / 2,
+                y: center - size * 0.3 - barrelHeight / 2,
+                width: barrelWidth,
+                height: barrelHeight
+            ))
+        }
+
+        let texture = SKTexture(image: image)
+        enemyIconTexture = texture
+        return texture
+    }
+
     // Icon settings
     private static let enemyIconSize: CGFloat = 18
     private static let enemyIconSpacing: CGFloat = 6
@@ -220,6 +280,9 @@ class Sidebar: SKNode {
     private func updateEnemyIcons(count: Int) {
         enemyIconsNode.removeAllChildren()
 
+        // Get cached texture (created once, reused for all icons)
+        let texture = Sidebar.getEnemyIconTexture(size: Sidebar.enemyIconSize)
+
         for i in 0..<count {
             let col = i % Sidebar.enemyColumns
             let row = i / Sidebar.enemyColumns
@@ -227,50 +290,12 @@ class Sidebar: SKNode {
             let x = CGFloat(col) * (Sidebar.enemyIconSize + Sidebar.enemyIconSpacing)
             let y = -CGFloat(row) * (Sidebar.enemyIconSize + Sidebar.enemyIconSpacing)
 
-            let icon = createEnemyIcon(size: Sidebar.enemyIconSize)
+            // Use pre-rendered texture instead of 4 SKShapeNodes
+            let icon = SKSpriteNode(texture: texture)
+            icon.size = CGSize(width: Sidebar.enemyIconSize, height: Sidebar.enemyIconSize)
             icon.position = CGPoint(x: x + Sidebar.enemyIconSize / 2, y: y - Sidebar.enemyIconSize / 2)
             enemyIconsNode.addChild(icon)
         }
-    }
-
-    private func createEnemyIcon(size: CGFloat) -> SKNode {
-        let container = SKNode()
-
-        // Tank body
-        let bodyWidth = size * 0.7
-        let bodyHeight = size * 0.6
-        let body = SKShapeNode(rectOf: CGSize(width: bodyWidth, height: bodyHeight))
-        body.fillColor = Sidebar.enemyIconColor
-        body.strokeColor = .clear
-        body.position = CGPoint(x: 0, y: -size * 0.1)
-        container.addChild(body)
-
-        // Left track
-        let trackWidth = size * 0.2
-        let trackHeight = size * 0.7
-        let leftTrack = SKShapeNode(rectOf: CGSize(width: trackWidth, height: trackHeight))
-        leftTrack.fillColor = Sidebar.enemyIconColor
-        leftTrack.strokeColor = .clear
-        leftTrack.position = CGPoint(x: -size * 0.35, y: -size * 0.05)
-        container.addChild(leftTrack)
-
-        // Right track
-        let rightTrack = SKShapeNode(rectOf: CGSize(width: trackWidth, height: trackHeight))
-        rightTrack.fillColor = Sidebar.enemyIconColor
-        rightTrack.strokeColor = .clear
-        rightTrack.position = CGPoint(x: size * 0.35, y: -size * 0.05)
-        container.addChild(rightTrack)
-
-        // Barrel
-        let barrelWidth = size * 0.2
-        let barrelHeight = size * 0.4
-        let barrel = SKShapeNode(rectOf: CGSize(width: barrelWidth, height: barrelHeight))
-        barrel.fillColor = Sidebar.enemyIconColor
-        barrel.strokeColor = .clear
-        barrel.position = CGPoint(x: 0, y: size * 0.3)
-        container.addChild(barrel)
-
-        return container
     }
 
     private func updatePlayerInfo(lives: Int) {
