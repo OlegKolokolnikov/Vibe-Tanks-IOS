@@ -108,6 +108,11 @@ class GameScene: SKScene {
     var playerCollectedEasterEgg: Bool = false
     var playerKills: Int = 0
     private var ufoMessageTimer: Int = 0
+
+    // Gold power-up (Gzhel mode only)
+    private var goldSpawnedThisLevel: Bool = false
+    private var goldSpawnTimer: Int = 0
+    private let goldSpawnChance: Double = 0.0003  // ~1% chance per second at 60fps
     private var ufoMessageLabel: SKLabelNode?
 
     // UI
@@ -694,6 +699,7 @@ class GameScene: SKScene {
         updateSpawner()
         updateUFO()
         updateEasterEgg()
+        updateGoldSpawn()
         checkCollisions()
         flushBulletRemovals()  // Batch remove all bullets marked for removal
         checkGameState()
@@ -1009,6 +1015,32 @@ class GameScene: SKScene {
         }
     }
 
+    /// Try to spawn gold power-up (Gzhel mode only, once per level)
+    private func updateGoldSpawn() {
+        // Only spawn in Gzhel mode, once per level, and not during victory
+        guard showGzhelBorder && !goldSpawnedThisLevel && victoryDelayTimer == 0 else { return }
+
+        // Wait a bit before gold can spawn (at least 5 seconds into level)
+        goldSpawnTimer += 1
+        guard goldSpawnTimer > 300 else { return }  // 5 seconds at 60fps
+
+        // Random chance to spawn gold
+        if Double.random(in: 0...1) < goldSpawnChance {
+            spawnGold()
+        }
+    }
+
+    /// Spawn gold power-up at random empty position
+    private func spawnGold() {
+        goldSpawnedThisLevel = true
+        let position = findRandomEmptyPosition()
+        let gold = PowerUp(position: position, type: .gold)
+        powerUps.append(gold)
+        gameLayer.addChild(gold)
+        showEffect(text: "GOLD!", color: .yellow)
+        SoundManager.shared.playPowerUpSpawn()
+    }
+
     // MARK: - Collision Detection
 
     private func checkCollisions() {
@@ -1142,6 +1174,29 @@ class GameScene: SKScene {
             // Enemy can break forest
             enemy.canDestroyTrees = true
             showEffect(text: "ENEMY SAW!", color: .red)
+        case .gold:
+            // Major upgrade based on current type
+            handleEnemyGoldCollection(enemy)
+        }
+    }
+
+    /// Handle enemy collecting gold - major upgrade
+    private func handleEnemyGoldCollection(_ enemy: Tank) {
+        switch enemy.enemyType {
+        case .power:
+            // Power tank → Heavy tank
+            enemy.convertToType(.heavy)
+            showEffect(text: "GOLD HEAVY!", color: .red)
+        case .heavy:
+            // Heavy tank → gets speed + machinegun + ship (ultimate form)
+            enemy.speedMultiplier = 1.8
+            enemy.machinegunCount = 2
+            enemy.activateShip()
+            showEffect(text: "GOLD ULTIMATE!", color: .red)
+        default:
+            // Regular/fast/armored → Power tank
+            enemy.convertToType(.power)
+            showEffect(text: "GOLD POWER!", color: .red)
         }
     }
 
@@ -1216,7 +1271,13 @@ class GameScene: SKScene {
     }
 
     private func handlePowerUpCollection(_ powerUp: PowerUp) {
-        // All power-ups give 1 point
+        // Gold gives 99 points, others give 1
+        if powerUp.type == .gold {
+            addScore(99)
+            showEffect(text: "+99 GOLD!", color: .yellow)
+            return
+        }
+
         addScore(1)
 
         switch powerUp.type {

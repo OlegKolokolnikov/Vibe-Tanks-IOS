@@ -15,6 +15,7 @@ class PowerUp: SKSpriteNode {
         case machinegun // Multiple bullets
         case freeze     // Freeze enemies for 10 seconds
         case bomb       // Explode all enemies
+        case gold       // Gzhel-only: 99 points, enemies get major upgrade
     }
 
     let type: PowerUpType
@@ -46,17 +47,78 @@ class PowerUp: SKSpriteNode {
     private func drawPowerUp() {
         removeAllChildren()
 
-        let background = SKShapeNode(rectOf: size, cornerRadius: 4)
-        background.fillColor = colorForType
-        background.strokeColor = .white
-        background.lineWidth = 2
-        addChild(background)
+        if type == .gold {
+            // Lode Runner style gold bar/ingot
+            drawGoldBar()
+        } else {
+            let background = SKShapeNode(rectOf: size, cornerRadius: 4)
+            background.fillColor = colorForType
+            background.strokeColor = .white
+            background.lineWidth = 2
+            addChild(background)
 
-        // Add icon
-        let icon = SKLabelNode(text: iconForType)
-        icon.fontSize = 16
-        icon.verticalAlignmentMode = .center
-        addChild(icon)
+            // Add icon
+            let icon = SKLabelNode(text: iconForType)
+            icon.fontSize = 16
+            icon.verticalAlignmentMode = .center
+            addChild(icon)
+        }
+    }
+
+    /// Draw Lode Runner style gold bar
+    private func drawGoldBar() {
+        // Gold bar trapezoid shape (like Lode Runner)
+        let goldColor = SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0)
+        let darkGold = SKColor(red: 0.85, green: 0.65, blue: 0.0, alpha: 1.0)
+        let lightGold = SKColor(red: 1.0, green: 0.95, blue: 0.5, alpha: 1.0)
+
+        // Main gold bar (trapezoid-ish rectangle)
+        let barWidth: CGFloat = 24
+        let barHeight: CGFloat = 16
+
+        let bar = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 2)
+        bar.fillColor = goldColor
+        bar.strokeColor = darkGold
+        bar.lineWidth = 2
+        addChild(bar)
+
+        // Shine/highlight on top
+        let shine = SKShapeNode(rectOf: CGSize(width: barWidth - 6, height: 4))
+        shine.fillColor = lightGold
+        shine.strokeColor = .clear
+        shine.position = CGPoint(x: 0, y: 4)
+        addChild(shine)
+
+        // Small "$" symbol
+        let symbol = SKLabelNode(text: "$")
+        symbol.fontName = "Helvetica-Bold"
+        symbol.fontSize = 12
+        symbol.fontColor = darkGold
+        symbol.verticalAlignmentMode = .center
+        symbol.position = CGPoint(x: 0, y: -1)
+        addChild(symbol)
+
+        // Add sparkle effect
+        addSparkle()
+    }
+
+    /// Add sparkle animation to gold
+    private func addSparkle() {
+        let sparkle = SKShapeNode(circleOfRadius: 3)
+        sparkle.fillColor = .white
+        sparkle.strokeColor = .clear
+        sparkle.alpha = 0
+        sparkle.position = CGPoint(x: 8, y: 5)
+        sparkle.name = "sparkle"
+        addChild(sparkle)
+
+        // Sparkle animation
+        let fadeIn = SKAction.fadeAlpha(to: 1.0, duration: 0.3)
+        let fadeOut = SKAction.fadeAlpha(to: 0.0, duration: 0.3)
+        let wait = SKAction.wait(forDuration: 1.0)
+        let moveToOther = SKAction.move(to: CGPoint(x: -6, y: -3), duration: 0)
+        let sparkleSequence = SKAction.sequence([fadeIn, fadeOut, wait, moveToOther, fadeIn, fadeOut, wait, SKAction.move(to: CGPoint(x: 8, y: 5), duration: 0)])
+        sparkle.run(SKAction.repeatForever(sparkleSequence))
     }
 
     private var colorForType: SKColor {
@@ -72,6 +134,7 @@ class PowerUp: SKSpriteNode {
         case .machinegun: return SKColor(red: 0.8, green: 0.0, blue: 0.0, alpha: 1.0) // Red
         case .freeze: return SKColor(red: 0.5, green: 0.8, blue: 1.0, alpha: 1.0) // Light blue
         case .bomb: return SKColor(red: 0.5, green: 0.0, blue: 0.0, alpha: 1.0) // Dark red
+        case .gold: return SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Bright gold
         }
     }
 
@@ -88,6 +151,7 @@ class PowerUp: SKSpriteNode {
         case .machinegun: return "💥"
         case .freeze: return "❄️"
         case .bomb: return "💣"
+        case .gold: return "$"  // Lode Runner style
         }
     }
 
@@ -129,6 +193,9 @@ class PowerUp: SKSpriteNode {
             break
         case .bomb:
             // Handled by game scene
+            break
+        case .gold:
+            // Handled by game scene (+99 points)
             break
         }
     }

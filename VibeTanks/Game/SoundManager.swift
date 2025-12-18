@@ -80,6 +80,7 @@ class SoundManager {
         treeBurnPlayer = loadPlayer("tree_burn", volume: 0.5)
         laserPlayer = loadPlayer("laser", volume: 0.4)
         powerUpSpawnPlayer = loadPlayer("powerup_spawn", volume: 0.5)
+
     }
 
     private func loadPlayer(_ name: String, volume: Float) -> AVAudioPlayer? {
