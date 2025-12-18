@@ -39,20 +39,19 @@ class MenuScene: SKScene {
         optionsButton.name = "optionsButton"
         addChild(optionsButton)
 
-        // Instructions
-        let instructions = SKLabelNode(text: "Defend your base from enemy tanks!")
-        instructions.fontName = "Helvetica"
-        instructions.fontSize = 14
-        instructions.fontColor = .white
-        instructions.position = CGPoint(x: size.width / 2, y: size.height * 0.12)
-        addChild(instructions)
+        // Quit button (iOS only - Apple discourages quitting apps on iOS but it's common in games)
+        #if os(iOS)
+        let quitButton = createButton(text: "QUIT", position: CGPoint(x: size.width / 2, y: size.height * 0.10))
+        quitButton.name = "quitButton"
+        addChild(quitButton)
+        #endif
 
         // Credits
         let credits = SKLabelNode(text: "Designed by Oleg")
         credits.fontName = "Helvetica-Bold"
         credits.fontSize = 14
         credits.fontColor = .lightGray
-        credits.position = CGPoint(x: size.width / 2, y: size.height * 0.05)
+        credits.position = CGPoint(x: size.width / 2, y: size.height * 0.03)
         addChild(credits)
     }
 
@@ -763,8 +762,20 @@ class MenuScene: SKScene {
                 openOptions()
                 return
             }
+            #if os(iOS)
+            if node.name == "quitButton" || node.parent?.name == "quitButton" {
+                quitGame()
+                return
+            }
+            #endif
         }
     }
+
+    #if os(iOS)
+    private func quitGame() {
+        exit(0)
+    }
+    #endif
 
     private func openOptions() {
         let optionsScene = OptionsScene(size: size)
