@@ -261,11 +261,29 @@ class OptionsScene: SKScene {
         return container
     }
 
-    // MARK: - Touch Handling
+    // MARK: - Input Handling
 
+    #if os(iOS) || os(tvOS)
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
+        handleClick(at: location)
+    }
+    #elseif os(macOS)
+    override func mouseDown(with event: NSEvent) {
+        let location = event.location(in: self)
+        handleClick(at: location)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        // Escape to go back
+        if event.keyCode == 53 {
+            goBack()
+        }
+    }
+    #endif
+
+    private func handleClick(at location: CGPoint) {
         let nodes = nodes(at: location)
 
         for node in nodes {

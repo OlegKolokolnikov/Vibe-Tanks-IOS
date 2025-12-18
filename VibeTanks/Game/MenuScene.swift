@@ -731,9 +731,27 @@ class MenuScene: SKScene {
         return container
     }
 
+    #if os(iOS) || os(tvOS)
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
+        handleClick(at: location)
+    }
+    #elseif os(macOS)
+    override func mouseDown(with event: NSEvent) {
+        let location = event.location(in: self)
+        handleClick(at: location)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        // Enter or Space to start
+        if event.keyCode == 36 || event.keyCode == 49 {
+            startGame()
+        }
+    }
+    #endif
+
+    private func handleClick(at location: CGPoint) {
         let nodes = nodes(at: location)
 
         for node in nodes {

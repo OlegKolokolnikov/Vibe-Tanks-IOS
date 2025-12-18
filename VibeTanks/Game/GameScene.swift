@@ -145,10 +145,14 @@ class GameScene: SKScene {
     var baseFlashTimer: Int = 0
     var baseIsSteel: Bool = false
 
-    // Keyboard input (for simulator)
+    // Keyboard input (for simulator and macOS)
     private var keyboardDirection: Direction?
     private var keyboardFiring: Bool = false
+    #if os(iOS) || os(tvOS)
     private var pressedDirectionKeys: Set<UIKeyboardHIDUsage> = []
+    #else
+    private var pressedDirectionKeys: Set<UInt16> = []
+    #endif
 
     // Spawning
     private var enemySpawner: EnemySpawner!
@@ -1953,8 +1957,10 @@ class GameScene: SKScene {
         view?.presentScene(menuScene, transition: .fade(withDuration: 0.5))
     }
 
-    // MARK: - Keyboard Support (for Simulator)
+    // MARK: - Keyboard Support
 
+    #if os(iOS) || os(tvOS)
+    // iOS keyboard support (hardware keyboard / simulator)
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         for press in presses {
             guard let key = press.key else { continue }
@@ -2003,7 +2009,6 @@ class GameScene: SKScene {
             case .keyboardUpArrow, .keyboardDownArrow, .keyboardLeftArrow, .keyboardRightArrow,
                  .keyboardW, .keyboardS, .keyboardA, .keyboardD:
                 pressedDirectionKeys.remove(key.keyCode)
-                // Update direction based on remaining pressed keys
                 keyboardDirection = getDirectionFromPressedKeys()
 
             // Fire: Space or J
@@ -2017,7 +2022,6 @@ class GameScene: SKScene {
     }
 
     private func getDirectionFromPressedKeys() -> Direction? {
-        // Return direction based on any still-pressed direction key
         for keyCode in pressedDirectionKeys {
             switch keyCode {
             case .keyboardUpArrow, .keyboardW:
@@ -2034,4 +2038,103 @@ class GameScene: SKScene {
         }
         return nil
     }
+
+    #elseif os(macOS)
+    // macOS keyboard support
+    // Key codes for macOS
+    private static let keyW: UInt16 = 13
+    private static let keyA: UInt16 = 0
+    private static let keyS: UInt16 = 1
+    private static let keyD: UInt16 = 2
+    private static let keyJ: UInt16 = 38
+    private static let keyUp: UInt16 = 126
+    private static let keyDown: UInt16 = 125
+    private static let keyLeft: UInt16 = 123
+    private static let keyRight: UInt16 = 124
+    private static let keySpace: UInt16 = 49
+    private static let keyReturn: UInt16 = 36
+    private static let keyEscape: UInt16 = 53
+    private static let keyP: UInt16 = 35
+
+    override func keyDown(with event: NSEvent) {
+        // Ignore key repeat
+        guard !event.isARepeat else { return }
+
+        let keyCode = event.keyCode
+
+        switch keyCode {
+        // Arrow keys and WASD
+        case GameScene.keyUp, GameScene.keyW:
+            pressedDirectionKeys.insert(keyCode)
+            keyboardDirection = .up
+        case GameScene.keyDown, GameScene.keyS:
+            pressedDirectionKeys.insert(keyCode)
+            keyboardDirection = .down
+        case GameScene.keyLeft, GameScene.keyA:
+            pressedDirectionKeys.insert(keyCode)
+            keyboardDirection = .left
+        case GameScene.keyRight, GameScene.keyD:
+            pressedDirectionKeys.insert(keyCode)
+            keyboardDirection = .right
+
+        // Fire: Space or J
+        case GameScene.keySpace, GameScene.keyJ:
+            keyboardFiring = true
+
+        // Pause: P or Escape
+        case GameScene.keyP, GameScene.keyEscape:
+            togglePause()
+
+        // Continue/restart on Enter when game over
+        case GameScene.keyReturn:
+            if isGameOver {
+                if didWinLevel {
+                    nextLevel()
+                } else {
+                    restartGame()
+                }
+            }
+
+        default:
+            break
+        }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        let keyCode = event.keyCode
+
+        switch keyCode {
+        // Direction keys
+        case GameScene.keyUp, GameScene.keyDown, GameScene.keyLeft, GameScene.keyRight,
+             GameScene.keyW, GameScene.keyS, GameScene.keyA, GameScene.keyD:
+            pressedDirectionKeys.remove(keyCode)
+            keyboardDirection = getDirectionFromPressedKeys()
+
+        // Fire: Space or J
+        case GameScene.keySpace, GameScene.keyJ:
+            keyboardFiring = false
+
+        default:
+            break
+        }
+    }
+
+    private func getDirectionFromPressedKeys() -> Direction? {
+        for keyCode in pressedDirectionKeys {
+            switch keyCode {
+            case GameScene.keyUp, GameScene.keyW:
+                return .up
+            case GameScene.keyDown, GameScene.keyS:
+                return .down
+            case GameScene.keyLeft, GameScene.keyA:
+                return .left
+            case GameScene.keyRight, GameScene.keyD:
+                return .right
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+    #endif
 }
