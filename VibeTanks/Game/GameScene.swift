@@ -1351,8 +1351,7 @@ class GameScene: SKScene {
     private func destroyAllEnemies() {
         for enemy in enemyTanks {
             if enemy.isAlive {
-                addScore(GameConstants.scoreForEnemyType(enemy.enemyType))
-                killsByType[enemy.enemyType, default: 0] += 1
+                // No score or kill credit for bomb kills
                 // Force kill - keep damaging until dead (for heavy tanks with multiple health)
                 while enemy.isAlive {
                     enemy.damage(bypassShip: true, bypassShield: true)
