@@ -3,6 +3,18 @@ import SpriteKit
 /// Bullet projectile
 class Bullet: SKSpriteNode {
 
+    // Static texture cache - created once, reused for all bullets
+    private static var textureCache: [String: SKTexture] = [:]
+
+    private static func getCachedTexture(color: SKColor, colorKey: String) -> SKTexture {
+        if let cached = textureCache[colorKey] {
+            return cached
+        }
+        let texture = createBulletTexture(color: color)
+        textureCache[colorKey] = texture
+        return texture
+    }
+
     let direction: Direction
     weak var owner: Tank?
     let power: Int
@@ -26,11 +38,12 @@ class Bullet: SKSpriteNode {
         self.power = power
         self.forceIsEnemy = nil
 
+        let colorKey = owner.isPlayer ? "yellow" : "white"
         let color: SKColor = owner.isPlayer ? .yellow : .white
         let size = CGSize(width: GameConstants.bulletSize, height: GameConstants.bulletSize)
 
-        // Create simple circular texture for bullet
-        let texture = Bullet.createBulletTexture(color: color)
+        // Use cached texture for better performance
+        let texture = Bullet.getCachedTexture(color: color, colorKey: colorKey)
         super.init(texture: texture, color: .white, size: size)
 
         self.position = position
@@ -55,7 +68,8 @@ class Bullet: SKSpriteNode {
         let color: SKColor = .green
         let size = CGSize(width: GameConstants.bulletSize, height: GameConstants.bulletSize)
 
-        let texture = Bullet.createBulletTexture(color: color)
+        // Use cached texture for better performance
+        let texture = Bullet.getCachedTexture(color: color, colorKey: "green")
         super.init(texture: texture, color: .white, size: size)
 
         self.position = CGPoint(x: x, y: y)

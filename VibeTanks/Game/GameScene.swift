@@ -31,6 +31,8 @@ class GameScene: SKScene {
     private var gameMap: GameMap!
     private var playerTank: Tank!
     private var enemyTanks: [Tank] = []
+    private var _cachedAllTanks: [Tank] = []
+    private var _allTanksDirty: Bool = true
     private var bullets: [Bullet] = []
     private var powerUps: [PowerUp] = []
     private var base: Base!
@@ -814,6 +816,7 @@ class GameScene: SKScene {
         // Spawn regular enemies (don't spawn on player)
         if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap) {
             enemyTanks.append(newEnemy)
+            invalidateAllTanksCache()
             gameLayer.addChild(newEnemy)
             showSpawnEffect(at: newEnemy.position)
         }
@@ -821,6 +824,7 @@ class GameScene: SKScene {
         // Spawn extra enemies (from tank power-up collection, don't spawn on player)
         if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap) {
             enemyTanks.append(extraEnemy)
+            invalidateAllTanksCache()
             gameLayer.addChild(extraEnemy)
             showSpawnEffect(at: extraEnemy.position)
         }
@@ -1049,9 +1053,12 @@ class GameScene: SKScene {
         }
 
         // Remove destroyed enemies
-        for enemy in enemiesToRemove {
-            enemy.removeFromParent()
-            enemyTanks.removeAll { $0 === enemy }
+        if !enemiesToRemove.isEmpty {
+            for enemy in enemiesToRemove {
+                enemy.removeFromParent()
+                enemyTanks.removeAll { $0 === enemy }
+            }
+            invalidateAllTanksCache()
         }
     }
 
@@ -1223,7 +1230,7 @@ class GameScene: SKScene {
             showEffect(text: "ENEMY MACHINEGUN!", color: .red)
         case .freeze:
             // Freeze player for 30 seconds (can still shoot)
-            playerFreezeTimer = 1800  // 30 seconds at 60fps
+            playerFreezeTimer = GameConstants.freezeDuration
             addFreezeEffectToPlayer()
             showEffect(text: "PLAYER FROZEN!", color: .red)
         case .bomb:
@@ -1318,7 +1325,7 @@ class GameScene: SKScene {
         switch powerUp.type {
         case .freeze:
             // Freeze enemies for 30 seconds with animation
-            freezeTimer = 1800  // 30 seconds at 60fps
+            freezeTimer = GameConstants.freezeDuration
             addFreezeEffectToEnemies()
             showEffect(text: "FREEZE!", color: .cyan)
         case .bomb:
@@ -1397,13 +1404,14 @@ class GameScene: SKScene {
             enemy.removeFromParent()
         }
         enemyTanks.removeAll()
+        invalidateAllTanksCache()
     }
 
     // MARK: - Base Protection
 
     /// Activate steel protection around base for 60 seconds
     private func activateBaseProtection() {
-        baseProtectionTimer = 3600  // 60 seconds at 60fps
+        baseProtectionTimer = GameConstants.baseProtectionTime
         baseFlashTimer = 0
         baseIsSteel = true
         gameMap.setBaseProtection(steel: true)
@@ -1508,7 +1516,7 @@ class GameScene: SKScene {
     private func checkGameState() {
         // Check win condition - start 5 second delay for power-up collection
         if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) && victoryDelayTimer == 0 && !isGameOver {
-            victoryDelayTimer = 300  // 5 seconds at 60fps
+            victoryDelayTimer = GameConstants.victoryDelay
             showEffect(text: "VICTORY! Collect power-ups!", color: .green)
         }
 
@@ -1865,7 +1873,15 @@ class GameScene: SKScene {
     // MARK: - Helpers
 
     private var allTanks: [Tank] {
-        return [playerTank] + enemyTanks
+        if _allTanksDirty {
+            _cachedAllTanks = [playerTank].compactMap { $0 } + enemyTanks
+            _allTanksDirty = false
+        }
+        return _cachedAllTanks
+    }
+
+    private func invalidateAllTanksCache() {
+        _allTanksDirty = true
     }
 
     // MARK: - Touch Handling for Restart

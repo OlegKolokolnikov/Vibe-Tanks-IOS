@@ -52,6 +52,7 @@ struct GameConstants {
     // Power-up settings
     static let powerUpLifetime = 600 // 10 seconds
     static let freezeTime = 600 // 10 seconds
+    static let freezeDuration = 1800 // 30 seconds (freeze power-up effect)
     static let baseProtectionTime = 3600 // 1 minute (shovel power-up)
 
     // UFO settings

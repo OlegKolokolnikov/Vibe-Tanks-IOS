@@ -3,6 +3,47 @@ import SpriteKit
 /// Tank entity - player or enemy
 class Tank: SKSpriteNode {
 
+    // Static rainbow texture cache - pre-rendered for performance
+    // Key: "size_frameIndex" -> array of 2 textures (for track animation)
+    private static var rainbowTextureCache: [String: [[SKTexture]]] = [:]
+    private static let rainbowFrameCount = 30  // 30 hue steps for smooth animation
+
+    /// Get or create cached rainbow textures for a given tank size
+    private static func getRainbowTextures(size: CGFloat) -> [[SKTexture]] {
+        let key = "\(Int(size))"
+        if let cached = rainbowTextureCache[key] {
+            return cached
+        }
+
+        // Pre-render all rainbow frames (each frame has 2 track animation variants)
+        var frames: [[SKTexture]] = []
+        let scale = size / GameConstants.tankSize
+
+        for i in 0..<rainbowFrameCount {
+            let hue = CGFloat(i) / CGFloat(rainbowFrameCount)
+            let mainColor = SKColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
+            let darkColor = SKColor(hue: hue, saturation: 1.0, brightness: 0.6, alpha: 1.0)
+
+            var trackFrames: [SKTexture] = []
+            for t in 0..<2 {
+                let offset = CGFloat(t) * 2.5 * scale
+                let texture = renderTankTexture(
+                    size: size,
+                    mainColor: mainColor,
+                    darkColor: darkColor,
+                    isPlayer: false,
+                    enemyType: .power,
+                    trackOffset: offset
+                )
+                trackFrames.append(texture)
+            }
+            frames.append(trackFrames)
+        }
+
+        rainbowTextureCache[key] = frames
+        return frames
+    }
+
     enum EnemyType: Int, CaseIterable {
         case regular = 0
         case fast = 1
@@ -46,6 +87,10 @@ class Tank: SKSpriteNode {
     // Track animation
     private var trackFrame: Int = 0
     private var cachedTextures: [SKTexture] = []
+
+    // Rainbow animation (for POWER tanks)
+    private var rainbowFrameIndex: Int = 0
+    private var rainbowTextures: [[SKTexture]]?
 
     // Ice sliding
     private var isOnIce: Bool = false
@@ -343,47 +388,34 @@ class Tank: SKSpriteNode {
     }
 
     private func startRainbowAnimation() {
-        // Smooth rainbow using hue rotation
-        let updateInterval: TimeInterval = 0.016  // 60 FPS for very smooth animation
-        let cycleDuration: TimeInterval = 4.0     // Full rainbow cycle in 4 seconds
+        // Get pre-rendered rainbow textures (much faster than rendering every frame)
+        rainbowTextures = Tank.getRainbowTextures(size: self.size.width)
+
+        // Update interval: 4 seconds / 30 frames = ~133ms per frame
+        let updateInterval: TimeInterval = 4.0 / Double(Tank.rainbowFrameCount)
 
         let updateColor = SKAction.run { [weak self] in
-            guard let self = self else { return }
+            guard let self = self,
+                  let textures = self.rainbowTextures,
+                  !textures.isEmpty else { return }
 
-            // Calculate hue based on time
-            let time = CACurrentMediaTime()
-            let hue = CGFloat((time / cycleDuration).truncatingRemainder(dividingBy: 1.0))
+            // Advance to next rainbow frame
+            self.rainbowFrameIndex = (self.rainbowFrameIndex + 1) % textures.count
 
-            // Create color from hue (saturation and brightness at max for vivid colors)
-            let mainColor = SKColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
-            let darkColor = SKColor(hue: hue, saturation: 1.0, brightness: 0.6, alpha: 1.0)
+            // Update cached textures for track animation
+            self.cachedTextures = textures[self.rainbowFrameIndex]
 
-            self.updateTankTexture(mainColor: mainColor, darkColor: darkColor)
+            // Update current display
+            if let tankSprite = self.childNode(withName: "tankBody") as? SKSpriteNode {
+                let trackIndex = (self.trackFrame / 4) % 2
+                tankSprite.texture = self.cachedTextures[trackIndex]
+            }
         }
 
         let wait = SKAction.wait(forDuration: updateInterval)
         let sequence = SKAction.sequence([updateColor, wait])
         let repeatForever = SKAction.repeatForever(sequence)
         run(repeatForever, withKey: "rainbowAnimation")
-    }
-
-    private func updateTankTexture(mainColor: SKColor, darkColor: SKColor) {
-        let tankSize = self.size.width
-
-        // Re-render texture with new colors
-        let texture = Tank.renderTankTexture(
-            size: tankSize,
-            mainColor: mainColor,
-            darkColor: darkColor,
-            isPlayer: isPlayer,
-            enemyType: enemyType,
-            trackOffset: 0
-        )
-
-        // Update the tank sprite
-        if let tankSprite = childNode(withName: "tankBody") as? SKSpriteNode {
-            tankSprite.texture = texture
-        }
     }
 
 
