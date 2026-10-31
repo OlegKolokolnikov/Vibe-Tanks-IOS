@@ -172,6 +172,7 @@ class GameScene: SKScene {
         var speedMultiplier: CGFloat = 1.0
         var canSwim: Bool = false
         var canDestroyTrees: Bool = false
+        var laserRounds: Int = 0  // LASER: rounds left including the one being started
     }
     private var initialPowerUps = PlayerPowerUps()
 
@@ -655,6 +656,7 @@ class GameScene: SKScene {
         playerTank.speedMultiplier = initialPowerUps.speedMultiplier
         playerTank.canSwim = initialPowerUps.canSwim
         playerTank.canDestroyTrees = initialPowerUps.canDestroyTrees
+        playerTank.laserRounds = initialPowerUps.laserRounds
 
         // Always redraw tank to show power-up indicators
         playerTank.drawTank()
@@ -815,7 +817,11 @@ class GameScene: SKScene {
         if touchController.isFiring || keyboardFiring {
             let newBullets = playerTank.shoot()
             if !newBullets.isEmpty {
-                SoundManager.shared.playShoot()
+                if playerTank.hasLaser {
+                    SoundManager.shared.playLaser()
+                } else {
+                    SoundManager.shared.playShoot()
+                }
                 addBulletsWithSpawnCheck(newBullets)
             }
         }
@@ -897,6 +903,9 @@ class GameScene: SKScene {
                 continue
             }
 
+            // Laser light passes through walls
+            if bullet.isLaser { continue }
+
             // Check map collision (walls - this IS an obstacle)
             let (hit, _) = gameMap.checkBulletCollision(
                 position: bullet.position,
@@ -922,6 +931,13 @@ class GameScene: SKScene {
     /// If a bullet spawns inside a wall, it immediately triggers the wall collision
     private func addBulletsWithSpawnCheck(_ newBullets: [Bullet]) {
         for bullet in newBullets {
+            // Laser light is never blocked by walls
+            if bullet.isLaser {
+                bullets.append(bullet)
+                gameLayer.addChild(bullet)
+                continue
+            }
+
             // Check if bullet spawns inside a wall
             let (hit, _) = gameMap.checkBulletCollision(
                 position: bullet.position,
@@ -1185,8 +1201,8 @@ class GameScene: SKScene {
                 continue
             }
 
-            // Check enemy collisions
-            for enemy in enemyTanks {
+            // Check enemy collisions (the laser is the player's reward: enemies can't take it)
+            for enemy in enemyTanks where powerUp.type != .laser {
                 guard enemy.isAlive else { continue }
                 let enemyDx = abs(enemy.position.x - powerUp.position.x)
                 let enemyDy = abs(enemy.position.y - powerUp.position.y)
@@ -1261,6 +1277,8 @@ class GameScene: SKScene {
         case .gold:
             // Major upgrade based on current type
             handleEnemyGoldCollection(enemy)
+        case .laser:
+            break  // Never collected by enemies
         }
     }
 
@@ -1271,6 +1289,10 @@ class GameScene: SKScene {
             // Power tank → Heavy tank
             enemy.convertToType(.heavy)
             showEffect(text: "GOLD HEAVY!", color: .red)
+        case .alien:
+            // Alien stays an alien, but shoots more
+            enemy.machinegunCount = 2
+            showEffect(text: "GOLD ALIEN!", color: .red)
         case .heavy:
             // Heavy tank → gets speed + machinegun + ship (ultimate form)
             enemy.speedMultiplier = 1.8
@@ -1306,8 +1328,8 @@ class GameScene: SKScene {
             enemy.health = 3
             enemy.maxHealth = 3
             showEffect(text: "POWER TANK+!", color: .red)
-        case .heavy, .boss:
-            // Already at max, just heal
+        case .heavy, .boss, .alien:
+            // Already at max (or can't change type), just heal
             enemy.health = enemy.maxHealth
             showEffect(text: "ENEMY HEALED!", color: .red)
         }
@@ -1374,6 +1396,9 @@ class GameScene: SKScene {
             // Player can break forest
             playerTank.canDestroyTrees = true
             showEffect(text: "SAW!", color: .green)
+        case .laser:
+            powerUp.apply(to: playerTank)
+            showEffect(text: "LASER!", color: .cyan)
         default:
             powerUp.apply(to: playerTank)
         }
@@ -1474,10 +1499,10 @@ class GameScene: SKScene {
         }
     }
 
-    func spawnPowerUp(at position: CGPoint) {
+    func spawnPowerUp(at position: CGPoint, type: PowerUp.PowerUpType? = nil) {
         // Find random empty position instead of spawning at enemy location
         let spawnPosition = findRandomEmptyPosition()
-        let powerUp = PowerUp(position: spawnPosition)
+        let powerUp = PowerUp(position: spawnPosition, type: type)
         powerUps.append(powerUp)
         gameLayer.addChild(powerUp)
         SoundManager.shared.playPowerUpSpawn()
@@ -1514,7 +1539,7 @@ class GameScene: SKScene {
         )
     }
 
-    private func showEffect(text: String, color: SKColor) {
+    func showEffect(text: String, color: SKColor) {
         let cameraScale = gameCamera.xScale
 
         let label = SKLabelNode(text: text)
@@ -1730,7 +1755,7 @@ class GameScene: SKScene {
         yPos -= lineHeight * 1.5
 
         // Kill breakdown for each enemy type (only show types with kills)
-        let enemyTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power, .heavy, .boss]
+        let enemyTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power, .heavy, .alien, .boss]
         for type in enemyTypes {
             let count = killsByType[type] ?? 0
             if count > 0 {
@@ -1872,6 +1897,8 @@ class GameScene: SKScene {
             color = SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)  // Dark gray
         case .boss:
             color = SKColor(red: 0.5, green: 0.0, blue: 0.5, alpha: 1.0)  // Purple
+        case .alien:
+            color = SKColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1.0)  // Alien green
         }
 
         // Tank body
@@ -1985,6 +2012,7 @@ class GameScene: SKScene {
         powerUps.hasGun = playerTank.bulletPower >= 2
         powerUps.hasShip = playerTank.canSwim
         powerUps.hasSaw = playerTank.canDestroyTrees
+        powerUps.hasLaser = playerTank.hasLaser
         // Calculate speed boosts (each 0.3 increment is one boost)
         powerUps.speedBoosts = Int((playerTank.speedMultiplier - 1.0) / 0.3)
 
@@ -2094,6 +2122,8 @@ class GameScene: SKScene {
         powerUps.speedMultiplier = playerTank.speedMultiplier
         powerUps.canSwim = playerTank.canSwim
         powerUps.canDestroyTrees = playerTank.canDestroyTrees
+        // Laser only carries into one more round (and only if the player still has it)
+        powerUps.laserRounds = max(playerTank.laserRounds - 1, 0)
 
         // If player collected easter egg and cat played, next level gets Gzhel decoration (one level only)
         let earnedGzhel = playerCollectedEasterEgg

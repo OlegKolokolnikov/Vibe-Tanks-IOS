@@ -39,8 +39,12 @@ extension GameScene {
                             killsByType[killedType, default: 0] += 1
                             SoundManager.shared.playExplosion()
 
-                            // Other enemies have 20% chance to drop power-up when killed
-                            if !wasPowerTank && Int.random(in: 1...5) == 1 {
+                            if killedType == .alien {
+                                // The alien always drops the LASER (its only source)
+                                spawnPowerUp(at: enemy.position, type: .laser)
+                                showEffect(text: "ALIEN DOWN!", color: .green)
+                            } else if !wasPowerTank && Int.random(in: 1...5) == 1 {
+                                // Other enemies have 20% chance to drop power-up when killed
                                 spawnPowerUp(at: enemy.position)
                             }
                         }
@@ -97,9 +101,10 @@ extension GameScene {
         var bulletsToRemove: Set<Bullet> = []
 
         for i in 0..<bullets.count {
-            guard !isBulletRemoved(bullets[i]) else { continue }
+            // Laser light passes through bullets (and bullets through it)
+            guard !isBulletRemoved(bullets[i]), !bullets[i].isLaser else { continue }
             for j in (i+1)..<bullets.count {
-                guard !isBulletRemoved(bullets[j]) else { continue }
+                guard !isBulletRemoved(bullets[j]), !bullets[j].isLaser else { continue }
                 if bullets[i].collidesWith(bullets[j]) {
                     bulletsToRemove.insert(bullets[i])
                     bulletsToRemove.insert(bullets[j])
@@ -115,7 +120,8 @@ extension GameScene {
 
     /// Check bullets hitting the base
     func checkBulletBaseCollision() {
-        for bullet in bullets where !isBulletRemoved(bullet) {
+        // Laser light passes the cat harmlessly (it also goes through the base walls)
+        for bullet in bullets where !isBulletRemoved(bullet) && !bullet.isLaser {
             if base.checkCollision(bulletPosition: bullet.position) {
                 base.destroy()
                 removeBullet(bullet)

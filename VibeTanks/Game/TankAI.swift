@@ -49,6 +49,10 @@ class TankAI {
             aggressiveness = 0.7
             directionChangeInterval = 45
             shootChance = 0.04
+        case .alien:
+            aggressiveness = 0.5
+            directionChangeInterval = 45
+            shootChance = 0.03
         }
     }
 
@@ -141,7 +145,7 @@ class TankAI {
                 y: tank.position.y + dir.velocity.dy * 32
             )
 
-            if !map.checkTankCollision(position: testPos, size: tank.size.width) {
+            if !map.checkTankCollision(position: testPos, size: tank.size.width, canSwim: tank.canMoveOnWater) {
                 // Also check for other tanks
                 var blockedByTank = false
                 for other in allTanks {
@@ -176,7 +180,7 @@ class TankAI {
             y: tank.position.y + dir.velocity.dy * 32
         )
 
-        if map.checkTankCollision(position: testPos, size: tank.size.width) {
+        if map.checkTankCollision(position: testPos, size: tank.size.width, canSwim: tank.canMoveOnWater) {
             return true
         }
 

@@ -77,6 +77,90 @@ class Tank: SKSpriteNode {
         return frames
     }
 
+    // Static alien texture cache (2 walking frames)
+    private static var alienTextureCache: [Int: [SKTexture]] = [:]
+
+    /// Small green alien with a ray gun, facing up (sprite is rotated by direction)
+    private static func getAlienTextures(size: CGFloat) -> [SKTexture] {
+        let key = Int(size)
+        if let cached = alienTextureCache[key] {
+            return cached
+        }
+
+        let k = size / 22  // Drawing is designed on a 22pt grid
+        let green = UIColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1)
+        let darkGreen = UIColor(red: 0.2, green: 0.6, blue: 0.2, alpha: 1)
+
+        var frames: [SKTexture] = []
+        for frame in 0..<2 {
+            let step: CGFloat = frame == 0 ? 1 : -1  // Legs/arms swing
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+            let image = renderer.image { context in
+                let ctx = context.cgContext
+                // Flip so y goes up, like SpriteKit
+                ctx.translateBy(x: 0, y: size)
+                ctx.scaleBy(x: 1, y: -1)
+                ctx.scaleBy(x: k, y: k)
+                ctx.setLineCap(.round)
+
+                // Legs
+                ctx.setStrokeColor(darkGreen.cgColor)
+                ctx.setLineWidth(2)
+                ctx.move(to: CGPoint(x: 9, y: 4)); ctx.addLine(to: CGPoint(x: 8 - step, y: 1))
+                ctx.move(to: CGPoint(x: 13, y: 4)); ctx.addLine(to: CGPoint(x: 14 - step, y: 1))
+                ctx.strokePath()
+
+                // Arms (right arm holds the ray gun)
+                ctx.setStrokeColor(green.cgColor)
+                ctx.move(to: CGPoint(x: 8, y: 8)); ctx.addLine(to: CGPoint(x: 4, y: 9 + step))
+                ctx.move(to: CGPoint(x: 14, y: 8)); ctx.addLine(to: CGPoint(x: 16, y: 10))
+                ctx.strokePath()
+
+                // Ray gun pointing forward (up)
+                ctx.setFillColor(UIColor.gray.cgColor)
+                ctx.fill(CGRect(x: 15.5, y: 9, width: 2, height: 7))
+                ctx.setFillColor(UIColor.cyan.cgColor)
+                ctx.fill(CGRect(x: 15.5, y: 15.5, width: 2, height: 1.5))
+
+                // Body
+                ctx.setFillColor(green.cgColor)
+                ctx.fillEllipse(in: CGRect(x: 7.5, y: 3, width: 7, height: 8))
+                ctx.setStrokeColor(darkGreen.cgColor)
+                ctx.setLineWidth(0.8)
+                ctx.strokeEllipse(in: CGRect(x: 7.5, y: 3, width: 7, height: 8))
+
+                // Antennae with yellow tips
+                ctx.setStrokeColor(green.cgColor)
+                ctx.setLineWidth(1.2)
+                ctx.move(to: CGPoint(x: 9, y: 18)); ctx.addLine(to: CGPoint(x: 7, y: 20.5))
+                ctx.move(to: CGPoint(x: 13, y: 18)); ctx.addLine(to: CGPoint(x: 15, y: 20.5))
+                ctx.strokePath()
+                ctx.setFillColor(UIColor.yellow.cgColor)
+                ctx.fillEllipse(in: CGRect(x: 5.8, y: 19.8, width: 2.4, height: 2.2))
+                ctx.fillEllipse(in: CGRect(x: 13.8, y: 19.8, width: 2.4, height: 2.2))
+
+                // Big head
+                ctx.setFillColor(green.cgColor)
+                ctx.fillEllipse(in: CGRect(x: 4.5, y: 10, width: 13, height: 9))
+                ctx.setStrokeColor(darkGreen.cgColor)
+                ctx.setLineWidth(0.8)
+                ctx.strokeEllipse(in: CGRect(x: 4.5, y: 10, width: 13, height: 9))
+
+                // Big black eyes with shine
+                ctx.setFillColor(UIColor.black.cgColor)
+                ctx.fillEllipse(in: CGRect(x: 6.5, y: 12.5, width: 3.5, height: 4.5))
+                ctx.fillEllipse(in: CGRect(x: 12, y: 12.5, width: 3.5, height: 4.5))
+                ctx.setFillColor(UIColor.white.cgColor)
+                ctx.fillEllipse(in: CGRect(x: 7.3, y: 15, width: 1.2, height: 1.2))
+                ctx.fillEllipse(in: CGRect(x: 12.8, y: 15, width: 1.2, height: 1.2))
+            }
+            frames.append(SKTexture(image: image))
+        }
+
+        alienTextureCache[key] = frames
+        return frames
+    }
+
     enum EnemyType: Int, CaseIterable {
         case regular = 0
         case fast = 1
@@ -84,6 +168,7 @@ class Tank: SKSpriteNode {
         case power = 3
         case heavy = 4
         case boss = 5
+        case alien = 6  // Small alien (alien mode only): swims, drops the laser power-up
     }
 
     // Properties
@@ -115,6 +200,13 @@ class Tank: SKSpriteNode {
     var canSwim: Bool = false         // SHIP power-up
     var canDestroyTrees: Bool = false // SAW power-up
     var machinegunCount: Int = 0      // Extra bullets (stackable)
+    /// LASER power-up: number of rounds it still lasts, counting the current one (0 = no laser)
+    var laserRounds: Int = 0
+    var hasLaser: Bool { laserRounds > 0 }
+
+    /// Can drive on water: SHIP power-up, or innate for the alien.
+    /// Unlike SHIP, the alien's swimming gives no extra protection.
+    var canMoveOnWater: Bool { canSwim || enemyType == .alien }
 
     // Respawn
     var respawnTimer: Int = 0
@@ -153,6 +245,8 @@ class Tank: SKSpriteNode {
                 self.moveSpeed = GameConstants.enemyTankSpeed * 1.5
             case .boss:
                 self.moveSpeed = GameConstants.enemyTankSpeed * 0.6
+            case .alien:
+                self.moveSpeed = GameConstants.enemyTankSpeed * 1.2
             default:
                 self.moveSpeed = GameConstants.enemyTankSpeed
             }
@@ -180,7 +274,12 @@ class Tank: SKSpriteNode {
         }
 
         // Create tank texture
-        let size = enemyType == .boss ? GameConstants.bossTankSize : GameConstants.tankSize
+        let size: CGFloat
+        switch enemyType {
+        case .boss: size = GameConstants.bossTankSize
+        case .alien: size = GameConstants.alienSize
+        default: size = GameConstants.tankSize
+        }
         let color = isPlayer ? SKColor.yellow : SKColor.gray
 
         super.init(texture: nil, color: color, size: CGSize(width: size, height: size))
@@ -215,6 +314,19 @@ class Tank: SKSpriteNode {
 
         // Get colors based on type
         let (mainColor, darkColor) = getTankColors()
+
+        // Alien: its own sprite (2 walking frames), no tank body
+        if !isPlayer && enemyType == .alien {
+            cachedTextures = Tank.getAlienTextures(size: tankSize)
+            let alienSprite = SKSpriteNode(texture: cachedTextures[0])
+            alienSprite.size = CGSize(width: tankSize, height: tankSize)
+            alienSprite.name = "tankBody"
+            addChild(alienSprite)
+            if canSwim {
+                addShipIndicator(tankSize: tankSize)
+            }
+            return
+        }
 
         // Pre-render 2 frames for track animation (alternating)
         let scale = tankSize / GameConstants.tankSize
@@ -413,6 +525,8 @@ class Tank: SKSpriteNode {
                 return (SKColor(red: red, green: green, blue: 0, alpha: 1), SKColor(red: red * 0.6, green: 0, blue: 0, alpha: 1))
             case .heavy:
                 return (.darkGray, .black)
+            case .alien:
+                return (SKColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1), SKColor(red: 0.2, green: 0.6, blue: 0.2, alpha: 1))
             }
         }
     }
@@ -558,6 +672,7 @@ class Tank: SKSpriteNode {
         case .power: return SKColor(hex: "#FF0000") // Red (will be rainbow animated)
         case .heavy: return SKColor(hex: "#505050") // Dark gray
         case .boss: return SKColor(hex: "#FF4500") // Orange-red
+        case .alien: return SKColor(hex: "#66E666") // Alien green
         }
     }
 
@@ -598,7 +713,7 @@ class Tank: SKSpriteNode {
         var finalPosition = newPosition
 
         // Check collision with map
-        if !map.checkTankCollision(position: newPosition, size: self.size.width, canSwim: canSwim) {
+        if !map.checkTankCollision(position: newPosition, size: self.size.width, canSwim: canMoveOnWater) {
             // Check collision with other tanks
             var canMove = true
             for tank in allTanks {
@@ -660,7 +775,7 @@ class Tank: SKSpriteNode {
         let newPosition = CGPoint(x: newX, y: newY)
 
         // Check collision
-        if !map.checkTankCollision(position: newPosition, size: self.size.width, canSwim: canSwim) {
+        if !map.checkTankCollision(position: newPosition, size: self.size.width, canSwim: canMoveOnWater) {
             var canMove = true
             for tank in allTanks {
                 if tank !== self && tank.isAlive {
@@ -733,7 +848,7 @@ class Tank: SKSpriteNode {
                 let slideY = position.y + slideDir * min(slideAmount, abs(offsetFromCenterY))
                 let testPos = CGPoint(x: position.x, y: slideY)
 
-                if !map.checkTankCollision(position: testPos, size: self.size.width, canSwim: canSwim) &&
+                if !map.checkTankCollision(position: testPos, size: self.size.width, canSwim: canMoveOnWater) &&
                    !checkCollisionWithTanks(at: testPos, allTanks: allTanks) {
                     return testPos
                 }
@@ -747,7 +862,7 @@ class Tank: SKSpriteNode {
                 let slideX = position.x + slideDir * min(slideAmount, abs(offsetFromCenterX))
                 let testPos = CGPoint(x: slideX, y: position.y)
 
-                if !map.checkTankCollision(position: testPos, size: self.size.width, canSwim: canSwim) &&
+                if !map.checkTankCollision(position: testPos, size: self.size.width, canSwim: canMoveOnWater) &&
                    !checkCollisionWithTanks(at: testPos, allTanks: allTanks) {
                     return testPos
                 }
@@ -812,7 +927,8 @@ class Tank: SKSpriteNode {
                 position: bulletPosition,
                 direction: direction,
                 owner: self,
-                power: bulletPower
+                power: bulletPower,
+                isLaser: hasLaser
             )
             bullets.append(bullet)
             activeBullets += 1
@@ -960,7 +1076,7 @@ class Tank: SKSpriteNode {
     }
 
     var tankSize: CGFloat {
-        return enemyType == .boss ? GameConstants.bossTankSize : GameConstants.tankSize
+        return size.width
     }
 
     var isWaitingToRespawn: Bool {
@@ -1012,6 +1128,7 @@ class Tank: SKSpriteNode {
         canSwim = false
         canDestroyTrees = false
         machinegunCount = 0
+        laserRounds = 0
         moveSpeed = isPlayer ? GameConstants.tankSpeed : GameConstants.enemyTankSpeed
     }
 
@@ -1033,7 +1150,7 @@ class Tank: SKSpriteNode {
     }
 
     func convertToType(_ newType: EnemyType) {
-        guard !isPlayer else { return }
+        guard !isPlayer, enemyType != .alien else { return }  // The alien stays an alien
 
         // Stop any existing rainbow animation
         removeAction(forKey: "rainbowAnimation")

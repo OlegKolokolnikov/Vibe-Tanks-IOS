@@ -18,7 +18,9 @@ class Bullet: SKSpriteNode {
     let direction: Direction
     weak var owner: Tank?
     let power: Int
-    let moveSpeed: CGFloat = GameConstants.bulletSpeed
+    let moveSpeed: CGFloat
+    /// LASER shot: a bolt of light that passes through walls
+    let isLaser: Bool
     private let forceIsEnemy: Bool?
 
     var isFromEnemy: Bool {
@@ -32,22 +34,31 @@ class Bullet: SKSpriteNode {
         return isFromEnemy
     }
 
-    init(position: CGPoint, direction: Direction, owner: Tank, power: Int = 1) {
+    init(position: CGPoint, direction: Direction, owner: Tank, power: Int = 1, isLaser: Bool = false) {
         self.direction = direction
         self.owner = owner
         self.power = power
+        self.isLaser = isLaser
+        self.moveSpeed = isLaser ? GameConstants.laserSpeed : GameConstants.bulletSpeed
         self.forceIsEnemy = nil
 
-        let colorKey = owner.isPlayer ? "yellow" : "white"
-        let color: SKColor = owner.isPlayer ? .yellow : .white
-        let size = CGSize(width: GameConstants.bulletSize, height: GameConstants.bulletSize)
+        if isLaser {
+            // Elongated glowing bolt, drawn pointing up and rotated to the direction
+            super.init(texture: Bullet.getLaserTexture(), color: .white, size: Bullet.laserSize)
+            self.zRotation = direction.rotation
+            self.blendMode = .add
+        } else {
+            let colorKey = owner.isPlayer ? "yellow" : "white"
+            let color: SKColor = owner.isPlayer ? .yellow : .white
+            let size = CGSize(width: GameConstants.bulletSize, height: GameConstants.bulletSize)
 
-        // Use cached texture for better performance
-        let texture = Bullet.getCachedTexture(color: color, colorKey: colorKey)
-        super.init(texture: texture, color: .white, size: size)
+            // Use cached texture for better performance
+            let texture = Bullet.getCachedTexture(color: color, colorKey: colorKey)
+            super.init(texture: texture, color: .white, size: size)
+        }
 
         self.position = position
-        self.zPosition = 5
+        self.zPosition = isLaser ? 16 : 5  // Light shines above forest
     }
 
     /// Alternative initializer for UFO bullets (no tank owner)
@@ -55,6 +66,8 @@ class Bullet: SKSpriteNode {
         self.direction = direction
         self.owner = nil
         self.power = power
+        self.isLaser = false
+        self.moveSpeed = GameConstants.bulletSpeed
         self.forceIsEnemy = isEnemy
 
         let color: SKColor = .green
@@ -70,6 +83,33 @@ class Bullet: SKSpriteNode {
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private static let laserSize = CGSize(width: 6, height: 20)
+    private static var laserTexture: SKTexture?
+
+    /// Cyan glow with a white-hot core (vertical)
+    private static func getLaserTexture() -> SKTexture {
+        if let cached = laserTexture {
+            return cached
+        }
+        let size = laserSize
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            let ctx = context.cgContext
+            ctx.setFillColor(UIColor.cyan.withAlphaComponent(0.45).cgColor)
+            ctx.addPath(UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 3).cgPath)
+            ctx.fillPath()
+            ctx.setFillColor(UIColor.cyan.cgColor)
+            ctx.addPath(UIBezierPath(roundedRect: CGRect(x: 1, y: 1, width: size.width - 2, height: size.height - 2), cornerRadius: 2).cgPath)
+            ctx.fillPath()
+            ctx.setFillColor(UIColor.white.cgColor)
+            ctx.addPath(UIBezierPath(roundedRect: CGRect(x: 2, y: 2, width: size.width - 4, height: size.height - 4), cornerRadius: 1).cgPath)
+            ctx.fillPath()
+        }
+        let texture = SKTexture(image: image)
+        laserTexture = texture
+        return texture
     }
 
     /// Create a simple circular texture for the bullet

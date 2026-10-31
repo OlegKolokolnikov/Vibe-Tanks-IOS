@@ -16,6 +16,7 @@ class PowerUp: SKSpriteNode {
         case freeze     // Freeze enemies for 10 seconds
         case bomb       // Explode all enemies
         case gold       // Gzhel-only: 99 points, enemies get major upgrade
+        case laser      // Only dropped by the alien: shots of light pass through walls
     }
 
     let type: PowerUpType
@@ -130,6 +131,7 @@ class PowerUp: SKSpriteNode {
         case .freeze: return SKColor(red: 0.5, green: 0.8, blue: 1.0, alpha: 1.0) // Light blue
         case .bomb: return SKColor(red: 0.5, green: 0.0, blue: 0.0, alpha: 1.0) // Dark red
         case .gold: return SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Bright gold
+        case .laser: return SKColor(red: 0.0, green: 0.85, blue: 0.85, alpha: 1.0) // Cyan
         }
     }
 
@@ -147,6 +149,7 @@ class PowerUp: SKSpriteNode {
         case .freeze: return "❄️"
         case .bomb: return "💣"
         case .gold: return "$"  // Lode Runner style
+        case .laser: return "🔦"
         }
     }
 
@@ -192,6 +195,8 @@ class PowerUp: SKSpriteNode {
         case .gold:
             // Handled by game scene (+99 points)
             break
+        case .laser:
+            tank.laserRounds = GameConstants.laserRoundsOnPickup
         }
     }
 

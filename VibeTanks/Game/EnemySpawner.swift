@@ -75,6 +75,7 @@ class EnemySpawner {
         }
 
         // Shuffle so they don't spawn in predictable order (but heavy tanks spawn later)
+        // (In alien mode one of the heavy slots becomes the alien, chosen below.)
         // Separate heavy tanks and others, shuffle others, then place heavy at end
         var nonHeavy = types.filter { $0 != .heavy }
         let heavy = types.filter { $0 == .heavy }
@@ -86,6 +87,12 @@ class EnemySpawner {
             // Place heavy tanks in the last third of spawns
             let insertPos = result.count - (heavy.count - index - 1)
             result.insert(heavyTank, at: max(insertPos, result.count * 2 / 3))
+        }
+
+        // Alien mode: one random heavy tank is replaced by the small alien
+        if GameScene.isAlienModeActive,
+           let alienIndex = result.indices.filter({ result[$0] == .heavy }).randomElement() {
+            result[alienIndex] = .alien
         }
 
         return result

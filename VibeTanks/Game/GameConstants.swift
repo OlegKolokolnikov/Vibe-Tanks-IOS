@@ -20,6 +20,7 @@ struct GameConstants {
     static let tankSpeed: CGFloat = 2.0
     static let enemyTankSpeed: CGFloat = 1.5
     static let bossTankSize: CGFloat = 28 * 4
+    static let alienSize: CGFloat = 22  // Small alien enemy (alien mode)
 
     // Player spawn / respawn point
     static let playerSpawnPosition = CGPoint(x: tileSize * 8, y: tileSize * 2)
@@ -28,6 +29,8 @@ struct GameConstants {
     static let bulletSize: CGFloat = 8
     static let bulletSpeed: CGFloat = 6.0
     static let maxBulletsPerTank = 2
+    static let laserSpeed: CGFloat = 10.0  // LASER shots: light, faster than bullets
+    static let laserRoundsOnPickup = 2     // Laser lasts the current round + the next one
 
     // Spawn settings
     static let totalEnemies = 20
@@ -91,6 +94,7 @@ struct GameConstants {
         case .power: return 4
         case .heavy: return 5
         case .boss: return 10
+        case .alien: return 5
         }
     }
 }

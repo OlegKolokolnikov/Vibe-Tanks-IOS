@@ -168,10 +168,12 @@ class Sidebar: SKNode {
         var hasShip: Bool = false     // Can swim
         var hasSaw: Bool = false      // Can destroy trees
         var speedBoosts: Int = 0      // Speed upgrades
+        var hasLaser: Bool = false    // Shots pass through walls
 
         var hash: Int {
             return starCount * 1 + machinegunCount * 10 + (hasGun ? 100 : 0) +
-                   (hasShip ? 1000 : 0) + (hasSaw ? 10000 : 0) + speedBoosts * 100000
+                   (hasShip ? 1000 : 0) + (hasSaw ? 10000 : 0) + speedBoosts * 100000 +
+                   (hasLaser ? 10000000 : 0)
         }
     }
 
@@ -237,6 +239,14 @@ class Sidebar: SKNode {
         // Saw - can destroy trees
         if data.hasSaw {
             let row = createPowerUpRow(icon: "🪚", label: "", iconSize: iconSize)
+            row.position = CGPoint(x: 0, y: yOffset)
+            powerUpNode.addChild(row)
+            yOffset -= lineHeight
+        }
+
+        // Laser - shots pass through walls
+        if data.hasLaser {
+            let row = createPowerUpRow(icon: "🔦", label: "", iconSize: iconSize)
             row.position = CGPoint(x: 0, y: yOffset)
             powerUpNode.addChild(row)
             yOffset -= lineHeight
