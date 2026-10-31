@@ -6,6 +6,7 @@ class GameSettings {
 
     private let controlsSwappedKey = "controlsSwapped"
     private let playerColorKey = "playerTankColor"
+    private let volumeKey = "volumeLevel"
 
     enum TankColor: String, CaseIterable {
         case yellow = "yellow"
@@ -41,6 +42,24 @@ class GameSettings {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: controlsSwappedKey)
+        }
+    }
+
+    /// Number of volume steps (0 = off, maxVolumeLevel = 100%)
+    static let maxVolumeLevel = 10
+
+    /// Sound volume level, 0...maxVolumeLevel (default: full volume)
+    var volumeLevel: Int {
+        get {
+            guard UserDefaults.standard.object(forKey: volumeKey) != nil else {
+                return GameSettings.maxVolumeLevel
+            }
+            let level = UserDefaults.standard.integer(forKey: volumeKey)
+            return min(max(level, 0), GameSettings.maxVolumeLevel)
+        }
+        set {
+            let clamped = min(max(newValue, 0), GameSettings.maxVolumeLevel)
+            UserDefaults.standard.set(clamped, forKey: volumeKey)
         }
     }
 

@@ -34,9 +34,54 @@ class SoundManager {
 
     var isMuted: Bool = false
 
+    // Each player's own (relative) volume; the actual volume is base * masterVolume
+    private var baseVolumes: [ObjectIdentifier: Float] = [:]
+    private let musicBaseVolume: Float = 0.3
+
+    /// Master volume 0...1, derived from the saved volume level
+    private var masterVolume: Float {
+        Float(volumeLevel) / Float(GameSettings.maxVolumeLevel)
+    }
+
+    /// Volume level 0...GameSettings.maxVolumeLevel. Saved to settings and applied immediately.
+    var volumeLevel: Int = GameSettings.shared.volumeLevel {
+        didSet {
+            GameSettings.shared.volumeLevel = volumeLevel
+            applyVolume()
+        }
+    }
+
+    /// No sound should be played (muted or volume at 0)
+    private var isSilent: Bool {
+        isMuted || volumeLevel <= 0
+    }
+
     private init() {
         setupAudioSession()
         preloadSounds()
+        applyVolume()
+    }
+
+    /// Re-apply master volume to every loaded player
+    private func applyVolume() {
+        let master = masterVolume
+        for player in allEffectPlayers {
+            player.volume = (baseVolumes[ObjectIdentifier(player)] ?? 1.0) * master
+        }
+        musicPlayer?.volume = musicBaseVolume * master
+    }
+
+    private var allEffectPlayers: [AVAudioPlayer] {
+        let singles: [AVAudioPlayer?] = [
+            introPlayer, sadPlayer, victoryPlayer, playerDeathPlayer,
+            baseDestroyedPlayer, treeBurnPlayer, laserPlayer, powerUpSpawnPlayer
+        ]
+        return shootPlayers + explosionPlayers + singles.compactMap { $0 }
+    }
+
+    private func setBaseVolume(_ volume: Float, for player: AVAudioPlayer) {
+        baseVolumes[ObjectIdentifier(player)] = volume
+        player.volume = volume * masterVolume
     }
 
     private func setupAudioSession() {
@@ -53,7 +98,7 @@ class SoundManager {
         if let url = Bundle.main.url(forResource: "shoot", withExtension: "wav") {
             for _ in 0..<shootPoolSize {
                 if let player = try? AVAudioPlayer(contentsOf: url) {
-                    player.volume = 0.4
+                    setBaseVolume(0.4, for: player)
                     player.prepareToPlay()
                     shootPlayers.append(player)
                 }
@@ -64,7 +109,7 @@ class SoundManager {
         if let url = Bundle.main.url(forResource: "explosion", withExtension: "wav") {
             for _ in 0..<explosionPoolSize {
                 if let player = try? AVAudioPlayer(contentsOf: url) {
-                    player.volume = 0.5
+                    setBaseVolume(0.5, for: player)
                     player.prepareToPlay()
                     explosionPlayers.append(player)
                 }
@@ -86,7 +131,7 @@ class SoundManager {
     private func loadPlayer(_ name: String, volume: Float) -> AVAudioPlayer? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "wav") else { return nil }
         guard let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
-        player.volume = volume
+        setBaseVolume(volume, for: player)
         player.prepareToPlay()
         return player
     }
@@ -94,7 +139,7 @@ class SoundManager {
     // MARK: - Sound Effects
 
     func playShoot() {
-        guard !isMuted, !shootPlayers.isEmpty else { return }
+        guard !isSilent, !shootPlayers.isEmpty else { return }
 
         // Rate limit rapid fire sounds
         let now = CACurrentMediaTime()
@@ -112,7 +157,7 @@ class SoundManager {
     }
 
     func playExplosion() {
-        guard !isMuted, !explosionPlayers.isEmpty else { return }
+        guard !isSilent, !explosionPlayers.isEmpty else { return }
 
         // Rate limit
         let now = CACurrentMediaTime()
@@ -129,49 +174,49 @@ class SoundManager {
     }
 
     func playIntro() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         introPlayer?.currentTime = 0
         introPlayer?.play()
     }
 
     func playSad() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         sadPlayer?.currentTime = 0
         sadPlayer?.play()
     }
 
     func playVictory() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         victoryPlayer?.currentTime = 0
         victoryPlayer?.play()
     }
 
     func playPlayerDeath() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         playerDeathPlayer?.currentTime = 0
         playerDeathPlayer?.play()
     }
 
     func playBaseDestroyed() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         baseDestroyedPlayer?.currentTime = 0
         baseDestroyedPlayer?.play()
     }
 
     func playTreeBurn() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         treeBurnPlayer?.currentTime = 0
         treeBurnPlayer?.play()
     }
 
     func playLaser() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         laserPlayer?.currentTime = 0
         laserPlayer?.play()
     }
 
     func playPowerUpSpawn() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
         powerUpSpawnPlayer?.currentTime = 0
         powerUpSpawnPlayer?.play()
     }
@@ -187,13 +232,13 @@ class SoundManager {
     // MARK: - Music
 
     func playExplanationMusic() {
-        guard !isMuted else { return }
+        guard !isSilent else { return }
 
         if let url = Bundle.main.url(forResource: "explanation_music", withExtension: "wav") {
             do {
                 musicPlayer = try AVAudioPlayer(contentsOf: url)
                 musicPlayer?.numberOfLoops = -1
-                musicPlayer?.volume = 0.3
+                musicPlayer?.volume = musicBaseVolume * masterVolume
                 musicPlayer?.play()
             } catch {
                 print("Failed to play explanation music: \(error)")
