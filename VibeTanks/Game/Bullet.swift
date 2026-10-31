@@ -48,14 +48,6 @@ class Bullet: SKSpriteNode {
 
         self.position = position
         self.zPosition = 5
-
-        // Physics
-        physicsBody = SKPhysicsBody(circleOfRadius: GameConstants.bulletSize / 2)
-        physicsBody?.isDynamic = true
-        physicsBody?.affectedByGravity = false
-        physicsBody?.categoryBitMask = PhysicsCategory.bullet
-        physicsBody?.contactTestBitMask = PhysicsCategory.wall | PhysicsCategory.player | PhysicsCategory.enemy | PhysicsCategory.bullet
-        physicsBody?.collisionBitMask = 0
     }
 
     /// Alternative initializer for UFO bullets (no tank owner)
@@ -74,14 +66,6 @@ class Bullet: SKSpriteNode {
 
         self.position = CGPoint(x: x, y: y)
         self.zPosition = 5
-
-        // Physics
-        physicsBody = SKPhysicsBody(circleOfRadius: GameConstants.bulletSize / 2)
-        physicsBody?.isDynamic = true
-        physicsBody?.affectedByGravity = false
-        physicsBody?.categoryBitMask = PhysicsCategory.bullet
-        physicsBody?.contactTestBitMask = PhysicsCategory.wall | PhysicsCategory.player | PhysicsCategory.enemy | PhysicsCategory.bullet
-        physicsBody?.collisionBitMask = 0
     }
 
     required init?(coder aDecoder: NSCoder) {

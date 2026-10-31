@@ -163,18 +163,19 @@ class EnemySpawner {
         playerTank: Tank?,
         map: GameMap
     ) -> Bool {
-        // Check collision with other enemy tanks
-        for enemy in existingEnemies {
-            let minDist = (tankSize + enemy.size.width) / 2
-            if position.distance(to: enemy.position) < minDist {
+        // Check collision with other enemy tanks.
+        // Must use the same axis-aligned box test as Tank movement: a circular
+        // distance check lets diagonal overlaps through, and overlapping tanks
+        // can never move apart.
+        for enemy in existingEnemies where enemy.isAlive {
+            if EnemySpawner.boxesOverlap(position, tankSize, enemy.position, enemy.size.width) {
                 return false
             }
         }
 
         // Check collision with player tank (prevent spawning on player)
         if let player = playerTank, player.isAlive {
-            let minDist = (tankSize + player.size.width) / 2
-            if position.distance(to: player.position) < minDist {
+            if EnemySpawner.boxesOverlap(position, tankSize, player.position, player.size.width) {
                 return false
             }
         }
@@ -185,6 +186,12 @@ class EnemySpawner {
         }
 
         return true
+    }
+
+    /// Axis-aligned overlap test for two square tanks (matches Tank movement collision)
+    static func boxesOverlap(_ p1: CGPoint, _ size1: CGFloat, _ p2: CGPoint, _ size2: CGFloat) -> Bool {
+        let minDist = (size1 + size2) / 2
+        return abs(p1.x - p2.x) < minDist && abs(p1.y - p2.y) < minDist
     }
 
     func allEnemiesDefeated(currentEnemies: [Tank]) -> Bool {

@@ -21,6 +21,9 @@ struct GameConstants {
     static let enemyTankSpeed: CGFloat = 1.5
     static let bossTankSize: CGFloat = 28 * 4
 
+    // Player spawn / respawn point
+    static let playerSpawnPosition = CGPoint(x: tileSize * 8, y: tileSize * 2)
+
     // Bullet properties
     static let bulletSize: CGFloat = 8
     static let bulletSpeed: CGFloat = 6.0

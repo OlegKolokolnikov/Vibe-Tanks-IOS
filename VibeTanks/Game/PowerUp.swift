@@ -33,11 +33,6 @@ class PowerUp: SKSpriteNode {
         self.zPosition = 8
 
         drawPowerUp()
-
-        // Physics
-        physicsBody = SKPhysicsBody(rectangleOf: size)
-        physicsBody?.isDynamic = false
-        physicsBody?.categoryBitMask = PhysicsCategory.powerUp
     }
 
     required init?(coder aDecoder: NSCoder) {

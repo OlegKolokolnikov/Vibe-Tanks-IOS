@@ -59,13 +59,15 @@ class GameMap: SKNode {
 
     // MARK: - Seeded Random Helpers
 
+    // `.init(...)` / `Int(...)` keep this compiling whether the SDK imports
+    // nextInt(upperBound:) with Int or UInt (newer SDKs use UInt).
     private func randomInt(in range: ClosedRange<Int>) -> Int {
-        return randomSource.nextInt(upperBound: range.upperBound - range.lowerBound + 1) + range.lowerBound
+        return Int(randomSource.nextInt(upperBound: .init(range.upperBound - range.lowerBound + 1))) + range.lowerBound
     }
 
     private func randomInt(in range: Range<Int>) -> Int {
         guard range.upperBound > range.lowerBound else { return range.lowerBound }
-        return randomSource.nextInt(upperBound: range.upperBound - range.lowerBound) + range.lowerBound
+        return Int(randomSource.nextInt(upperBound: .init(range.upperBound - range.lowerBound))) + range.lowerBound
     }
 
     private func randomDouble() -> Double {

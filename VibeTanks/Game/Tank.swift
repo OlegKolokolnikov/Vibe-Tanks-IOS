@@ -90,6 +90,9 @@ class Tank: SKSpriteNode {
     var isPlayer: Bool
     var playerNumber: Int
     var enemyType: EnemyType
+    /// Type used for scoring. Unlike `enemyType`, it does not change when a
+    /// damaged heavy/armored tank visually downgrades.
+    private(set) var scoreType: EnemyType
     var direction: Direction = .up
 
     // Stats
@@ -139,6 +142,7 @@ class Tank: SKSpriteNode {
         self.isPlayer = isPlayer
         self.playerNumber = playerNumber
         self.enemyType = enemyType
+        self.scoreType = enemyType
 
         // Set speed based on type
         if isPlayer {
@@ -186,14 +190,7 @@ class Tank: SKSpriteNode {
         self.zRotation = direction.rotation
         self.zPosition = 10
 
-        // Setup physics body for collision detection
-        self.physicsBody = SKPhysicsBody(rectangleOf: self.size)
-        self.physicsBody?.isDynamic = true
-        self.physicsBody?.affectedByGravity = false
-        self.physicsBody?.allowsRotation = false
-        self.physicsBody?.categoryBitMask = isPlayer ? PhysicsCategory.player : PhysicsCategory.enemy
-        self.physicsBody?.contactTestBitMask = PhysicsCategory.bullet | PhysicsCategory.wall
-        self.physicsBody?.collisionBitMask = PhysicsCategory.wall | PhysicsCategory.player | PhysicsCategory.enemy
+        // No physics body: all collisions are resolved manually against the tile map.
 
         // Initialize AI for enemy tanks
         if !isPlayer {
@@ -838,6 +835,7 @@ class Tank: SKSpriteNode {
     }
 
     func damage(bypassShip: Bool = false, bypassShield: Bool = false) {
+        guard isAlive else { return }  // Already dead (e.g. player waiting to respawn)
         if hasShield && !bypassShield { return }
 
         // Ship acts as extra protection - first shot removes ship (unless bypassed by bomb)
@@ -986,10 +984,7 @@ class Tank: SKSpriteNode {
 
     private func completeRespawn() {
         // Set position (use pending or default spawn point)
-        let spawnPos = pendingRespawnPosition ?? CGPoint(
-            x: GameConstants.tileSize * 8,
-            y: GameConstants.tileSize * 2
-        )
+        let spawnPos = pendingRespawnPosition ?? GameConstants.playerSpawnPosition
         position = spawnPos
 
         // Restore health and visibility
@@ -1044,6 +1039,7 @@ class Tank: SKSpriteNode {
         removeAction(forKey: "rainbowAnimation")
 
         self.enemyType = newType
+        self.scoreType = newType
 
         // Update stats based on new type
         switch newType {
@@ -1098,18 +1094,6 @@ class Tank: SKSpriteNode {
         // Update respawn
         updateRespawnTimer()
     }
-}
-
-// MARK: - Physics Categories
-
-struct PhysicsCategory {
-    static let none: UInt32 = 0
-    static let player: UInt32 = 0b1
-    static let enemy: UInt32 = 0b10
-    static let bullet: UInt32 = 0b100
-    static let wall: UInt32 = 0b1000
-    static let powerUp: UInt32 = 0b10000
-    static let base: UInt32 = 0b100000
 }
 
 // MARK: - Color Extensions

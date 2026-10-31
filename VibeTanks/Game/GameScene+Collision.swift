@@ -16,7 +16,7 @@ extension GameScene {
         var bulletsToRemove: [Bullet] = []
         var enemiesToRemove: [Tank] = []
 
-        for bullet in bullets {
+        for bullet in bullets where !isBulletRemoved(bullet) {
             // Player bullets hit enemies
             if !bullet.isFromEnemy {
                 for enemy in enemyTanks {
@@ -32,7 +32,8 @@ extension GameScene {
 
                         if !enemy.isAlive {
                             enemiesToRemove.append(enemy)
-                            let killedType = wasPowerTank ? Tank.EnemyType.power : enemy.enemyType
+                            // scoreType survives the heavy→armored→regular visual downgrade
+                            let killedType = enemy.scoreType
                             addScore(GameConstants.scoreForEnemyType(killedType))
                             playerKills += 1
                             killsByType[killedType, default: 0] += 1
@@ -59,17 +60,7 @@ extension GameScene {
                         bulletsToRemove.append(bullet)
 
                         if !playerTank.isAlive {
-                            SoundManager.shared.playPlayerDeath()
-                            // Reset player freeze when killed
-                            playerFreezeTimer = 0
-                            playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
-                        }
-
-                        if !playerTank.isAlive && playerTank.lives > 0 {
-                            playerTank.respawn(at: CGPoint(
-                                x: GameConstants.tileSize * 8,
-                                y: GameConstants.tileSize * 2
-                            ))
+                            handlePlayerKilled()
                         }
                     }
                 }
@@ -91,6 +82,14 @@ extension GameScene {
         }
     }
 
+    /// Shared cleanup when the player tank dies (bullet, bomb, etc.).
+    /// Respawn itself is started from updatePlayer().
+    func handlePlayerKilled() {
+        SoundManager.shared.playPlayerDeath()
+        playerFreezeTimer = 0
+        playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
+    }
+
     /// Check bullets colliding with each other
     func checkBulletBulletCollisions() {
         guard bullets.count >= 2 else { return }
@@ -98,7 +97,9 @@ extension GameScene {
         var bulletsToRemove: Set<Bullet> = []
 
         for i in 0..<bullets.count {
+            guard !isBulletRemoved(bullets[i]) else { continue }
             for j in (i+1)..<bullets.count {
+                guard !isBulletRemoved(bullets[j]) else { continue }
                 if bullets[i].collidesWith(bullets[j]) {
                     bulletsToRemove.insert(bullets[i])
                     bulletsToRemove.insert(bullets[j])
@@ -114,7 +115,7 @@ extension GameScene {
 
     /// Check bullets hitting the base
     func checkBulletBaseCollision() {
-        for bullet in bullets {
+        for bullet in bullets where !isBulletRemoved(bullet) {
             if base.checkCollision(bulletPosition: bullet.position) {
                 base.destroy()
                 removeBullet(bullet)
@@ -129,7 +130,7 @@ extension GameScene {
     func checkBulletUFOCollisions() {
         guard let currentUFO = ufo, currentUFO.isAlive else { return }
 
-        for bullet in bullets {
+        for bullet in bullets where !isBulletRemoved(bullet) {
             if currentUFO.collidesWith(bullet) {
                 removeBullet(bullet)
 

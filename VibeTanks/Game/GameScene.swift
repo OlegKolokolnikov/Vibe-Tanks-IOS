@@ -215,6 +215,14 @@ class GameScene: SKScene {
         )
         #endif
 
+        // Auto-pause when the app goes to the background (call, notification center, app switch)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+
         // Play intro sound when game starts
         SoundManager.shared.playIntro()
     }
@@ -227,11 +235,23 @@ class GameScene: SKScene {
     }
     #endif
 
+    @objc private func handleWillResignActive() {
+        // Drop any held keys: their "ended" events may never arrive
+        resetKeyboardInput()
+        if !isGameOver && !isGamePaused {
+            togglePause()
+        }
+    }
+
+    private func resetKeyboardInput() {
+        pressedDirectionKeys.removeAll()
+        keyboardDirection = nil
+        keyboardFiring = false
+    }
+
     override func willMove(from view: SKView) {
         super.willMove(from: view)
-        #if targetEnvironment(macCatalyst)
         NotificationCenter.default.removeObserver(self)
-        #endif
     }
 
     // MARK: - Setup
@@ -620,12 +640,8 @@ class GameScene: SKScene {
         gameLayer.addChild(base)
 
         // Create player tank
-        let playerSpawnPos = CGPoint(
-            x: GameConstants.tileSize * 8,
-            y: GameConstants.tileSize * 2
-        )
         playerTank = Tank(
-            position: playerSpawnPos,
+            position: GameConstants.playerSpawnPosition,
             direction: .up,
             isPlayer: true,
             playerNumber: 1
@@ -700,19 +716,31 @@ class GameScene: SKScene {
         // Check for pause button press
         if touchController.pausePressed {
             touchController.resetPausePressed()
-            togglePause()
+            // Pause is meaningless on the game over / level complete screen
+            if !isGameOver {
+                togglePause()
+            }
         }
 
         guard !isGameOver && !isGamePaused else { return }
 
-        // Update freeze timer (enemies frozen)
+        // Update freeze timer (enemies frozen). Visual effect is removed in sync
+        // with the frame-based timer, so pausing keeps them consistent.
         if freezeTimer > 0 {
             freezeTimer -= 1
+            if freezeTimer == 0 {
+                for enemy in enemyTanks {
+                    enemy.childNode(withName: "freezeEffect")?.removeFromParent()
+                }
+            }
         }
 
         // Update player freeze timer
         if playerFreezeTimer > 0 {
             playerFreezeTimer -= 1
+            if playerFreezeTimer == 0 {
+                playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
+            }
         }
 
         // Update victory delay timer (5 seconds to collect power-ups)
@@ -730,6 +758,7 @@ class GameScene: SKScene {
         updatePlayer()
         updateEnemies()
         updateBullets()
+        flushBulletRemovals()  // Bullets that hit walls must not also hit tanks this frame
         updatePowerUps()
         updateSpawner()
         updateUFO()
@@ -747,10 +776,12 @@ class GameScene: SKScene {
             if playerTank.lives > 0 {
                 // If not already respawning, start respawn
                 if !playerTank.isWaitingToRespawn {
-                    playerTank.respawn(at: CGPoint(
-                        x: GameConstants.tileSize * 8,
-                        y: GameConstants.tileSize * 2
-                    ))
+                    playerTank.respawn(at: GameConstants.playerSpawnPosition)
+                }
+                // Hold the last respawn tick while an enemy sits on the spawn point;
+                // respawning into an overlapping tank would lock both in place.
+                if playerTank.respawnTimer == 1 && isPlayerSpawnBlocked() {
+                    return
                 }
                 playerTank.updateRespawnTimer()
             }
@@ -823,6 +854,14 @@ class GameScene: SKScene {
             }
 
             enemy.update(map: gameMap, allTanks: allTanks)
+        }
+    }
+
+    /// True if any living enemy overlaps the player's spawn point
+    private func isPlayerSpawnBlocked() -> Bool {
+        let spawn = GameConstants.playerSpawnPosition
+        return enemyTanks.contains { enemy in
+            enemy.isAlive && EnemySpawner.boxesOverlap(spawn, playerTank.size.width, enemy.position, enemy.size.width)
         }
     }
 
@@ -1135,7 +1174,8 @@ class GameScene: SKScene {
             let playerDy = abs(playerTank.position.y - powerUp.position.y)
             let collisionDist = (playerTank.size.width + powerUp.size.width) / 2
 
-            if playerDx < collisionDist && playerDy < collisionDist {
+            // Dead (hidden) player waiting to respawn can't collect power-ups
+            if playerTank.isAlive && playerDx < collisionDist && playerDy < collisionDist {
                 handlePowerUpCollection(powerUp)
                 powerUpsToRemove.append(powerUp)
                 SoundManager.shared.playPowerUp()
@@ -1198,8 +1238,14 @@ class GameScene: SKScene {
             addFreezeEffectToPlayer()
             showEffect(text: "PLAYER FROZEN!", color: .red)
         case .bomb:
-            // Kills player instantly! Bypasses ship AND shield protection
-            playerTank.damage(bypassShip: true, bypassShield: true)
+            // Kills player instantly! Bypasses ship AND shield protection.
+            // No effect if the player is already dead and waiting to respawn.
+            if playerTank.isAlive {
+                playerTank.damage(bypassShip: true, bypassShield: true)
+                if !playerTank.isAlive {
+                    handlePlayerKilled()
+                }
+            }
             showEffect(text: "BOMB!", color: .red)
         case .shovel:
             // Enemy removes base protection
@@ -1295,14 +1341,7 @@ class GameScene: SKScene {
         freezeNode.run(SKAction.repeatForever(pulse))
 
         playerTank.addChild(freezeNode)
-
-        // Schedule removal when freeze ends
-        run(SKAction.sequence([
-            SKAction.wait(forDuration: 30.0),
-            SKAction.run { [weak self] in
-                self?.playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
-            }
-        ]))
+        // Removed in update() when playerFreezeTimer reaches 0
     }
 
     private func handlePowerUpCollection(_ powerUp: PowerUp) {
@@ -1370,17 +1409,7 @@ class GameScene: SKScene {
 
             enemy.addChild(freezeNode)
         }
-
-        // Schedule removal when freeze ends
-        run(SKAction.sequence([
-            SKAction.wait(forDuration: 30.0),
-            SKAction.run { [weak self] in
-                guard let self = self else { return }
-                for enemy in self.enemyTanks {
-                    enemy.childNode(withName: "freezeEffect")?.removeFromParent()
-                }
-            }
-        ]), withKey: "removeFreezeEffect")
+        // Removed in update() when freezeTimer reaches 0
     }
 
     private func destroyAllEnemies() {
@@ -1502,10 +1531,19 @@ class GameScene: SKScene {
     }
 
     func removeBullet(_ bullet: Bullet, hitObstacle: Bool = false) {
+        // Idempotent: a bullet can only be destroyed once, so its owner's
+        // active-bullet count is decremented exactly once.
+        let id = ObjectIdentifier(bullet)
+        guard !bulletsMarkedForRemoval.contains(id) else { return }
+        // Mark for batch removal instead of O(n) removeAll per bullet
+        bulletsMarkedForRemoval.insert(id)
         bullet.owner?.bulletDestroyed(hitObstacle: hitObstacle)
         bullet.removeFromParent()
-        // Mark for batch removal instead of O(n) removeAll per bullet
-        bulletsMarkedForRemoval.insert(ObjectIdentifier(bullet))
+    }
+
+    /// True if the bullet was already destroyed this frame (still in `bullets` until flushed)
+    func isBulletRemoved(_ bullet: Bullet) -> Bool {
+        return bulletsMarkedForRemoval.contains(ObjectIdentifier(bullet))
     }
 
     /// Remove all marked bullets in one pass (O(n) total instead of O(n) per bullet)
@@ -1563,6 +1601,9 @@ class GameScene: SKScene {
 
     private func togglePause() {
         isGamePaused = !isGamePaused
+        // Freeze SKActions in the game world too (explosions, effects, animations);
+        // the pause overlay lives on the camera and keeps running.
+        gameLayer.isPaused = isGamePaused
 
         if isGamePaused {
             // Show pause overlay
@@ -1626,6 +1667,8 @@ class GameScene: SKScene {
     }
 
     func gameOver(won: Bool) {
+        // Base hit and last life lost can both trigger in the same frame
+        guard !isGameOver else { return }
         isGameOver = true
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playGameOver()
@@ -2061,6 +2104,11 @@ class GameScene: SKScene {
                 break
             }
         }
+    }
+
+    // Keys can be cancelled (app switch, Cmd-Tab) without an "ended" event
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        pressesEnded(presses, with: event)
     }
 
     private func getDirectionFromPressedKeys() -> Direction? {
