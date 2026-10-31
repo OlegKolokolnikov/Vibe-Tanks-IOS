@@ -98,7 +98,7 @@ class EnemySpawner {
         return result
     }
 
-    func update(existingEnemies: [Tank], playerTank: Tank?, map: GameMap) -> Tank? {
+    func update(existingEnemies: [Tank], playerTank: Tank?, map: GameMap, otherTanks: [Tank] = []) -> Tank? {
         // Check if we can spawn more
         guard spawnedCount < totalEnemies else { return nil }
         guard existingEnemies.count < maxOnScreen else { return nil }
@@ -117,7 +117,8 @@ class EnemySpawner {
             type: type,
             existingEnemies: existingEnemies,
             playerTank: playerTank,
-            map: map
+            map: map,
+            otherTanks: otherTanks
         ) else {
             return nil
         }
@@ -148,14 +149,15 @@ class EnemySpawner {
         type: Tank.EnemyType,
         existingEnemies: [Tank],
         playerTank: Tank?,
-        map: GameMap
+        map: GameMap,
+        otherTanks: [Tank]
     ) -> CGPoint? {
         let tankSize = GameConstants.tankSize
 
         // Try random spawn position
         let shuffled = spawnPositions.shuffled()
         for pos in shuffled {
-            if isPositionValid(pos, tankSize: tankSize, existingEnemies: existingEnemies, playerTank: playerTank, map: map) {
+            if isPositionValid(pos, tankSize: tankSize, existingEnemies: existingEnemies + otherTanks, playerTank: playerTank, map: map) {
                 return pos
             }
         }
@@ -218,7 +220,7 @@ class EnemySpawner {
     }
 
     /// Try to spawn an extra enemy (called from GameScene)
-    func spawnExtraEnemy(existingEnemies: [Tank], playerTank: Tank?, map: GameMap) -> Tank? {
+    func spawnExtraEnemy(existingEnemies: [Tank], playerTank: Tank?, map: GameMap, otherTanks: [Tank] = []) -> Tank? {
         guard extraEnemiesToSpawn > 0 else { return nil }
         guard existingEnemies.count < maxOnScreen else { return nil }
 
@@ -231,7 +233,8 @@ class EnemySpawner {
             type: type,
             existingEnemies: existingEnemies,
             playerTank: playerTank,
-            map: map
+            map: map,
+            otherTanks: otherTanks
         ) else {
             return nil
         }

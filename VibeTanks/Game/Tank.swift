@@ -169,6 +169,7 @@ class Tank: SKSpriteNode {
         case heavy = 4
         case boss = 5
         case alien = 6  // Small alien (alien mode only): swims, drops the laser power-up
+        case gzhel = 7  // Gzhel mode ally: hunts enemies, harmless to player, indestructible
     }
 
     // Properties
@@ -207,6 +208,9 @@ class Tank: SKSpriteNode {
     /// Can drive on water: SHIP power-up, or innate for the alien.
     /// Unlike SHIP, the alien's swimming gives no extra protection.
     var canMoveOnWater: Bool { canSwim || enemyType == .alien }
+
+    /// The alien ignores the FREEZE power-up and keeps moving and shooting
+    var isFreezeImmune: Bool { !isPlayer && enemyType == .alien }
 
     // Respawn
     var respawnTimer: Int = 0
@@ -247,6 +251,8 @@ class Tank: SKSpriteNode {
                 self.moveSpeed = GameConstants.enemyTankSpeed * 0.6
             case .alien:
                 self.moveSpeed = GameConstants.enemyTankSpeed * 1.2
+            case .gzhel:
+                self.moveSpeed = GameConstants.enemyTankSpeed * 1.3
             default:
                 self.moveSpeed = GameConstants.enemyTankSpeed
             }
@@ -484,6 +490,33 @@ class Tank: SKSpriteNode {
                     // Red star
                     ctx.setFillColor(UIColor.red.cgColor)
                     ctx.fillEllipse(in: CGRect(x: center - 3 * scale, y: turretCenterY - 3 * scale, width: 6 * scale, height: 6 * scale))
+                case .gzhel:
+                    // Cobalt-blue Gzhel ornament on white porcelain
+                    let cobalt = UIColor(red: 0.0, green: 0.28, blue: 0.67, alpha: 1.0)
+                    let lightBlue = UIColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 1.0)
+                    // Five-petal flower on the turret
+                    ctx.setFillColor(cobalt.cgColor)
+                    for i in 0..<5 {
+                        let angle = CGFloat(i) * 2 * .pi / 5
+                        let px = center + cos(angle) * 3 * scale
+                        let py = turretCenterY + sin(angle) * 3 * scale
+                        ctx.fillEllipse(in: CGRect(x: px - 1.4 * scale, y: py - 1.4 * scale, width: 2.8 * scale, height: 2.8 * scale))
+                    }
+                    ctx.setFillColor(lightBlue.cgColor)
+                    ctx.fillEllipse(in: CGRect(x: center - 1 * scale, y: turretCenterY - 1 * scale, width: 2 * scale, height: 2 * scale))
+                    // Dots in the hull corners
+                    ctx.setFillColor(cobalt.cgColor)
+                    for (dx, dy) in [(hullLeft + 2.5 * scale, hullBottom + 2.5 * scale), (hullRight - 2.5 * scale, hullBottom + 2.5 * scale),
+                                     (hullLeft + 2.5 * scale, hullTop - 2.5 * scale), (hullRight - 2.5 * scale, hullTop - 2.5 * scale)] {
+                        ctx.fillEllipse(in: CGRect(x: dx - 1.2 * scale, y: dy - 1.2 * scale, width: 2.4 * scale, height: 2.4 * scale))
+                    }
+                    // Curl at the back of the hull
+                    ctx.setStrokeColor(lightBlue.cgColor)
+                    ctx.setLineWidth(1 * scale)
+                    ctx.move(to: CGPoint(x: center - 4 * scale, y: hullBottom + 3 * scale))
+                    ctx.addQuadCurve(to: CGPoint(x: center + 4 * scale, y: hullBottom + 3 * scale),
+                                     control: CGPoint(x: center, y: hullBottom + 7 * scale))
+                    ctx.strokePath()
                 default:
                     break
                 }
@@ -527,6 +560,9 @@ class Tank: SKSpriteNode {
                 return (.darkGray, .black)
             case .alien:
                 return (SKColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1), SKColor(red: 0.2, green: 0.6, blue: 0.2, alpha: 1))
+            case .gzhel:
+                // White porcelain with cobalt-blue tracks and outlines
+                return (SKColor(red: 0.97, green: 0.97, blue: 1.0, alpha: 1), SKColor(red: 0.0, green: 0.28, blue: 0.67, alpha: 1))
             }
         }
     }
@@ -673,6 +709,7 @@ class Tank: SKSpriteNode {
         case .heavy: return SKColor(hex: "#505050") // Dark gray
         case .boss: return SKColor(hex: "#FF4500") // Orange-red
         case .alien: return SKColor(hex: "#66E666") // Alien green
+        case .gzhel: return SKColor(hex: "#F7F7FF") // Porcelain white
         }
     }
 
@@ -952,6 +989,7 @@ class Tank: SKSpriteNode {
 
     func damage(bypassShip: Bool = false, bypassShield: Bool = false) {
         guard isAlive else { return }  // Already dead (e.g. player waiting to respawn)
+        guard isPlayer || enemyType != .gzhel else { return }  // Gzhel tank is indestructible
         if hasShield && !bypassShield { return }
 
         // Ship acts as extra protection - first shot removes ship (unless bypassed by bomb)
@@ -1150,7 +1188,7 @@ class Tank: SKSpriteNode {
     }
 
     func convertToType(_ newType: EnemyType) {
-        guard !isPlayer, enemyType != .alien else { return }  // The alien stays an alien
+        guard !isPlayer, enemyType != .alien, enemyType != .gzhel else { return }  // Special tanks keep their type
 
         // Stop any existing rainbow animation
         removeAction(forKey: "rainbowAnimation")

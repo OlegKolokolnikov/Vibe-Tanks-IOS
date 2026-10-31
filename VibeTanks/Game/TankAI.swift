@@ -52,6 +52,11 @@ class TankAI {
         case .alien:
             aggressiveness = 0.5
             directionChangeInterval = 45
+            shootChance = 0.06  // Fires steadily, whatever is in front of it
+        case .gzhel:
+            // Hunts enemies (passed in as its targets); never goes for the base
+            aggressiveness = 0.8
+            directionChangeInterval = 45
             shootChance = 0.03
         }
     }
@@ -120,8 +125,8 @@ class TankAI {
             }
         }
 
-        // Chance to head towards base (down)
-        if Double.random(in: 0...1) < 0.3 {
+        // Chance to head towards base (down) - not for the Gzhel ally
+        if tank?.enemyType != .gzhel && Double.random(in: 0...1) < 0.3 {
             if !isDirectionBlocked(.down, map: map, allTanks: allTanks) {
                 return .down
             }
@@ -201,6 +206,14 @@ class TankAI {
     private func decideToShoot(map: GameMap, playerTanks: [Tank]) -> Bool {
         guard let tank = tank else { return false }
 
+        // The alien always keeps shooting: no wall cooldown, no "don't waste bullets" logic
+        if tank.enemyType == .alien {
+            if playerInLineOfFire(playerTanks: playerTanks, map: map) || isBaseInLineOfFire(map: map) {
+                return Double.random(in: 0...1) < 0.5
+            }
+            return Double.random(in: 0...1) < shootChance
+        }
+
         // If we recently shot at a wall, don't shoot again
         if shotAtWallTimer > 0 {
             return false
@@ -211,8 +224,8 @@ class TankAI {
             return Double.random(in: 0...1) < 0.35
         }
 
-        // Check if base is in line of fire
-        if isBaseInLineOfFire(map: map) {
+        // Check if base is in line of fire (the Gzhel ally never aims at the base)
+        if tank.enemyType != .gzhel && isBaseInLineOfFire(map: map) {
             return Double.random(in: 0...1) < 0.4
         }
 

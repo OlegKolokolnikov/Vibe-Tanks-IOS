@@ -17,6 +17,30 @@ extension GameScene {
         var enemiesToRemove: [Tank] = []
 
         for bullet in bullets where !isBulletRemoved(bullet) {
+            // The indestructible Gzhel tank absorbs everyone else's bullets
+            if let gzhel = gzhelTank, gzhel.isAlive, !bullet.isFromGzhel, bullet.collidesWith(gzhel) {
+                bulletsToRemove.append(bullet)
+                continue
+            }
+
+            // Gzhel bullets destroy enemies (no score for the player) and can't hurt the player
+            if bullet.isFromGzhel {
+                if playerTank.isAlive && bullet.collidesWith(playerTank) {
+                    bulletsToRemove.append(bullet)  // Absorbed harmlessly
+                    continue
+                }
+                for enemy in enemyTanks where enemy.isAlive && bullet.collidesWith(enemy) {
+                    enemy.damage()
+                    bulletsToRemove.append(bullet)
+                    if !enemy.isAlive {
+                        enemiesToRemove.append(enemy)
+                        SoundManager.shared.playExplosion()
+                    }
+                    break
+                }
+                continue
+            }
+
             // Player bullets hit enemies
             if !bullet.isFromEnemy {
                 for enemy in enemyTanks {

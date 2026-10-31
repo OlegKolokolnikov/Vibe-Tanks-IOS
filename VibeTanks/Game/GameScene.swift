@@ -115,6 +115,12 @@ class GameScene: SKScene {
     private let goldSpawnChance: Double = 0.0003  // ~1% chance per second at 60fps
     private var ufoMessageLabel: SKLabelNode?
 
+    // Gzhel tank (Gzhel mode only): one ally per level that hunts enemies
+    var gzhelTank: Tank?
+    private var gzhelSpawnedThisLevel: Bool = false
+    private var gzhelSpawnFrame: Int = 0      // Random frame when it tries to appear
+    private var gzhelFrameCounter: Int = 0
+
     // UI
     var touchController: TouchController!
     var sidebar: Sidebar!
@@ -666,6 +672,11 @@ class GameScene: SKScene {
         // Calculate enemies for this level (easy mode: 18, normal: base 20 + 2 per level)
         let totalEnemies = GameScene.isEasyMode ? 18 : min(20 + (level - 1) * 2, 50)
 
+        // Gzhel tank appears at a random moment, 10-40 seconds into the level
+        if showGzhelBorder {
+            gzhelSpawnFrame = Int.random(in: 600...2400)
+        }
+
         // Setup enemy spawner
         enemySpawner = EnemySpawner(
             totalEnemies: totalEnemies,
@@ -762,6 +773,8 @@ class GameScene: SKScene {
 
         updatePlayer()
         updateEnemies()
+        updateGzhelSpawn()
+        updateGzhelTank()
         updateBullets()
         flushBulletRemovals()  // Bullets that hit walls must not also hit tanks this frame
         updatePowerUps()
@@ -833,8 +846,8 @@ class GameScene: SKScene {
         for enemy in enemyTanks {
             guard enemy.isAlive else { continue }
 
-            // Skip AI update if frozen
-            if freezeTimer > 0 { continue }
+            // Skip AI update if frozen (the alien is immune to freeze)
+            if freezeTimer > 0 && !enemy.isFreezeImmune { continue }
 
             // Update AI
             if let ai = enemy.ai {
@@ -866,12 +879,123 @@ class GameScene: SKScene {
         }
     }
 
-    /// True if any living enemy overlaps the player's spawn point
+    /// True if any other living tank overlaps the player's spawn point
     private func isPlayerSpawnBlocked() -> Bool {
         let spawn = GameConstants.playerSpawnPosition
-        return enemyTanks.contains { enemy in
-            enemy.isAlive && EnemySpawner.boxesOverlap(spawn, playerTank.size.width, enemy.position, enemy.size.width)
+        return allTanks.contains { tank in
+            tank !== playerTank && tank.isAlive &&
+                EnemySpawner.boxesOverlap(spawn, playerTank.size.width, tank.position, tank.size.width)
         }
+    }
+
+    // MARK: - Gzhel Tank
+
+    /// Spawn the Gzhel tank once per Gzhel level, at its random moment
+    private func updateGzhelSpawn() {
+        guard showGzhelBorder, !gzhelSpawnedThisLevel, victoryDelayTimer == 0 else { return }
+
+        gzhelFrameCounter += 1
+        guard gzhelFrameCounter >= gzhelSpawnFrame else { return }
+
+        // Random empty tile, not on another tank and not right next to the player.
+        // If none fits this frame, try again next frame.
+        let size = GameConstants.tankSize
+        for _ in 0..<20 {
+            let pos = findRandomEmptyPosition()
+            guard !gameMap.checkTankCollision(position: pos, size: size) else { continue }
+            guard pos.distance(to: playerTank.position) > 120 else { continue }
+            let blocked = allTanks.contains { $0.isAlive && EnemySpawner.boxesOverlap(pos, size, $0.position, $0.size.width) }
+            guard !blocked else { continue }
+
+            let tank = Tank(position: pos, direction: .up, isPlayer: false, playerNumber: 0, enemyType: .gzhel)
+            gzhelTank = tank
+            gzhelSpawnedThisLevel = true
+            invalidateAllTanksCache()
+            gameLayer.addChild(tank)
+            showSpawnEffect(at: pos)
+            showUFOMessage("GZHEL TANK!", color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
+            return
+        }
+    }
+
+    /// Gzhel AI: same tank AI, but its targets are the enemies instead of the player
+    private func updateGzhelTank() {
+        guard let gzhel = gzhelTank, gzhel.isAlive, let ai = gzhel.ai else { return }
+
+        let targets = enemyTanks.filter { $0.isAlive }
+        let (direction, shouldShoot) = ai.update(map: gameMap, playerTanks: targets, allTanks: allTanks)
+
+        if let dir = direction {
+            gzhel.move(direction: dir, map: gameMap, allTanks: allTanks)
+        }
+        if shouldShoot {
+            let newBullets = gzhel.shoot()
+            if !newBullets.isEmpty {
+                SoundManager.shared.playShoot()
+                addBulletsWithSpawnCheck(newBullets)
+            }
+        }
+        gzhel.update(map: gameMap, allTanks: allTanks)
+    }
+
+    /// All enemies are gone: the Gzhel tank leaves with a colorful farewell
+    private func dismissGzhelTank() {
+        gzhelSpawnedThisLevel = true  // Don't appear after the level is won
+        guard let gzhel = gzhelTank else { return }
+        gzhelTank = nil
+        gzhel.health = 0  // No longer blocks movement or bullets
+        gzhel.ai = nil
+        invalidateAllTanksCache()
+
+        // Rainbow tint on the body while it spins, grows, then shrinks away
+        let rainbow: [SKColor] = [.red, .orange, .yellow, .green, .cyan, .blue, .magenta]
+        let tint = SKAction.sequence(rainbow.map { SKAction.colorize(with: $0, colorBlendFactor: 0.85, duration: 0.12) })
+        gzhel.childNode(withName: "tankBody")?.run(SKAction.repeat(tint, count: 2))
+
+        let spinAndPop = SKAction.group([
+            SKAction.rotate(byAngle: .pi * 4, duration: 1.7),
+            SKAction.sequence([
+                SKAction.scale(to: 1.5, duration: 0.85),
+                SKAction.scale(to: 0.1, duration: 0.85)
+            ])
+        ])
+        let burst = SKAction.run { [weak self, weak gzhel] in
+            guard let self = self, let gzhel = gzhel else { return }
+            self.showConfettiBurst(at: gzhel.position)
+        }
+        gzhel.run(SKAction.sequence([spinAndPop, burst, SKAction.removeFromParent()]))
+    }
+
+    /// Colorful confetti and a blue ring (Gzhel tank farewell)
+    private func showConfettiBurst(at position: CGPoint) {
+        let colors: [SKColor] = [.red, .orange, .yellow, .green, .cyan, .blue, .magenta, .white]
+        for i in 0..<36 {
+            let piece = SKSpriteNode(color: colors[i % colors.count], size: CGSize(width: 5, height: 5))
+            piece.position = position
+            piece.zPosition = 60
+            piece.zRotation = CGFloat.random(in: 0...(.pi))
+            gameLayer.addChild(piece)
+
+            let angle = CGFloat(i) / 36 * .pi * 2 + CGFloat.random(in: -0.1...0.1)
+            let distance = CGFloat.random(in: 40...90)
+            let fly = SKAction.moveBy(x: cos(angle) * distance, y: sin(angle) * distance, duration: 0.9)
+            fly.timingMode = .easeOut
+            piece.run(SKAction.sequence([
+                SKAction.group([fly, SKAction.rotate(byAngle: .pi * 3, duration: 0.9), SKAction.fadeOut(withDuration: 0.9)]),
+                SKAction.removeFromParent()
+            ]))
+        }
+
+        let ring = SKShapeNode(circleOfRadius: 10)
+        ring.strokeColor = SKColor(red: 0.2, green: 0.45, blue: 1.0, alpha: 1.0)
+        ring.lineWidth = 3
+        ring.position = position
+        ring.zPosition = 59
+        gameLayer.addChild(ring)
+        ring.run(SKAction.sequence([
+            SKAction.group([SKAction.scale(to: 6, duration: 0.6), SKAction.fadeOut(withDuration: 0.6)]),
+            SKAction.removeFromParent()
+        ]))
     }
 
     /// Check and destroy forest tiles at tank position (SAW power-up)
@@ -972,7 +1096,8 @@ class GameScene: SKScene {
 
     private func updateSpawner() {
         // Spawn regular enemies (don't spawn on player)
-        if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap) {
+        let nonEnemyTanks = gzhelTank.map { [$0] } ?? []
+        if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap, otherTanks: nonEnemyTanks) {
             enemyTanks.append(newEnemy)
             invalidateAllTanksCache()
             gameLayer.addChild(newEnemy)
@@ -980,7 +1105,7 @@ class GameScene: SKScene {
         }
 
         // Spawn extra enemies (from tank power-up collection, don't spawn on player)
-        if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap) {
+        if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap, otherTanks: nonEnemyTanks) {
             enemyTanks.append(extraEnemy)
             invalidateAllTanksCache()
             gameLayer.addChild(extraEnemy)
@@ -1328,7 +1453,7 @@ class GameScene: SKScene {
             enemy.health = 3
             enemy.maxHealth = 3
             showEffect(text: "POWER TANK+!", color: .red)
-        case .heavy, .boss, .alien:
+        case .heavy, .boss, .alien, .gzhel:
             // Already at max (or can't change type), just heal
             enemy.health = enemy.maxHealth
             showEffect(text: "ENEMY HEALED!", color: .red)
@@ -1406,7 +1531,7 @@ class GameScene: SKScene {
 
     /// Add freeze visual effect to all enemies
     private func addFreezeEffectToEnemies() {
-        for enemy in enemyTanks where enemy.isAlive {
+        for enemy in enemyTanks where enemy.isAlive && !enemy.isFreezeImmune {
             // Remove any existing freeze effect
             enemy.childNode(withName: "freezeEffect")?.removeFromParent()
 
@@ -1588,6 +1713,7 @@ class GameScene: SKScene {
         if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) && victoryDelayTimer == 0 && !isGameOver {
             victoryDelayTimer = GameConstants.victoryDelay
             showEffect(text: "VICTORY! Collect power-ups!", color: .green)
+            dismissGzhelTank()
         }
 
         // Check lose condition
@@ -1899,6 +2025,8 @@ class GameScene: SKScene {
             color = SKColor(red: 0.5, green: 0.0, blue: 0.5, alpha: 1.0)  // Purple
         case .alien:
             color = SKColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1.0)  // Alien green
+        case .gzhel:
+            color = SKColor(red: 0.2, green: 0.45, blue: 1.0, alpha: 1.0)  // Gzhel blue
         }
 
         // Tank body
@@ -1959,8 +2087,10 @@ class GameScene: SKScene {
     /// Show "YOU ARE FROZEN 27s" / "ENEMIES FROZEN 12s" at the top of the screen.
     /// Active countdowns stack from the top; text only changes once per second.
     private func updateFreezeLabels() {
-        let cameraScale = gameCamera.xScale
-        var y = (size.height / 2 - 12) * cameraScale
+        guard playerFreezeTimer > 0 || freezeTimer > 0 ||
+              playerFreezeLabel?.isHidden == false || enemyFreezeLabel?.isHidden == false else { return }
+
+        var y = cameraY(forPointsBelowVisibleTop: 10)
 
         if let label = playerFreezeLabel {
             updateFreezeLabel(label, timer: playerFreezeTimer, title: "YOU ARE FROZEN",
@@ -1987,7 +2117,30 @@ class GameScene: SKScene {
         }
         label.position = CGPoint(x: 0, y: y)
         label.isHidden = false
-        y -= 26 * gameCamera.xScale
+        y -= label.fontSize * 1.3  // Next line (font size is already in camera units)
+    }
+
+    /// Camera-space Y for a point `points` below the top of the screen area the
+    /// player can actually see: below the safe area (Mac title bar, iPad status
+    /// area) and below any letterbox bars from aspect-fit scaling.
+    private func cameraY(forPointsBelowVisibleTop points: CGFloat) -> CGFloat {
+        guard let view = view, size.width > 0, size.height > 0 else {
+            return (size.height / 2 - points) * gameCamera.xScale
+        }
+
+        let viewSize = view.bounds.size
+        let fit: CGFloat
+        switch scaleMode {
+        case .aspectFit: fit = min(viewSize.width / size.width, viewSize.height / size.height)
+        case .aspectFill: fit = max(viewSize.width / size.width, viewSize.height / size.height)
+        default: fit = viewSize.height / size.height
+        }
+        let letterboxTop = max((viewSize.height - size.height * fit) / 2, 0)
+        let visibleTop = max(view.safeAreaInsets.top, letterboxTop)
+
+        // View → scene → camera coordinates (handles camera position and zoom)
+        let scenePoint = convertPoint(fromView: CGPoint(x: view.bounds.midX, y: visibleTop + points))
+        return gameCamera.convert(scenePoint, from: self).y
     }
 
     private func hideFreezeLabels() {
@@ -2043,7 +2196,7 @@ class GameScene: SKScene {
 
     private var allTanks: [Tank] {
         if _allTanksDirty {
-            _cachedAllTanks = [playerTank].compactMap { $0 } + enemyTanks
+            _cachedAllTanks = [playerTank].compactMap { $0 } + enemyTanks + [gzhelTank].compactMap { $0 }
             _allTanksDirty = false
         }
         return _cachedAllTanks

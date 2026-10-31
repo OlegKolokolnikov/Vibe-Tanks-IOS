@@ -95,6 +95,7 @@ struct GameConstants {
         case .heavy: return 5
         case .boss: return 10
         case .alien: return 5
+        case .gzhel: return 0  // Ally, never scored
         }
     }
 }

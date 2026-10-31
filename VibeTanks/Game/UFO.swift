@@ -223,7 +223,7 @@ class UFO: SKNode {
     }
 
     func collidesWith(_ bullet: Bullet) -> Bool {
-        guard isAlive, !bullet.isEnemy else { return false }
+        guard isAlive, !bullet.isEnemy, !bullet.isFromGzhel else { return false }  // Player bullets only
 
         let bx = bullet.position.x
         let by = bullet.position.y

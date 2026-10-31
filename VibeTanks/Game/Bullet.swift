@@ -21,13 +21,14 @@ class Bullet: SKSpriteNode {
     let moveSpeed: CGFloat
     /// LASER shot: a bolt of light that passes through walls
     let isLaser: Bool
-    private let forceIsEnemy: Bool?
+    /// Side is fixed when fired: `owner` is weak, so deriving it from the owner
+    /// would turn an enemy's in-flight bullets into "player" bullets once it dies.
+    private let fromEnemy: Bool
+    /// Fired by the Gzhel tank: hurts enemies and the base, harmless to the player
+    let isFromGzhel: Bool
 
     var isFromEnemy: Bool {
-        if let forced = forceIsEnemy {
-            return forced
-        }
-        return !(owner?.isPlayer ?? true)
+        return fromEnemy
     }
 
     var isEnemy: Bool {
@@ -40,7 +41,8 @@ class Bullet: SKSpriteNode {
         self.power = power
         self.isLaser = isLaser
         self.moveSpeed = isLaser ? GameConstants.laserSpeed : GameConstants.bulletSpeed
-        self.forceIsEnemy = nil
+        self.isFromGzhel = !owner.isPlayer && owner.enemyType == .gzhel
+        self.fromEnemy = !owner.isPlayer && owner.enemyType != .gzhel
 
         if isLaser {
             // Elongated glowing bolt, drawn pointing up and rotated to the direction
@@ -48,8 +50,8 @@ class Bullet: SKSpriteNode {
             self.zRotation = direction.rotation
             self.blendMode = .add
         } else {
-            let colorKey = owner.isPlayer ? "yellow" : "white"
-            let color: SKColor = owner.isPlayer ? .yellow : .white
+            let colorKey = owner.isPlayer ? "yellow" : (isFromGzhel ? "blue" : "white")
+            let color: SKColor = owner.isPlayer ? .yellow : (isFromGzhel ? SKColor(red: 0.2, green: 0.45, blue: 1.0, alpha: 1.0) : .white)
             let size = CGSize(width: GameConstants.bulletSize, height: GameConstants.bulletSize)
 
             // Use cached texture for better performance
@@ -68,7 +70,8 @@ class Bullet: SKSpriteNode {
         self.power = power
         self.isLaser = false
         self.moveSpeed = GameConstants.bulletSpeed
-        self.forceIsEnemy = isEnemy
+        self.fromEnemy = isEnemy
+        self.isFromGzhel = false
 
         let color: SKColor = .green
         let size = CGSize(width: GameConstants.bulletSize, height: GameConstants.bulletSize)
