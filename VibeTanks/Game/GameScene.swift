@@ -702,6 +702,9 @@ class GameScene: SKScene {
         gameCamera.addChild(scoreLabel)
         #endif
 
+        // Freeze countdowns (shown on all platforms)
+        setupFreezeLabels()
+
         // Initial sidebar update
         sidebar.update(
             remainingEnemies: enemySpawner.remainingEnemies,
@@ -1571,6 +1574,7 @@ class GameScene: SKScene {
     private func levelComplete() {
         isGameOver = true
         didWinLevel = true
+        hideFreezeLabels()
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playVictory()
 
@@ -1689,6 +1693,7 @@ class GameScene: SKScene {
         // Base hit and last life lost can both trigger in the same frame
         guard !isGameOver else { return }
         isGameOver = true
+        hideFreezeLabels()
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playGameOver()
 
@@ -1900,7 +1905,72 @@ class GameScene: SKScene {
         return container
     }
 
+    // MARK: - Freeze Countdown HUD
+
+    private var playerFreezeLabel: SKLabelNode?
+    private var enemyFreezeLabel: SKLabelNode?
+    private var shownPlayerFreezeSeconds = -1
+    private var shownEnemyFreezeSeconds = -1
+
+    private func setupFreezeLabels() {
+        playerFreezeLabel = makeFreezeLabel(color: SKColor(red: 1.0, green: 0.45, blue: 0.45, alpha: 1.0))
+        enemyFreezeLabel = makeFreezeLabel(color: .cyan)
+    }
+
+    private func makeFreezeLabel(color: SKColor) -> SKLabelNode {
+        let label = SKLabelNode(text: "")
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = 20 * gameCamera.xScale
+        label.fontColor = color
+        label.verticalAlignmentMode = .top
+        label.zPosition = 150  // Below pause / game over overlays
+        label.isHidden = true
+        gameCamera.addChild(label)
+        return label
+    }
+
+    /// Show "YOU ARE FROZEN 27s" / "ENEMIES FROZEN 12s" at the top of the screen.
+    /// Active countdowns stack from the top; text only changes once per second.
+    private func updateFreezeLabels() {
+        let cameraScale = gameCamera.xScale
+        var y = (size.height / 2 - 12) * cameraScale
+
+        if let label = playerFreezeLabel {
+            updateFreezeLabel(label, timer: playerFreezeTimer, title: "YOU ARE FROZEN",
+                              shownSeconds: &shownPlayerFreezeSeconds, y: &y)
+        }
+        if let label = enemyFreezeLabel {
+            updateFreezeLabel(label, timer: freezeTimer, title: "ENEMIES FROZEN",
+                              shownSeconds: &shownEnemyFreezeSeconds, y: &y)
+        }
+    }
+
+    private func updateFreezeLabel(_ label: SKLabelNode, timer: Int, title: String,
+                                   shownSeconds: inout Int, y: inout CGFloat) {
+        guard timer > 0 else {
+            label.isHidden = true
+            shownSeconds = -1
+            return
+        }
+
+        let seconds = (timer + 59) / 60  // Round up: 1..60 frames left shows "1s"
+        if seconds != shownSeconds {
+            shownSeconds = seconds
+            label.text = "\u{2744} \(title) \(seconds)s"
+        }
+        label.position = CGPoint(x: 0, y: y)
+        label.isHidden = false
+        y -= 26 * gameCamera.xScale
+    }
+
+    private func hideFreezeLabels() {
+        playerFreezeLabel?.isHidden = true
+        enemyFreezeLabel?.isHidden = true
+    }
+
     private func updateUI() {
+        updateFreezeLabels()
+
         #if targetEnvironment(macCatalyst)
         // Post notification for UIKit overlay to update
         NotificationCenter.default.post(name: .gameScoreDidChange, object: nil, userInfo: ["score": score])
