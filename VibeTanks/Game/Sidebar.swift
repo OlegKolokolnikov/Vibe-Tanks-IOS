@@ -169,11 +169,12 @@ class Sidebar: SKNode {
         var hasSaw: Bool = false      // Can destroy trees
         var speedBoosts: Int = 0      // Speed upgrades
         var hasLaser: Bool = false    // Shots pass through walls
+        var friendHits: Int = 0       // Gzhel friend's remaining hits (0 = no friend on field)
 
         var hash: Int {
             return starCount * 1 + machinegunCount * 10 + (hasGun ? 100 : 0) +
                    (hasShip ? 1000 : 0) + (hasSaw ? 10000 : 0) + speedBoosts * 100000 +
-                   (hasLaser ? 10000000 : 0)
+                   (hasLaser ? 10000000 : 0) + friendHits * 100000000
         }
     }
 
@@ -255,6 +256,24 @@ class Sidebar: SKNode {
         // Speed boosts
         if data.speedBoosts > 0 {
             let row = createPowerUpRow(icon: "🚗", label: "x\(data.speedBoosts)", iconSize: iconSize)
+            row.position = CGPoint(x: 0, y: yOffset)
+            powerUpNode.addChild(row)
+            yOffset -= lineHeight
+        }
+
+        // Friend (Gzhel tank) and its remaining hits
+        if data.friendHits > 0 {
+            yOffset -= 4
+            let title = SKLabelNode(text: "FRIEND")
+            title.fontName = "Helvetica-Bold"
+            title.fontSize = 10
+            title.fontColor = SKColor(red: 0.35, green: 0.6, blue: 1.0, alpha: 1.0)
+            title.horizontalAlignmentMode = .left
+            title.verticalAlignmentMode = .center
+            title.position = CGPoint(x: 0, y: yOffset)
+            powerUpNode.addChild(title)
+            yOffset -= lineHeight
+            let row = createPowerUpRow(icon: "💙", label: "x\(data.friendHits)", iconSize: iconSize)
             row.position = CGPoint(x: 0, y: yOffset)
             powerUpNode.addChild(row)
             yOffset -= lineHeight

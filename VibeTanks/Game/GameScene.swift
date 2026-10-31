@@ -117,6 +117,7 @@ class GameScene: SKScene {
 
     // Gzhel tank (Gzhel mode only): one ally per level that hunts enemies
     var gzhelTank: Tank?
+    private var friendLivesLabel: SKLabelNode?
     private var gzhelSpawnedThisLevel: Bool = false
     private var gzhelSpawnFrame: Int = 0      // Random frame when it tries to appear
     private var gzhelFrameCounter: Int = 0
@@ -913,7 +914,7 @@ class GameScene: SKScene {
             invalidateAllTanksCache()
             gameLayer.addChild(tank)
             showSpawnEffect(at: pos)
-            showUFOMessage("GZHEL TANK!", color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
+            showUFOMessage("FRIEND!", color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
             return
         }
     }
@@ -928,6 +929,7 @@ class GameScene: SKScene {
         if let dir = direction {
             gzhel.move(direction: dir, map: gameMap, allTanks: allTanks)
         }
+        updateFriendLivesLabel()
         if shouldShoot {
             let newBullets = gzhel.shoot()
             if !newBullets.isEmpty {
@@ -938,11 +940,17 @@ class GameScene: SKScene {
         gzhel.update(map: gameMap, allTanks: allTanks)
     }
 
-    /// All enemies are gone: the Gzhel tank leaves with a colorful farewell
-    private func dismissGzhelTank() {
-        gzhelSpawnedThisLevel = true  // Don't appear after the level is won
+    /// The friend (Gzhel tank) leaves with a colorful farewell:
+    /// when all enemies are destroyed, or when enemies have used up its hits
+    func dismissGzhelTank(killed: Bool = false) {
+        gzhelSpawnedThisLevel = true  // Appears only once per level
         guard let gzhel = gzhelTank else { return }
         gzhelTank = nil
+        friendLivesLabel?.removeFromParent()
+        friendLivesLabel = nil
+        if killed {
+            showUFOMessage("FRIEND LOST!", color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
+        }
         gzhel.health = 0  // No longer blocks movement or bullets
         gzhel.ai = nil
         invalidateAllTanksCache()
@@ -964,6 +972,66 @@ class GameScene: SKScene {
             self.showConfettiBurst(at: gzhel.position)
         }
         gzhel.run(SKAction.sequence([spinAndPop, burst, SKAction.removeFromParent()]))
+    }
+
+    /// Hearts floating above the friend: one per remaining hit
+    private func updateFriendLivesLabel() {
+        guard let friend = gzhelTank, friend.isAlive else { return }
+        let label: SKLabelNode
+        if let existing = friendLivesLabel {
+            label = existing
+        } else {
+            label = SKLabelNode(fontNamed: "Helvetica-Bold")
+            label.fontSize = 10
+            label.fontColor = SKColor(red: 0.35, green: 0.6, blue: 1.0, alpha: 1.0)
+            label.verticalAlignmentMode = .bottom
+            label.zPosition = 55
+            gameLayer.addChild(label)
+            friendLivesLabel = label
+        }
+        let hits = max(0, friend.health)
+        let text = hits <= 5 ? String(repeating: "♥", count: hits) : "♥x\(hits)"
+        if label.text != text { label.text = text }
+        label.position = CGPoint(x: friend.position.x, y: friend.position.y + friend.size.height / 2 + 2)
+    }
+
+    /// Short flash when an enemy bullet hits the friend
+    func flashFriendHit(_ friend: Tank) {
+        friend.run(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.3, duration: 0.08),
+            SKAction.fadeAlpha(to: 1.0, duration: 0.08),
+            SKAction.fadeAlpha(to: 0.3, duration: 0.08),
+            SKAction.fadeAlpha(to: 1.0, duration: 0.08)
+        ]))
+        updateFriendLivesLabel()
+    }
+
+    /// The friend picked up a power-up: tank upgrades go to the friend itself,
+    /// battlefield effects (freeze, bomb, shovel) work on the player's side. No score.
+    private func handleFriendPowerUpCollection(_ powerUp: PowerUp, friend: Tank) {
+        let friendBlue = SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0)
+        switch powerUp.type {
+        case .tank:
+            friend.health += 1  // Extra life = one more hit
+            friend.maxHealth += 1
+            showEffect(text: "FRIEND +1 HIT!", color: friendBlue)
+        case .freeze:
+            freezeTimer = GameConstants.freezeDuration
+            addFreezeEffectToEnemies()
+            showEffect(text: "FREEZE!", color: .cyan)
+        case .bomb:
+            destroyAllEnemies()
+            showEffect(text: "BOMB!", color: .red)
+        case .shovel:
+            activateBaseProtection()
+            showEffect(text: "STEEL BASE!", color: .white)
+        case .gold, .laser:
+            break  // Gold is just taken away from the enemies; the laser is never picked up by the friend
+        default:
+            powerUp.apply(to: friend)
+            friend.drawTank()
+        }
+        updateFriendLivesLabel()
     }
 
     /// Colorful confetti and a blue ring (Gzhel tank farewell)
@@ -1324,6 +1392,18 @@ class GameScene: SKScene {
                 powerUpsToRemove.append(powerUp)
                 SoundManager.shared.playPowerUp()
                 continue
+            }
+
+            // The friend collects power-ups too (except the player's laser)
+            if let friend = gzhelTank, friend.isAlive, powerUp.type != .laser {
+                let friendDist = (friend.size.width + powerUp.size.width) / 2
+                if abs(friend.position.x - powerUp.position.x) < friendDist &&
+                    abs(friend.position.y - powerUp.position.y) < friendDist {
+                    handleFriendPowerUpCollection(powerUp, friend: friend)
+                    powerUpsToRemove.append(powerUp)
+                    SoundManager.shared.playPowerUp()
+                    continue
+                }
             }
 
             // Check enemy collisions (the laser is the player's reward: enemies can't take it)
@@ -2166,6 +2246,9 @@ class GameScene: SKScene {
         powerUps.hasShip = playerTank.canSwim
         powerUps.hasSaw = playerTank.canDestroyTrees
         powerUps.hasLaser = playerTank.hasLaser
+        if let friend = gzhelTank, friend.isAlive {
+            powerUps.friendHits = friend.health
+        }
         // Calculate speed boosts (each 0.3 increment is one boost)
         powerUps.speedBoosts = Int((playerTank.speedMultiplier - 1.0) / 0.3)
 

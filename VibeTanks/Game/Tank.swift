@@ -169,7 +169,7 @@ class Tank: SKSpriteNode {
         case heavy = 4
         case boss = 5
         case alien = 6  // Small alien (alien mode only): swims, drops the laser power-up
-        case gzhel = 7  // Gzhel mode ally: hunts enemies, harmless to player, indestructible
+        case gzhel = 7  // "Friend" (Gzhel mode ally): hunts enemies, harmless to player, survives 3 enemy hits
     }
 
     // Properties
@@ -274,6 +274,9 @@ class Tank: SKSpriteNode {
         case .boss:
             self.health = GameConstants.bossBaseHealth
             self.maxHealth = GameConstants.bossBaseHealth
+        case .gzhel:
+            self.health = GameConstants.friendHits
+            self.maxHealth = GameConstants.friendHits
         default:
             self.health = 1
             self.maxHealth = 1
@@ -989,7 +992,6 @@ class Tank: SKSpriteNode {
 
     func damage(bypassShip: Bool = false, bypassShield: Bool = false) {
         guard isAlive else { return }  // Already dead (e.g. player waiting to respawn)
-        guard isPlayer || enemyType != .gzhel else { return }  // Gzhel tank is indestructible
         if hasShield && !bypassShield { return }
 
         // Ship acts as extra protection - first shot removes ship (unless bypassed by bomb)
@@ -1033,7 +1035,10 @@ class Tank: SKSpriteNode {
     }
 
     private func die() {
-        createExplosion()
+        // The friend leaves with its own colorful animation (played by the scene)
+        if isPlayer || enemyType != .gzhel {
+            createExplosion()
+        }
         if isPlayer {
             lives -= 1
             isHidden = true

@@ -30,6 +30,7 @@ struct GameConstants {
     static let bulletSpeed: CGFloat = 6.0
     static let maxBulletsPerTank = 2
     static let laserSpeed: CGFloat = 10.0  // LASER shots: light, faster than bullets
+    static let friendHits = 3  // Enemy hits the Gzhel friend survives (+1 per extra-life power-up)
     static let laserRoundsOnPickup = 2     // Laser lasts the current round + the next one
 
     // Spawn settings

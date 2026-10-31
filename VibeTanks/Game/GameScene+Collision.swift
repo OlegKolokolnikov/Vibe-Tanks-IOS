@@ -17,9 +17,18 @@ extension GameScene {
         var enemiesToRemove: [Tank] = []
 
         for bullet in bullets where !isBulletRemoved(bullet) {
-            // The indestructible Gzhel tank absorbs everyone else's bullets
-            if let gzhel = gzhelTank, gzhel.isAlive, !bullet.isFromGzhel, bullet.collidesWith(gzhel) {
+            // The friend (Gzhel tank) stops everyone else's bullets; only enemy bullets hurt it
+            if let friend = gzhelTank, friend.isAlive, !bullet.isFromGzhel, bullet.collidesWith(friend) {
                 bulletsToRemove.append(bullet)
+                if bullet.isFromEnemy {
+                    friend.damage()
+                    if friend.isAlive {
+                        flashFriendHit(friend)
+                    } else {
+                        SoundManager.shared.playExplosion()
+                        dismissGzhelTank(killed: true)
+                    }
+                }
                 continue
             }
 
