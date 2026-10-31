@@ -1624,18 +1624,24 @@ class GameScene: SKScene {
             pauseLabel.fontName = "Helvetica-Bold"
             pauseLabel.fontSize = 48 * cameraScale
             pauseLabel.fontColor = .white
-            pauseLabel.position = CGPoint(x: 0, y: 50 * cameraScale)
+            pauseLabel.position = CGPoint(x: 0, y: 80 * cameraScale)
             pauseOverlay?.addChild(pauseLabel)
 
             // Resume button
             let resumeButton = createPauseButton(text: "RESUME", cameraScale: cameraScale)
-            resumeButton.position = CGPoint(x: 0, y: -10 * cameraScale)
+            resumeButton.position = CGPoint(x: 0, y: 20 * cameraScale)
             resumeButton.name = "resumeButton"
             pauseOverlay?.addChild(resumeButton)
 
+            // Sound on/off button
+            let muteButton = createPauseButton(text: muteButtonTitle, cameraScale: cameraScale)
+            muteButton.position = CGPoint(x: 0, y: -40 * cameraScale)
+            muteButton.name = "muteButton"
+            pauseOverlay?.addChild(muteButton)
+
             // Menu button
             let menuButton = createPauseButton(text: "MENU", cameraScale: cameraScale)
-            menuButton.position = CGPoint(x: 0, y: -70 * cameraScale)
+            menuButton.position = CGPoint(x: 0, y: -100 * cameraScale)
             menuButton.name = "menuButton"
             pauseOverlay?.addChild(menuButton)
 
@@ -1644,6 +1650,19 @@ class GameScene: SKScene {
             // Remove pause overlay
             pauseOverlay?.removeFromParent()
             pauseOverlay = nil
+        }
+    }
+
+    private var muteButtonTitle: String {
+        SoundManager.shared.isMuted ? "SOUND: OFF" : "SOUND: ON"
+    }
+
+    /// Toggle mute from the pause menu and refresh the button label
+    private func toggleMute() {
+        SoundManager.shared.isMuted.toggle()
+        if let button = pauseOverlay?.childNode(withName: "muteButton"),
+           let label = button.children.compactMap({ $0 as? SKLabelNode }).first {
+            label.text = muteButtonTitle
         }
     }
 
@@ -1953,6 +1972,10 @@ class GameScene: SKScene {
                 }
                 if node.name == "resumeButton" || node.parent?.name == "resumeButton" {
                     togglePause()
+                    return
+                }
+                if node.name == "muteButton" || node.parent?.name == "muteButton" {
+                    toggleMute()  // Stay paused
                     return
                 }
             }

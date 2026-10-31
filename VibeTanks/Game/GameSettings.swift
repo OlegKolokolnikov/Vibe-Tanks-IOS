@@ -7,6 +7,7 @@ class GameSettings {
     private let controlsSwappedKey = "controlsSwapped"
     private let playerColorKey = "playerTankColor"
     private let volumeKey = "volumeLevel"
+    private let mutedKey = "isMuted"
 
     enum TankColor: String, CaseIterable {
         case yellow = "yellow"
@@ -61,6 +62,12 @@ class GameSettings {
             let clamped = min(max(newValue, 0), GameSettings.maxVolumeLevel)
             UserDefaults.standard.set(clamped, forKey: volumeKey)
         }
+    }
+
+    /// All sound muted (volume level is kept, so unmuting restores it)
+    var isMuted: Bool {
+        get { UserDefaults.standard.bool(forKey: mutedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: mutedKey) }
     }
 
     /// Player tank color preference

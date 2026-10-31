@@ -32,15 +32,22 @@ class SoundManager {
     // Music player
     private var musicPlayer: AVAudioPlayer?
 
-    var isMuted: Bool = false
+    /// Mute all sound. Saved to settings; silences sounds that are already playing.
+    var isMuted: Bool = GameSettings.shared.isMuted {
+        didSet {
+            GameSettings.shared.isMuted = isMuted
+            applyVolume()
+        }
+    }
 
     // Each player's own (relative) volume; the actual volume is base * masterVolume
     private var baseVolumes: [ObjectIdentifier: Float] = [:]
     private let musicBaseVolume: Float = 0.3
 
-    /// Master volume 0...1, derived from the saved volume level
+    /// Master volume 0...1, derived from the saved volume level (0 when muted)
     private var masterVolume: Float {
-        Float(volumeLevel) / Float(GameSettings.maxVolumeLevel)
+        guard !isMuted else { return 0 }
+        return Float(volumeLevel) / Float(GameSettings.maxVolumeLevel)
     }
 
     /// Volume level 0...GameSettings.maxVolumeLevel. Saved to settings and applied immediately.

@@ -182,7 +182,11 @@ class OptionsScene: SKScene {
     private func updateVolumeDisplay() {
         let level = SoundManager.shared.volumeLevel
         let percent = level * 100 / GameSettings.maxVolumeLevel
-        volumeLabel?.text = level == 0 ? "Volume: Off" : "Volume: \(percent)%"
+        if SoundManager.shared.isMuted {
+            volumeLabel?.text = "Volume: Muted"
+        } else {
+            volumeLabel?.text = level == 0 ? "Volume: Off" : "Volume: \(percent)%"
+        }
 
         for (i, segment) in volumeSegments.enumerated() {
             let isOn = i < level
@@ -193,7 +197,9 @@ class OptionsScene: SKScene {
 
     private func setVolumeLevel(_ level: Int) {
         let clamped = min(max(level, 0), GameSettings.maxVolumeLevel)
-        guard clamped != SoundManager.shared.volumeLevel else { return }
+        // Touching the volume control while muted unmutes, so the change is audible
+        guard clamped != SoundManager.shared.volumeLevel || SoundManager.shared.isMuted else { return }
+        SoundManager.shared.isMuted = false
         SoundManager.shared.volumeLevel = clamped
         updateVolumeDisplay()
         // Short sample so the player hears the new level
