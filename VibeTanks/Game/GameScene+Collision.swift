@@ -79,7 +79,7 @@ extension GameScene {
                             enemiesToRemove.append(enemy)
                             // scoreType survives the heavy→armored→regular visual downgrade
                             let killedType = enemy.scoreType
-                            addScore(GameConstants.scoreForEnemyType(killedType))
+                            addScore(GameConstants.scoreForEnemyType(killedType), for: bullet.owner)
                             playerKills += 1
                             killsByType[killedType, default: 0] += 1
                             let shooterIndex = (bullet.owner?.playerNumber == 2) ? 1 : 0

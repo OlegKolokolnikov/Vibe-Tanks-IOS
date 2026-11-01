@@ -142,8 +142,12 @@ class GameScene: SKScene {
     var scoreLabel: SKLabelNode!
 
     // Game state
-    var score: Int = 0
-    private var lastBonusLifeScore: Int = 0  // Track last 100-point milestone
+    /// Each player has their own score (indexed by playerNumber - 1)
+    var scores: [Int] = [0, 0]
+    /// Player 1's score (the only score in a one-player game)
+    var score: Int { scores[0] }
+    /// Best score among the players (high score check)
+    private var bestScore: Int { scores.prefix(playerCount).max() ?? 0 }
     var level: Int = 1
     private var sessionSeed: UInt64 = 0
     var isGameOver: Bool = false
@@ -151,7 +155,7 @@ class GameScene: SKScene {
     var didWinLevel: Bool = false
 
     // Level stats for score breakdown
-    private var levelStartScore: Int = 0
+    private var levelStartScores: [Int] = [0, 0]
     var killsByType: [Tank.EnemyType: Int] = [:]
     /// Kills per player (indexed by playerNumber - 1), for the two-player statistics
     var killsByPlayer: [[Tank.EnemyType: Int]] = [[:], [:]]
@@ -218,9 +222,9 @@ class GameScene: SKScene {
 
     // Level initialization
     init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
-         playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps()) {
+         playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0) {
         self.level = level
-        self.score = score
+        self.scores = [score, player2Score]
         self.initialLives = lives
         self.initialPowerUps = powerUps
         self.playerCount = playerCount == 2 ? 2 : 1
@@ -631,7 +635,7 @@ class GameScene: SKScene {
 
     private func setupGame() {
         // Initialize level stats tracking
-        levelStartScore = score
+        levelStartScores = scores
         killsByType = [:]
         killsByPlayer = [[:], [:]]
 
@@ -879,8 +883,40 @@ class GameScene: SKScene {
         return (direction, firing)
     }
 
+    /// Fire held last frame, per player (to react to a new press only)
+    private var firingLastFrame: [Bool] = [false, false]
+
+    /// The other player of a two-player game
+    private func teammate(of player: Tank) -> Tank? {
+        guard isTwoPlayer else { return nil }
+        return player.playerNumber == 1 ? player2Tank : playerTank
+    }
+
+    /// Two players: a player who is out of lives can take one from a teammate who has a spare
+    private func canStealLife(_ player: Tank) -> Bool {
+        guard let mate = teammate(of: player) else { return false }
+        return player.lives <= 0 && !player.isAlive && !player.isWaitingToRespawn && mate.lives >= 2
+    }
+
+    private func stealLife(for player: Tank) {
+        guard let mate = teammate(of: player), canStealLife(player) else { return }
+        mate.lives -= 1
+        player.lives = 1  // Respawn starts on the next update
+        showEffect(text: "\(player.playerNumber)P TOOK A LIFE!", color: Tank.colorForPlayer(player.playerNumber))
+        SoundManager.shared.playPowerUp()
+    }
+
     private func updatePlayer(_ player: Tank) {
+        let index = player.playerNumber - 1
+        let firingNow = input(for: player).firing
+        let firePressed = firingNow && !firingLastFrame[index]
+        firingLastFrame[index] = firingNow
+
         guard player.isAlive else {
+            // Out of lives: a new fire press takes a life from the teammate
+            if player.lives <= 0 && firePressed {
+                stealLife(for: player)
+            }
             // Player is dead - handle respawn
             if player.lives > 0 {
                 // If not already respawning, start respawn
@@ -1670,12 +1706,12 @@ class GameScene: SKScene {
     private func handlePowerUpCollection(_ powerUp: PowerUp, by player: Tank) {
         // Gold gives 99 points, others give 1
         if powerUp.type == .gold {
-            addScore(99)
+            addScore(99, for: player)
             showEffect(text: "+99 GOLD!", color: .yellow)
             return
         }
 
-        addScore(1)
+        addScore(1, for: player)
 
         switch powerUp.type {
         case .freeze:
@@ -2024,9 +2060,9 @@ class GameScene: SKScene {
         // Track consecutive losses for easy mode
         GameScene.consecutiveLosses += 1
 
-        isNewHighScore = score > GameScene.highScore
+        isNewHighScore = bestScore > GameScene.highScore
         if isNewHighScore {
-            GameScene.highScore = score
+            GameScene.highScore = bestScore
         }
 
         showGameOverScreen()
@@ -2104,7 +2140,8 @@ class GameScene: SKScene {
             label.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.fadeIn(withDuration: 0.4)]))
             return label
         }
-        _ = addInfo("SCORE: \(score)", fontSize: 28, color: .white, y: -10, delay: infoDelay)
+        let scoreText = isTwoPlayer ? "1P: \(scores[0])    2P: \(scores[1])" : "SCORE: \(score)"
+        _ = addInfo(scoreText, fontSize: 28, color: .white, y: -10, delay: infoDelay)
         _ = addInfo("HIGH SCORE: \(GameScene.highScore)", fontSize: 30,
                     color: SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1), y: -55, delay: infoDelay + 0.3)
 
@@ -2363,30 +2400,22 @@ class GameScene: SKScene {
         gameCamera.addChild(separator)
         yPos -= lineHeight * 0.8
 
-        // Round score
-        let roundScore = score - levelStartScore
-        let roundScoreLabel = SKLabelNode(text: "Round Score: \(roundScore)")
-        roundScoreLabel.fontName = "Helvetica-Bold"
-        roundScoreLabel.fontSize = 20 * cameraScale
-        roundScoreLabel.fontColor = .yellow
-        roundScoreLabel.position = CGPoint(x: 0, y: yPos)
-        roundScoreLabel.zPosition = 200
-        gameCamera.addChild(roundScoreLabel)
-        yPos -= lineHeight
-
-        // Total score
-        let totalScoreLabel = SKLabelNode(text: "Total Score: \(score)")
-        totalScoreLabel.fontName = "Helvetica-Bold"
-        totalScoreLabel.fontSize = 22 * cameraScale
-        totalScoreLabel.fontColor = .cyan
-        totalScoreLabel.position = CGPoint(x: 0, y: yPos)
-        totalScoreLabel.zPosition = 200
-        gameCamera.addChild(totalScoreLabel)
-        yPos -= lineHeight
+        // Round and total score (two players: one pair per column)
+        let scoreColumns: [(x: CGFloat, index: Int)] = isTwoPlayer
+            ? [(-140 * cameraScale, 0), (140 * cameraScale, 1)]
+            : [(0, 0)]
+        for column in scoreColumns {
+            let roundScore = scores[column.index] - levelStartScores[column.index]
+            _ = addBreakdownLabel("Round Score: \(roundScore)", fontSize: 20 * cameraScale, color: .yellow,
+                                  at: CGPoint(x: column.x, y: yPos))
+            _ = addBreakdownLabel("Total Score: \(scores[column.index])", fontSize: 22 * cameraScale, color: .cyan,
+                                  at: CGPoint(x: column.x, y: yPos - lineHeight))
+        }
+        yPos -= lineHeight * 2
 
         // Highscore (only on game over, not level complete; recorded in gameOver())
         if showRestart && isNewHighScore {
-            let highScoreLabel = SKLabelNode(text: "HIGHSCORE \(score)")
+            let highScoreLabel = SKLabelNode(text: "HIGHSCORE \(bestScore)")
             highScoreLabel.fontName = "Helvetica-Bold"
             highScoreLabel.fontSize = 26 * cameraScale
             highScoreLabel.fontColor = .magenta
@@ -2426,6 +2455,32 @@ class GameScene: SKScene {
         menuButton.zPosition = 200
         menuButton.name = "menuButton"
         gameCamera.addChild(menuButton)
+
+        addBreakdownBackground(top: 140 * cameraScale + 40 * cameraScale,
+                               bottom: yPos - 40 * cameraScale, cameraScale: cameraScale)
+    }
+
+    /// Dim the game behind the statistics and put them on a framed panel so they're easy to read
+    private func addBreakdownBackground(top: CGFloat, bottom: CGFloat, cameraScale: CGFloat) {
+        let screenSize = CGSize(width: size.width * cameraScale, height: size.height * cameraScale)
+
+        let dim = SKShapeNode(rectOf: CGSize(width: screenSize.width * 1.5, height: screenSize.height * 1.5))
+        dim.fillColor = SKColor.black.withAlphaComponent(0.6)
+        dim.strokeColor = .clear
+        dim.zPosition = 198
+        gameCamera.addChild(dim)
+
+        // Two players: wide enough for both columns and the bonus beside them
+        let wanted: CGFloat = (isTwoPlayer ? 840 : 380) * cameraScale
+        let width = min(wanted, screenSize.width * 0.96)
+        let height = top - bottom
+        let panel = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 14 * cameraScale)
+        panel.fillColor = SKColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 0.95)
+        panel.strokeColor = showGzhelBorder ? .blue : .yellow
+        panel.lineWidth = 3 * cameraScale
+        panel.position = CGPoint(x: 0, y: (top + bottom) / 2)
+        panel.zPosition = 199
+        gameCamera.addChild(panel)
     }
 
     /// Create a row showing: [tank icon] x [count] : [points]
@@ -2528,7 +2583,21 @@ class GameScene: SKScene {
         let playerColor = SKColor(red: 1.0, green: 0.45, blue: 0.45, alpha: 1.0)
         playerFreezeLabels = (0..<playerCount).map { _ in makeFreezeLabel(color: playerColor) }
         enemyFreezeLabel = makeFreezeLabel(color: .cyan)
+        if isTwoPlayer {
+            lifeHintLabels = (1...2).map { number in
+                let label = makeFreezeLabel(color: Tank.colorForPlayer(number))
+                label.text = "\(number)P: PRESS FIRE TO TAKE A LIFE"
+                label.run(SKAction.repeatForever(SKAction.sequence([
+                    SKAction.fadeAlpha(to: 0.35, duration: 0.4),
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.4)
+                ])))
+                return label
+            }
+        }
     }
+
+    /// Two players: "1P: PRESS FIRE TO TAKE A LIFE" while that player is out and the teammate has a spare
+    private var lifeHintLabels: [SKLabelNode] = []
 
     private func makeFreezeLabel(color: SKColor) -> SKLabelNode {
         let label = SKLabelNode(text: "")
@@ -2545,8 +2614,10 @@ class GameScene: SKScene {
     /// Show "YOU ARE FROZEN 27s" (two players: "1P FROZEN 27s") / "ENEMIES FROZEN 12s"
     /// at the top of the screen. Active countdowns stack from the top; text only changes once per second.
     private func updateFreezeLabels() {
-        guard playerFreezeTimers.contains(where: { $0 > 0 }) || freezeTimer > 0 ||
-              playerFreezeLabels.contains(where: { !$0.isHidden }) || enemyFreezeLabel?.isHidden == false else { return }
+        let hintsWanted = playerTanks.map { canStealLife($0) }
+        guard playerFreezeTimers.contains(where: { $0 > 0 }) || freezeTimer > 0 || hintsWanted.contains(true) ||
+              playerFreezeLabels.contains(where: { !$0.isHidden }) || enemyFreezeLabel?.isHidden == false ||
+              lifeHintLabels.contains(where: { !$0.isHidden }) else { return }
 
         var y = cameraY(forPointsBelowVisibleTop: 10)
 
@@ -2558,6 +2629,14 @@ class GameScene: SKScene {
         if let label = enemyFreezeLabel {
             updateFreezeLabel(label, timer: freezeTimer, title: "ENEMIES FROZEN",
                               shownSeconds: &shownEnemyFreezeSeconds, y: &y)
+        }
+        for (index, label) in lifeHintLabels.enumerated() {
+            let wanted = index < hintsWanted.count && hintsWanted[index]
+            label.isHidden = !wanted
+            if wanted {
+                label.position = CGPoint(x: 0, y: y)
+                y -= label.fontSize * 1.3
+            }
         }
     }
 
@@ -2605,6 +2684,7 @@ class GameScene: SKScene {
     private func hideFreezeLabels() {
         playerFreezeLabels.forEach { $0.isHidden = true }
         enemyFreezeLabel?.isHidden = true
+        lifeHintLabels.forEach { $0.isHidden = true }
     }
 
     private func updateUI() {
@@ -2612,9 +2692,11 @@ class GameScene: SKScene {
 
         #if targetEnvironment(macCatalyst)
         // Post notification for UIKit overlay to update
-        NotificationCenter.default.post(name: .gameScoreDidChange, object: nil, userInfo: ["score": score])
+        NotificationCenter.default.post(name: .gameScoreDidChange, object: nil,
+                                        userInfo: ["score": score, "text": scoreText])
         #else
-        scoreLabel.text = "Score: \(score)"
+        let text = scoreText
+        if scoreLabel.text != text { scoreLabel.text = text }
         #endif
 
         // Build power-up data from the player tanks
@@ -2648,17 +2730,23 @@ class GameScene: SKScene {
         return powerUps
     }
 
-    /// Add score and check for bonus life every 100 points
-    func addScore(_ points: Int) {
-        let oldMilestone = score / 100
-        score += points
-        let newMilestone = score / 100
+    /// Score line at the top: "Score: 12", two players "1P: 12   2P: 7"
+    private var scoreText: String {
+        isTwoPlayer ? "1P: \(scores[0])   2P: \(scores[1])" : "Score: \(score)"
+    }
 
-        // Award bonus life for each 100-point milestone reached (the score is shared:
-        // every player gets it, which also brings back a player who ran out of lives)
+    /// Add score to a player (player 1 if unknown) and check for their bonus life every 100 points
+    func addScore(_ points: Int, for player: Tank?) {
+        let index = player?.playerNumber == 2 ? 1 : 0
+        let oldMilestone = scores[index] / 100
+        scores[index] += points
+        let newMilestone = scores[index] / 100
+
+        // Award bonus life for each 100-point milestone of this player's own score
+        // (also brings back a player who ran out of lives)
         if newMilestone > oldMilestone {
             let bonusLives = newMilestone - oldMilestone
-            playerTanks.forEach { $0.addLives(bonusLives) }
+            (index == 1 ? player2Tank : playerTank)?.addLives(bonusLives)
             showEffect(text: "+\(bonusLives) LIFE!", color: .magenta)
         }
     }
@@ -2758,7 +2846,8 @@ class GameScene: SKScene {
         let nextAlienMode = ufoEscaped && !alienMode
 
         let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode,
-                                 playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2)
+                                 playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2,
+                                 player2Score: scores[1])
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }

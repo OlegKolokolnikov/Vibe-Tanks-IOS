@@ -69,9 +69,12 @@ class GameViewController: UIViewController {
     }
 
     @objc private func handleScoreChange(_ notification: Notification) {
-        if let score = notification.userInfo?["score"] as? Int {
+        // "text" carries both scores in a two-player game
+        let text = notification.userInfo?["text"] as? String
+            ?? (notification.userInfo?["score"] as? Int).map { "Score: \($0)" }
+        if let text = text {
             DispatchQueue.main.async {
-                self.scoreLabel?.text = "Score: \(score)"
+                if self.scoreLabel?.text != text { self.scoreLabel?.text = text }
             }
         }
     }

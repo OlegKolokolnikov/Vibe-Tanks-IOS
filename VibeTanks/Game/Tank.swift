@@ -689,6 +689,11 @@ class Tank: SKSpriteNode {
         addChild(shipContainer)
     }
 
+    /// Tank color of a human player (1 or 2), as chosen in Options
+    static func colorForPlayer(_ number: Int) -> SKColor {
+        return number == 2 ? GameSettings.shared.player2TankColor.color : GameSettings.shared.playerTankColor.color
+    }
+
     private var playerColor: SKColor {
         // Player 1 uses the color from settings
         if playerNumber == 1 {

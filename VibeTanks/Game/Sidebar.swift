@@ -102,8 +102,12 @@ class Sidebar: SKNode {
     /// Two-player game: shows lives for both players and power-ups in two columns
     private let twoPlayers: Bool
 
-    /// Extra space taken by the player 2 lives section
-    private static let player2SectionHeight: CGFloat = 45
+    // Two-player layout (from the top): each player gets a block with lives and their own
+    // power-ups below: IP block at playerSectionY, IIP block player2BlockOffset lower
+    private static let player2BlockOffset: CGFloat = 160     // IIP lives below IP lives
+    private static let twoPlayerPowerUpGap: CGFloat = 52     // Lives section height before power-ups
+    private static let twoPlayerLineHeight: CGFloat = 14     // 7 power-up rows fit in a block
+    private static let twoPlayerFlagSectionY: CGFloat = 745  // Flag moves down to make room
 
     init(height: CGFloat, twoPlayers: Bool = false) {
         self.sidebarHeight = height
@@ -143,14 +147,16 @@ class Sidebar: SKNode {
 
     private func setupPowerUps() {
         powerUpNode = SKNode()
-        let extraOffset = twoPlayers ? Sidebar.player2SectionHeight : 0
-        powerUpNode.position = CGPoint(x: Sidebar.sectionPadding, y: sidebarHeight - Sidebar.powerUpSectionY - extraOffset)
+        // Two players: power-ups start right under the IP lives (IIP rows are drawn one block lower)
+        let topY = twoPlayers ? Sidebar.playerSectionY + Sidebar.twoPlayerPowerUpGap : Sidebar.powerUpSectionY
+        powerUpNode.position = CGPoint(x: Sidebar.sectionPadding, y: sidebarHeight - topY)
         addChild(powerUpNode)
     }
 
     private func setupFlag() {
         flagNode = SKNode()
-        flagNode.position = CGPoint(x: Sidebar.sectionPadding, y: sidebarHeight - Sidebar.flagSectionY)
+        let flagY = twoPlayers ? Sidebar.twoPlayerFlagSectionY : Sidebar.flagSectionY
+        flagNode.position = CGPoint(x: Sidebar.sectionPadding, y: sidebarHeight - flagY)
         addChild(flagNode)
 
         // Flag pole
@@ -209,17 +215,19 @@ class Sidebar: SKNode {
     private func updatePowerUps(_ data: PowerUpData, player2 data2: PowerUpData?) {
         powerUpNode.removeAllChildren()
 
-        let lineHeight: CGFloat = 16
+        var lineHeight: CGFloat = 16
         var yOffset: CGFloat
 
         if let data2 = data2 {
-            // Two narrow columns: player 1 on the left, player 2 on the right
-            let columnWidth = (Sidebar.sidebarWidth - Sidebar.sectionPadding) / 2
-            let end1 = addPowerUpRows(data, x: 0, iconSize: 10, fontSize: 9, lineHeight: lineHeight)
-            let end2 = addPowerUpRows(data2, x: columnWidth, iconSize: 10, fontSize: 9, lineHeight: lineHeight)
-            yOffset = min(end1, end2)
+            // Each player's power-ups sit in their own block, under that player's lives
+            lineHeight = Sidebar.twoPlayerLineHeight
+            _ = addPowerUpRows(data, x: 0, y: 0, iconSize: 12, fontSize: 11, lineHeight: lineHeight)
+            yOffset = addPowerUpRows(data2, x: 0, y: -Sidebar.player2BlockOffset,
+                                     iconSize: 12, fontSize: 11, lineHeight: lineHeight)
+            // Friend goes below the IIP block (fixed spot, so it doesn't jump around)
+            yOffset = -Sidebar.player2BlockOffset - 7 * lineHeight - 6
         } else {
-            yOffset = addPowerUpRows(data, x: 0, iconSize: 12, fontSize: 11, lineHeight: lineHeight)
+            yOffset = addPowerUpRows(data, x: 0, y: 0, iconSize: 12, fontSize: 11, lineHeight: lineHeight)
         }
 
         // Friend (Gzhel tank) and its remaining hits
@@ -242,7 +250,7 @@ class Sidebar: SKNode {
     }
 
     /// Add one player's power-up rows in a column starting at the top; returns the next free Y
-    private func addPowerUpRows(_ data: PowerUpData, x: CGFloat, iconSize: CGFloat,
+    private func addPowerUpRows(_ data: PowerUpData, x: CGFloat, y: CGFloat, iconSize: CGFloat,
                                 fontSize: CGFloat, lineHeight: CGFloat) -> CGFloat {
         var rows: [(icon: String, label: String)] = []
         if data.starCount > 0 { rows.append(("⭐", "x\(data.starCount)")) }          // Shooting speed
@@ -253,7 +261,7 @@ class Sidebar: SKNode {
         if data.hasLaser { rows.append(("🔦", "")) }    // Shots pass through walls
         if data.speedBoosts > 0 { rows.append(("🚗", "x\(data.speedBoosts)")) }
 
-        var yOffset: CGFloat = 0
+        var yOffset: CGFloat = y
         for row in rows {
             let node = createPowerUpRow(icon: row.icon, label: row.label, iconSize: iconSize, fontSize: fontSize)
             node.position = CGPoint(x: x, y: yOffset)
@@ -318,7 +326,14 @@ class Sidebar: SKNode {
         if twoPlayers {
             addPlayerLivesSection(title: "IIP", lives: player2Lives,
                                   tankColor: GameSettings.shared.player2TankColor.color,
-                                  y: -Sidebar.player2SectionHeight)
+                                  y: -Sidebar.player2BlockOffset)
+            // Divider between the IP and IIP blocks
+            let divider = SKShapeNode(rectOf: CGSize(width: Sidebar.sidebarWidth - Sidebar.sectionPadding * 2, height: 2))
+            divider.fillColor = Sidebar.textColor
+            divider.strokeColor = .clear
+            divider.position = CGPoint(x: (Sidebar.sidebarWidth - Sidebar.sectionPadding * 2) / 2,
+                                       y: -Sidebar.player2BlockOffset + 12)
+            playerInfoNode.addChild(divider)
         }
     }
 
