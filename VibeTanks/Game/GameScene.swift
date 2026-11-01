@@ -2164,9 +2164,23 @@ class GameScene: SKScene {
             }
         }
 
-        // Return random empty position, or center of map if none found
-        if let randomPosition = emptyPositions.randomElement() {
+        // Keep clear of tanks (an enemy would grab it at once) and of other power-ups
+        let clearance = GameConstants.tileSize * 2
+        let tanks = allTanks.filter { $0.isAlive }
+        func isClear(_ p: CGPoint) -> Bool {
+            !tanks.contains { abs($0.position.x - p.x) < clearance && abs($0.position.y - p.y) < clearance } &&
+            !powerUps.contains { abs($0.position.x - p.x) < GameConstants.tileSize && abs($0.position.y - p.y) < GameConstants.tileSize }
+        }
+        if let randomPosition = emptyPositions.filter(isClear).randomElement() {
             return randomPosition
+        }
+        // Crowded field: take the empty spot farthest from any tank
+        if let farthest = emptyPositions.max(by: { a, b in
+            let da = tanks.map { a.distance(to: $0.position) }.min() ?? .infinity
+            let db = tanks.map { b.distance(to: $0.position) }.min() ?? .infinity
+            return da < db
+        }) {
+            return farthest
         }
 
         // Fallback - should rarely happen
