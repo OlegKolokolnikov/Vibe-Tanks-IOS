@@ -55,7 +55,11 @@ extension GameScene {
                 for enemy in enemyTanks {
                     if enemy.isAlive && bullet.collidesWith(enemy) {
                         let wasPowerTank = enemy.enemyType == .power
-                        enemy.damage()
+                        if bullet.isLaser {
+                            enemy.destroyInstantly()  // Laser kills any enemy with one shot
+                        } else {
+                            enemy.damage()
+                        }
                         bulletsToRemove.append(bullet)
 
                         // Power tanks drop power-up every time they are shot
@@ -134,13 +138,25 @@ extension GameScene {
         var bulletsToRemove: Set<Bullet> = []
 
         for i in 0..<bullets.count {
-            // Laser light passes through bullets (and bullets through it)
-            guard !isBulletRemoved(bullets[i]), !bullets[i].isLaser else { continue }
+            let a = bullets[i]
+            guard !isBulletRemoved(a), !bulletsToRemove.contains(a) else { continue }
             for j in (i+1)..<bullets.count {
-                guard !isBulletRemoved(bullets[j]), !bullets[j].isLaser else { continue }
-                if bullets[i].collidesWith(bullets[j]) {
-                    bulletsToRemove.insert(bullets[i])
-                    bulletsToRemove.insert(bullets[j])
+                let b = bullets[j]
+                guard !isBulletRemoved(b), !bulletsToRemove.contains(b) else { continue }
+                if a.isLaser || b.isLaser {
+                    // Laser light burns through enemy bullets and keeps going;
+                    // it passes through friendly bullets (and other lasers)
+                    let laser = a.isLaser ? a : b
+                    let other = a.isLaser ? b : a
+                    if !other.isLaser && other.isFromEnemy && laser.collidesWith(other) {
+                        bulletsToRemove.insert(other)
+                    }
+                    continue
+                }
+                if a.collidesWith(b) {
+                    bulletsToRemove.insert(a)
+                    bulletsToRemove.insert(b)
+                    break
                 }
             }
         }

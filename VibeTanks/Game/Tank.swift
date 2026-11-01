@@ -1034,6 +1034,13 @@ class Tank: SKSpriteNode {
         }
     }
 
+    /// Instant kill ignoring ship, shield and armor (LASER hits)
+    func destroyInstantly() {
+        guard isAlive else { return }
+        health = 1
+        damage(bypassShip: true, bypassShield: true)
+    }
+
     private func die() {
         // The friend leaves with its own colorful animation (played by the scene)
         if isPlayer || enemyType != .gzhel {
