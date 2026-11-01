@@ -149,14 +149,80 @@ class GameMap: SKNode {
             generateScatteredBlocks()
         }
 
-        // Clear spawn areas
-        clearSpawnAreas()
-
         // Ensure minimum content (less than 50% empty)
         ensureMinimumContent()
 
-        // Create base protection (LAST to ensure nothing overwrites)
+        // Clear spawn areas (after every shape, so nothing is placed over them again)
+        clearSpawnAreas()
+
+        // Create base protection (after the shapes so nothing overwrites it)
         createBaseProtection()
+
+        // Never lock anyone in: open a way through steel/water if a spawn is cut off
+        ensureSpawnsReachable()
+    }
+
+    // MARK: - Reachability
+
+    /// Tanks can drive through these, or shoot their way through (brick)
+    private func isPassable(_ tile: TileType) -> Bool {
+        switch tile {
+        case .empty, .brick, .forest, .ice: return true
+        case .steel, .water: return false
+        }
+    }
+
+    /// Every enemy spawn (and player 2's) must connect to player 1's spawn without crossing
+    /// steel or water. If one is cut off, the cheapest path is opened by clearing the few
+    /// steel/water tiles on it. Deterministic: same seed, same map.
+    private func ensureSpawnsReachable() {
+        let start = (row: mapHeight - 2, col: 8)  // Player 1 spawn
+        var targets = [(row: 1, col: 2), (row: 1, col: mapWidth / 2), (row: 1, col: mapWidth - 3)]
+        if clearsPlayer2Spawn {
+            targets.append((row: mapHeight - 2, col: 18))
+        }
+
+        // Cost to drive into a tile: free if passable, 1 per steel/water tile to clear.
+        // The base walls and the steel barrier above the base are avoided whenever possible.
+        func cost(_ row: Int, _ col: Int) -> Int {
+            if isPassable(tiles[row][col]) { return 0 }
+            let nearBase = (12...14).contains(col) && (row >= 18)
+            return nearBase ? 1000 : 1
+        }
+
+        // Dijkstra over inner tiles (border steel stays)
+        let inner = { (r: Int, c: Int) in r >= 1 && r <= self.mapHeight - 2 && c >= 1 && c <= self.mapWidth - 2 }
+        var dist = Array(repeating: Array(repeating: Int.max, count: mapWidth), count: mapHeight)
+        var previous = Array(repeating: Array(repeating: (-1, -1), count: mapWidth), count: mapHeight)
+        var frontier: [(cost: Int, row: Int, col: Int)] = [(0, start.row, start.col)]
+        dist[start.row][start.col] = 0
+        while !frontier.isEmpty {
+            // Small map (24x24): a linear scan for the cheapest entry is plenty fast
+            let bestIndex = frontier.indices.min { frontier[$0].cost < frontier[$1].cost }!
+            let current = frontier.remove(at: bestIndex)
+            guard current.cost == dist[current.row][current.col] else { continue }
+            for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                let r = current.row + dr, c = current.col + dc
+                guard inner(r, c) else { continue }
+                let next = current.cost + cost(r, c)
+                if next < dist[r][c] {
+                    dist[r][c] = next
+                    previous[r][c] = (current.row, current.col)
+                    frontier.append((next, r, c))
+                }
+            }
+        }
+
+        for target in targets where dist[target.row][target.col] > 0 && dist[target.row][target.col] != Int.max {
+            // Walk back from the spawn and clear what blocks the way
+            var (r, c) = (target.row, target.col)
+            while !(r == start.row && c == start.col) {
+                if !isPassable(tiles[r][c]) {
+                    tiles[r][c] = .empty
+                }
+                (r, c) = previous[r][c]
+            }
+        }
     }
 
     // MARK: - Geometric Shapes
