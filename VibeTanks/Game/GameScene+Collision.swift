@@ -32,9 +32,9 @@ extension GameScene {
                 continue
             }
 
-            // Gzhel bullets destroy enemies (no score for the player) and can't hurt the player
+            // Gzhel bullets destroy enemies (no score for the player) and can't hurt players
             if bullet.isFromGzhel {
-                if playerTank.isAlive && bullet.collidesWith(playerTank) {
+                if playerTanks.contains(where: { $0.isAlive && bullet.collidesWith($0) }) {
                     bulletsToRemove.append(bullet)  // Absorbed harmlessly
                     continue
                 }
@@ -52,6 +52,14 @@ extension GameScene {
 
             // Player bullets hit enemies
             if !bullet.isFromEnemy {
+                // Two players: a teammate stops the other player's bullet harmlessly
+                // (lasers pass through, as they do through walls)
+                if !bullet.isLaser, playerTanks.contains(where: {
+                    $0 !== bullet.owner && $0.isAlive && bullet.collidesWith($0)
+                }) {
+                    bulletsToRemove.append(bullet)
+                    continue
+                }
                 for enemy in enemyTanks {
                     if enemy.isAlive && bullet.collidesWith(enemy) {
                         let wasPowerTank = enemy.enemyType == .power
@@ -74,6 +82,8 @@ extension GameScene {
                             addScore(GameConstants.scoreForEnemyType(killedType))
                             playerKills += 1
                             killsByType[killedType, default: 0] += 1
+                            let shooterIndex = (bullet.owner?.playerNumber == 2) ? 1 : 0
+                            killsByPlayer[shooterIndex][killedType, default: 0] += 1
                             SoundManager.shared.playExplosion()
 
                             if killedType == .alien {
@@ -89,19 +99,19 @@ extension GameScene {
                     }
                 }
             }
-            // Enemy bullets hit player
+            // Enemy bullets hit players
             else {
-                if playerTank.isAlive && bullet.collidesWith(playerTank) {
-                    if playerTank.hasShield {
+                if let player = playerTanks.first(where: { $0.isAlive && bullet.collidesWith($0) }) {
+                    if player.hasShield {
                         // Bullet hits shield - destroy bullet but don't damage player
                         bulletsToRemove.append(bullet)
                     } else {
                         // No shield - damage player
-                        playerTank.damage()
+                        player.damage()
                         bulletsToRemove.append(bullet)
 
-                        if !playerTank.isAlive {
-                            handlePlayerKilled()
+                        if !player.isAlive {
+                            handlePlayerKilled(player)
                         }
                     }
                 }
@@ -125,10 +135,10 @@ extension GameScene {
 
     /// Shared cleanup when the player tank dies (bullet, bomb, etc.).
     /// Respawn itself is started from updatePlayer().
-    func handlePlayerKilled() {
+    func handlePlayerKilled(_ player: Tank) {
         SoundManager.shared.playPlayerDeath()
-        playerFreezeTimer = 0
-        playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
+        playerFreezeTimers[player.playerNumber - 1] = 0
+        player.childNode(withName: "freezeEffect")?.removeFromParent()
     }
 
     /// Check bullets colliding with each other

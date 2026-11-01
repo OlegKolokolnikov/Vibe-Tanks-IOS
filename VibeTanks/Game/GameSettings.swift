@@ -6,6 +6,7 @@ class GameSettings {
 
     private let controlsSwappedKey = "controlsSwapped"
     private let playerColorKey = "playerTankColor"
+    private let player2ColorKey = "player2TankColor"
     private let volumeKey = "volumeLevel"
     private let mutedKey = "isMuted"
 
@@ -80,7 +81,27 @@ class GameSettings {
             return .yellow
         }
         set {
+            // Same color as player 2 is not allowed
+            guard newValue != player2TankColor else { return }
             UserDefaults.standard.set(newValue.rawValue, forKey: playerColorKey)
+        }
+    }
+
+    /// Player 2 tank color (default green). Never the same as player 1's color:
+    /// setting player 2 to player 1's color is ignored, and a clash falls back to another color.
+    var player2TankColor: TankColor {
+        get {
+            let player1 = playerTankColor
+            if let rawValue = UserDefaults.standard.string(forKey: player2ColorKey),
+               let color = TankColor(rawValue: rawValue), color != player1 {
+                return color
+            }
+            let preferred: [TankColor] = [.green, .blue, .purple, .yellow]
+            return preferred.first { $0 != player1 } ?? .green
+        }
+        set {
+            guard newValue != playerTankColor else { return }
+            UserDefaults.standard.set(newValue.rawValue, forKey: player2ColorKey)
         }
     }
 }

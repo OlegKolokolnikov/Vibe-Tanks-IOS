@@ -29,10 +29,14 @@ class MenuScene: SKScene {
         decoration.position = CGPoint(x: size.width / 2, y: size.height * 0.48)
         addChild(decoration)
 
-        // Play button
-        let playButton = createButton(text: "PLAY", position: CGPoint(x: size.width / 2, y: size.height * 0.30))
-        playButton.name = "playButton"
-        addChild(playButton)
+        // Play buttons: 1 player / 2 players, side by side
+        let onePlayerButton = createButton(text: "1 PLAYER", position: CGPoint(x: size.width / 2 - 110, y: size.height * 0.30))
+        onePlayerButton.name = "onePlayerButton"
+        addChild(onePlayerButton)
+
+        let twoPlayersButton = createButton(text: "2 PLAYERS", position: CGPoint(x: size.width / 2 + 110, y: size.height * 0.30))
+        twoPlayersButton.name = "twoPlayersButton"
+        addChild(twoPlayersButton)
 
         // Options button
         let optionsButton = createButton(text: "OPTIONS", position: CGPoint(x: size.width / 2, y: size.height * 0.20))
@@ -729,6 +733,22 @@ class MenuScene: SKScene {
         let location = touch.location(in: self)
         handleClick(at: location)
     }
+
+    // Hardware keyboard: Enter, Space or 1 = one player, 2 = two players
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            switch press.key?.keyCode {
+            case .keyboardReturnOrEnter, .keyboardSpacebar, .keyboard1:
+                startGame(playerCount: 1)
+                return
+            case .keyboard2:
+                startGame(playerCount: 2)
+                return
+            default:
+                break
+            }
+        }
+    }
     #elseif os(macOS)
     override func mouseDown(with event: NSEvent) {
         let location = event.location(in: self)
@@ -736,9 +756,14 @@ class MenuScene: SKScene {
     }
 
     override func keyDown(with event: NSEvent) {
-        // Enter or Space to start
-        if event.keyCode == 36 || event.keyCode == 49 {
-            startGame()
+        // Enter, Space or 1 = one player, 2 = two players
+        switch event.keyCode {
+        case 36, 49, 18:
+            startGame(playerCount: 1)
+        case 19:
+            startGame(playerCount: 2)
+        default:
+            break
         }
     }
     #endif
@@ -747,8 +772,12 @@ class MenuScene: SKScene {
         let nodes = nodes(at: location)
 
         for node in nodes {
-            if node.name == "playButton" || node.parent?.name == "playButton" {
-                startGame()
+            if node.name == "onePlayerButton" || node.parent?.name == "onePlayerButton" {
+                startGame(playerCount: 1)
+                return
+            }
+            if node.name == "twoPlayersButton" || node.parent?.name == "twoPlayersButton" {
+                startGame(playerCount: 2)
                 return
             }
             if node.name == "optionsButton" || node.parent?.name == "optionsButton" {
@@ -764,10 +793,10 @@ class MenuScene: SKScene {
         view?.presentScene(optionsScene, transition: .fade(withDuration: 0.3))
     }
 
-    private func startGame() {
+    private func startGame(playerCount: Int) {
         // Generate a new random session seed for this game session
         let sessionSeed = UInt64.random(in: 0..<UInt64.max)
-        let gameScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed)
+        let gameScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed, playerCount: playerCount)
         gameScene.scaleMode = scaleMode
 
         let transition = SKTransition.fade(withDuration: 0.5)

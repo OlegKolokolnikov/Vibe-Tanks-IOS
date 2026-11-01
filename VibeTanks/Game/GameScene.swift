@@ -92,6 +92,19 @@ class GameScene: SKScene {
     // Game objects (internal for extension access)
     var gameMap: GameMap!
     var playerTank: Tank!
+    var player2Tank: Tank?  // Two-player mode only
+
+    /// Number of human players (1 or 2), chosen in the menu
+    private(set) var playerCount: Int = 1
+    var isTwoPlayer: Bool { playerCount == 2 }
+
+    /// All player tanks, including dead ones waiting to respawn (or out of lives)
+    var playerTanks: [Tank] {
+        if let second = player2Tank {
+            return [playerTank, second]
+        }
+        return [playerTank]
+    }
     var enemyTanks: [Tank] = []
     private var _cachedAllTanks: [Tank] = []
     private var _allTanksDirty: Bool = true
@@ -124,6 +137,7 @@ class GameScene: SKScene {
 
     // UI
     var touchController: TouchController!
+    var touchController2: TouchController?  // Player 2 (two-player mode, touch screens)
     var sidebar: Sidebar!
     var scoreLabel: SKLabelNode!
 
@@ -139,10 +153,19 @@ class GameScene: SKScene {
     // Level stats for score breakdown
     private var levelStartScore: Int = 0
     var killsByType: [Tank.EnemyType: Int] = [:]
+    /// Kills per player (indexed by playerNumber - 1), for the two-player statistics
+    var killsByPlayer: [[Tank.EnemyType: Int]] = [[:], [:]]
+
+    /// Two-player level bonus: the player with more kills gets one random power-up
+    private struct KillBonus {
+        let playerIndex: Int
+        let type: PowerUp.PowerUpType
+    }
 
     // Freeze effect
     var freezeTimer: Int = 0
-    var playerFreezeTimer: Int = 0  // Player frozen by enemy power-up
+    /// Players frozen by an enemy freeze power-up, indexed by playerNumber - 1
+    var playerFreezeTimers: [Int] = [0, 0]
 
     // Victory delay (5 seconds to collect remaining power-ups)
     private var victoryDelayTimer: Int = 0
@@ -152,9 +175,10 @@ class GameScene: SKScene {
     var baseFlashTimer: Int = 0
     var baseIsSteel: Bool = false
 
-    // Keyboard input (for simulator and macOS)
-    private var keyboardDirection: Direction?
-    private var keyboardFiring: Bool = false
+    // Keyboard input (for simulator and macOS), indexed by playerNumber - 1.
+    // One player: arrows/WASD + Space/J. Two players: P1 WASD + Space, P2 arrows + Enter/Right Shift.
+    private var keyboardDirection: [Direction?] = [nil, nil]
+    private var keyboardFiring: [Bool] = [false, false]
     #if os(iOS) || os(tvOS)
     private var pressedDirectionKeys: Set<UIKeyboardHIDUsage> = []
     #else
@@ -170,6 +194,7 @@ class GameScene: SKScene {
 
     // Player lives to carry across levels
     private var initialLives: Int = 3
+    private var initialLives2: Int = 3
 
     // Power-ups to carry across levels
     struct PlayerPowerUps {
@@ -182,6 +207,7 @@ class GameScene: SKScene {
         var laserRounds: Int = 0  // LASER: rounds left including the one being started
     }
     private var initialPowerUps = PlayerPowerUps()
+    private var initialPowerUps2 = PlayerPowerUps()
 
     // Gzhel decoration (reward for cat victory)
     private var showGzhelBorder: Bool = false
@@ -191,11 +217,15 @@ class GameScene: SKScene {
     private var ufoEscapedThisLevel: Bool = false  // Track if UFO escapes to trigger alien mode next level
 
     // Level initialization
-    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false) {
+    init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
+         playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps()) {
         self.level = level
         self.score = score
         self.initialLives = lives
         self.initialPowerUps = powerUps
+        self.playerCount = playerCount == 2 ? 2 : 1
+        self.initialLives2 = player2Lives
+        self.initialPowerUps2 = player2PowerUps
         self.showGzhelBorder = gzhelBorder
         self.alienMode = alienMode
         self.sessionSeed = sessionSeed == 0 ? UInt64.random(in: 0..<UInt64.max) : sessionSeed
@@ -253,8 +283,8 @@ class GameScene: SKScene {
 
     private func resetKeyboardInput() {
         pressedDirectionKeys.removeAll()
-        keyboardDirection = nil
-        keyboardFiring = false
+        keyboardDirection = [nil, nil]
+        keyboardFiring = [false, false]
     }
 
     override func willMove(from view: SKView) {
@@ -603,6 +633,7 @@ class GameScene: SKScene {
         // Initialize level stats tracking
         levelStartScore = score
         killsByType = [:]
+        killsByPlayer = [[:], [:]]
 
         // Create game layer
         gameLayer = SKNode()
@@ -617,12 +648,12 @@ class GameScene: SKScene {
 
         // Create map with session seed + level for deterministic but session-unique generation
         let mapSeed = sessionSeed + UInt64(level * 12345)
-        gameMap = GameMap(level: level, seed: mapSeed)
+        gameMap = GameMap(level: level, seed: mapSeed, twoPlayers: isTwoPlayer)
         gameLayer.addChild(gameMap)
 
         // Create sidebar (on right side of game area)
         let mapSize = gameMap.pixelSize
-        sidebar = Sidebar(height: mapSize.height)
+        sidebar = Sidebar(height: mapSize.height, twoPlayers: isTwoPlayer)
         sidebar.position = CGPoint(x: mapSize.width, y: 0)
         gameLayer.addChild(sidebar)
 
@@ -647,28 +678,11 @@ class GameScene: SKScene {
         base = Base(position: basePosition, isAlien: alienMode)
         gameLayer.addChild(base)
 
-        // Create player tank
-        playerTank = Tank(
-            position: GameConstants.playerSpawnPosition,
-            direction: .up,
-            isPlayer: true,
-            playerNumber: 1
-        )
-        playerTank.lives = initialLives  // Carry lives from previous level
-
-        // Apply power-ups from previous level
-        playerTank.starCount = initialPowerUps.starCount
-        playerTank.machinegunCount = initialPowerUps.machinegunCount
-        playerTank.bulletPower = initialPowerUps.bulletPower
-        playerTank.speedMultiplier = initialPowerUps.speedMultiplier
-        playerTank.canSwim = initialPowerUps.canSwim
-        playerTank.canDestroyTrees = initialPowerUps.canDestroyTrees
-        playerTank.laserRounds = initialPowerUps.laserRounds
-
-        // Always redraw tank to show power-up indicators
-        playerTank.drawTank()
-
-        gameLayer.addChild(playerTank)
+        // Create player tanks (player 2 starts to the right of the base)
+        playerTank = makePlayerTank(number: 1, lives: initialLives, powerUps: initialPowerUps)
+        if isTwoPlayer {
+            player2Tank = makePlayerTank(number: 2, lives: initialLives2, powerUps: initialPowerUps2)
+        }
 
         // Calculate enemies for this level (easy mode: 18, normal: base 20 + 2 per level)
         let totalEnemies = GameScene.isEasyMode ? 18 : min(20 + (level - 1) * 2, 50)
@@ -685,6 +699,52 @@ class GameScene: SKScene {
         )
     }
 
+    /// Create a player tank with lives and power-ups carried from the previous level
+    private func makePlayerTank(number: Int, lives: Int, powerUps: PlayerPowerUps) -> Tank {
+        let tank = Tank(
+            position: GameConstants.spawnPosition(forPlayer: number),
+            direction: .up,
+            isPlayer: true,
+            playerNumber: number
+        )
+        tank.lives = lives  // Carry lives from previous level
+
+        // Apply power-ups from previous level
+        tank.starCount = powerUps.starCount
+        tank.machinegunCount = powerUps.machinegunCount
+        tank.bulletPower = powerUps.bulletPower
+        tank.speedMultiplier = powerUps.speedMultiplier
+        tank.canSwim = powerUps.canSwim
+        tank.canDestroyTrees = powerUps.canDestroyTrees
+        tank.laserRounds = powerUps.laserRounds
+
+        // Always redraw tank to show power-up indicators
+        tank.drawTank()
+
+        // Two players: a player who ran out of lives stays out (a bonus life brings them back)
+        if lives <= 0 {
+            tank.health = 0
+            tank.isHidden = true
+        }
+
+        gameLayer.addChild(tank)
+        return tank
+    }
+
+    /// Carry a player's power-ups into the next level
+    private func carriedPowerUps(of tank: Tank) -> PlayerPowerUps {
+        var powerUps = PlayerPowerUps()
+        powerUps.starCount = tank.starCount
+        powerUps.machinegunCount = tank.machinegunCount
+        powerUps.bulletPower = tank.bulletPower
+        powerUps.speedMultiplier = tank.speedMultiplier
+        powerUps.canSwim = tank.canSwim
+        powerUps.canDestroyTrees = tank.canDestroyTrees
+        // Laser only carries into one more round (and only if the player still has it)
+        powerUps.laserRounds = max(tank.laserRounds - 1, 0)
+        return powerUps
+    }
+
     private func setupUI() {
         // Get the camera scale to properly size UI elements
         let cameraScale = gameCamera.xScale
@@ -698,9 +758,20 @@ class GameScene: SKScene {
         // Touch controller - add to camera so it stays on screen
         // Use the visible screen size in camera coordinates
         touchController = TouchController()
-        touchController.setupForScreen(size: visibleSize)
+        touchController.setupForScreen(size: visibleSize, layout: isTwoPlayer ? .leftPlayer : .single)
         touchController.setGzhelMode(showGzhelBorder)
         gameCamera.addChild(touchController)
+
+        if isTwoPlayer {
+            // Player 1 holds the left edge, player 2 the right edge
+            touchController.setPlayerMarker(text: "1P", color: GameSettings.shared.playerTankColor.color)
+            let controller2 = TouchController()
+            controller2.setupForScreen(size: visibleSize, layout: .rightPlayer)
+            controller2.setGzhelMode(showGzhelBorder)
+            controller2.setPlayerMarker(text: "2P", color: GameSettings.shared.player2TankColor.color)
+            gameCamera.addChild(controller2)
+            touchController2 = controller2
+        }
 
         // Score label - positioned at top left with safe margin
         scoreLabel = SKLabelNode(text: "Score: 0")
@@ -723,6 +794,7 @@ class GameScene: SKScene {
         sidebar.update(
             remainingEnemies: enemySpawner.remainingEnemies,
             playerLives: playerTank.lives,
+            player2Lives: player2Tank?.lives ?? 0,
             level: level
         )
     }
@@ -730,9 +802,9 @@ class GameScene: SKScene {
     // MARK: - Game Loop
 
     override func update(_ currentTime: TimeInterval) {
-        // Check for pause button press
-        if touchController.pausePressed {
-            touchController.resetPausePressed()
+        // Check for pause button press (in two-player mode it's on player 2's controller)
+        for controller in [touchController, touchController2].compactMap({ $0 }) where controller.pausePressed {
+            controller.resetPausePressed()
             // Pause is meaningless on the game over / level complete screen
             if !isGameOver {
                 togglePause()
@@ -752,11 +824,14 @@ class GameScene: SKScene {
             }
         }
 
-        // Update player freeze timer
-        if playerFreezeTimer > 0 {
-            playerFreezeTimer -= 1
-            if playerFreezeTimer == 0 {
-                playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
+        // Update player freeze timers
+        for player in playerTanks {
+            let index = player.playerNumber - 1
+            if playerFreezeTimers[index] > 0 {
+                playerFreezeTimers[index] -= 1
+                if playerFreezeTimers[index] == 0 {
+                    player.childNode(withName: "freezeEffect")?.removeFromParent()
+                }
             }
         }
 
@@ -772,7 +847,7 @@ class GameScene: SKScene {
         // Update base protection timer
         updateBaseProtection()
 
-        updatePlayer()
+        updatePlayers()
         updateEnemies()
         updateGzhelSpawn()
         updateGzhelTank()
@@ -789,49 +864,64 @@ class GameScene: SKScene {
         updateUI()
     }
 
-    private func updatePlayer() {
-        guard playerTank.isAlive else {
+    private func updatePlayers() {
+        for player in playerTanks {
+            updatePlayer(player)
+        }
+    }
+
+    /// Movement and fire input for a player: its touch controller and/or keyboard keys
+    private func input(for player: Tank) -> (direction: Direction?, firing: Bool) {
+        let index = player.playerNumber - 1
+        let controller = player.playerNumber == 2 ? touchController2 : touchController
+        let direction = controller?.currentDirection ?? keyboardDirection[index]
+        let firing = (controller?.isFiring ?? false) || keyboardFiring[index]
+        return (direction, firing)
+    }
+
+    private func updatePlayer(_ player: Tank) {
+        guard player.isAlive else {
             // Player is dead - handle respawn
-            if playerTank.lives > 0 {
+            if player.lives > 0 {
                 // If not already respawning, start respawn
-                if !playerTank.isWaitingToRespawn {
-                    playerTank.respawn(at: GameConstants.playerSpawnPosition)
+                if !player.isWaitingToRespawn {
+                    player.respawn(at: GameConstants.spawnPosition(forPlayer: player.playerNumber))
                 }
-                // Hold the last respawn tick while an enemy sits on the spawn point;
+                // Hold the last respawn tick while another tank sits on the spawn point;
                 // respawning into an overlapping tank would lock both in place.
-                if playerTank.respawnTimer == 1 && isPlayerSpawnBlocked() {
+                if player.respawnTimer == 1 && isPlayerSpawnBlocked(for: player) {
                     return
                 }
-                playerTank.updateRespawnTimer()
+                player.updateRespawnTimer()
             }
             return
         }
 
         // Handle movement from touch controller or keyboard
-        let direction = touchController.currentDirection ?? keyboardDirection
-        if playerFreezeTimer <= 0 {
+        let (direction, firing) = input(for: player)
+        if playerFreezeTimers[player.playerNumber - 1] <= 0 {
             // Normal movement
             if let dir = direction {
-                playerTank.move(direction: dir, map: gameMap, allTanks: allTanks)
+                player.move(direction: dir, map: gameMap, allTanks: allTanks)
             } else {
                 // No input - continue ice slide if player was on ice
-                _ = playerTank.continueIceSlide(map: gameMap, allTanks: allTanks)
+                _ = player.continueIceSlide(map: gameMap, allTanks: allTanks)
             }
         } else if (GameScene.isEasyMode || GameScene.isGzhelActive), let dir = direction {
             // Easy/gzhel mode: can turn while frozen (but not move)
-            playerTank.turn(to: dir)
+            player.turn(to: dir)
         }
 
         // Check for forest destruction (SAW power-up)
-        if playerTank.canDestroyTrees {
-            checkForestDestruction(for: playerTank)
+        if player.canDestroyTrees {
+            checkForestDestruction(for: player)
         }
 
         // Handle shooting from touch or keyboard (allowed even when frozen)
-        if touchController.isFiring || keyboardFiring {
-            let newBullets = playerTank.shoot()
+        if firing {
+            let newBullets = player.shoot()
             if !newBullets.isEmpty {
-                if playerTank.hasLaser {
+                if player.hasLaser {
                     SoundManager.shared.playLaser()
                 } else {
                     SoundManager.shared.playShoot()
@@ -840,7 +930,7 @@ class GameScene: SKScene {
             }
         }
 
-        playerTank.update(map: gameMap, allTanks: allTanks)
+        player.update(map: gameMap, allTanks: allTanks)
     }
 
     private func updateEnemies() {
@@ -854,7 +944,7 @@ class GameScene: SKScene {
             if let ai = enemy.ai {
                 let (direction, shouldShoot) = ai.update(
                     map: gameMap,
-                    playerTanks: [playerTank],
+                    playerTanks: playerTanks,
                     allTanks: allTanks
                 )
 
@@ -881,11 +971,11 @@ class GameScene: SKScene {
     }
 
     /// True if any other living tank overlaps the player's spawn point
-    private func isPlayerSpawnBlocked() -> Bool {
-        let spawn = GameConstants.playerSpawnPosition
+    private func isPlayerSpawnBlocked(for player: Tank) -> Bool {
+        let spawn = GameConstants.spawnPosition(forPlayer: player.playerNumber)
         return allTanks.contains { tank in
-            tank !== playerTank && tank.isAlive &&
-                EnemySpawner.boxesOverlap(spawn, playerTank.size.width, tank.position, tank.size.width)
+            tank !== player && tank.isAlive &&
+                EnemySpawner.boxesOverlap(spawn, player.size.width, tank.position, tank.size.width)
         }
     }
 
@@ -904,7 +994,7 @@ class GameScene: SKScene {
         for _ in 0..<20 {
             let pos = findRandomEmptyPosition()
             guard !gameMap.checkTankCollision(position: pos, size: size) else { continue }
-            guard pos.distance(to: playerTank.position) > 120 else { continue }
+            guard playerTanks.allSatisfy({ pos.distance(to: $0.position) > 120 }) else { continue }
             let blocked = allTanks.contains { $0.isAlive && EnemySpawner.boxesOverlap(pos, size, $0.position, $0.size.width) }
             guard !blocked else { continue }
 
@@ -1163,8 +1253,8 @@ class GameScene: SKScene {
     }
 
     private func updateSpawner() {
-        // Spawn regular enemies (don't spawn on player)
-        let nonEnemyTanks = gzhelTank.map { [$0] } ?? []
+        // Spawn regular enemies (don't spawn on players or the friend)
+        let nonEnemyTanks = [gzhelTank, player2Tank].compactMap { $0 }
         if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap, otherTanks: nonEnemyTanks) {
             enemyTanks.append(newEnemy)
             invalidateAllTanksCache()
@@ -1227,7 +1317,7 @@ class GameScene: SKScene {
         // Check UFO spawn conditions (no UFO in alien mode or easy mode)
         if !ufoSpawnedThisLevel && ufo == nil && !alienMode && !GameScene.isEasyMode {
             // UFO spawns when player has machinegun and 5+ kills
-            if playerTank.machinegunCount > 0 && playerKills >= GameConstants.ufoKillsRequired {
+            if playerTanks.contains(where: { $0.machinegunCount > 0 }) && playerKills >= GameConstants.ufoKillsRequired {
                 // Random chance each frame
                 if Double.random(in: 0...1) < GameConstants.ufoSpawnChance {
                     spawnUFO()
@@ -1340,14 +1430,14 @@ class GameScene: SKScene {
         guard let egg = easterEgg, !egg.isCollected else { return }
 
         // Check player collision
-        if playerTank.isAlive && egg.collidesWith(playerTank) {
+        if let player = playerTanks.first(where: { $0.isAlive && egg.collidesWith($0) }) {
             // Player collected the easter egg!
             egg.collect()
             easterEgg = nil
             playerCollectedEasterEgg = true
 
-            // Give player 3 extra lives
-            playerTank.addLives(GameConstants.easterEggLivesBonus)
+            // Give that player 3 extra lives
+            player.addLives(GameConstants.easterEggLivesBonus)
 
             // Turn all enemies into POWER (rainbow) tanks
             for enemy in enemyTanks where enemy.isAlive && enemy.enemyType != .boss {
@@ -1381,14 +1471,15 @@ class GameScene: SKScene {
         var powerUpsToRemove: [PowerUp] = []
 
         for powerUp in powerUps {
-            // Check player collision
-            let playerDx = abs(playerTank.position.x - powerUp.position.x)
-            let playerDy = abs(playerTank.position.y - powerUp.position.y)
-            let collisionDist = (playerTank.size.width + powerUp.size.width) / 2
-
-            // Dead (hidden) player waiting to respawn can't collect power-ups
-            if playerTank.isAlive && playerDx < collisionDist && playerDy < collisionDist {
-                handlePowerUpCollection(powerUp)
+            // Check player collision. Dead (hidden) players waiting to respawn can't collect power-ups
+            let collector = playerTanks.first { player in
+                let collisionDist = (player.size.width + powerUp.size.width) / 2
+                return player.isAlive &&
+                    abs(player.position.x - powerUp.position.x) < collisionDist &&
+                    abs(player.position.y - powerUp.position.y) < collisionDist
+            }
+            if let player = collector {
+                handlePowerUpCollection(powerUp, by: player)
                 powerUpsToRemove.append(powerUp)
                 SoundManager.shared.playPowerUp()
                 continue
@@ -1457,17 +1548,19 @@ class GameScene: SKScene {
             enemy.machinegunCount += 1
             showEffect(text: "ENEMY MACHINEGUN!", color: .red)
         case .freeze:
-            // Freeze player for 30 seconds (can still shoot)
-            playerFreezeTimer = GameConstants.freezeDuration
-            addFreezeEffectToPlayer()
-            showEffect(text: "PLAYER FROZEN!", color: .red)
+            // Freeze all players for 30 seconds (can still shoot)
+            for player in playerTanks where player.isAlive {
+                playerFreezeTimers[player.playerNumber - 1] = GameConstants.freezeDuration
+                addFreezeEffect(to: player)
+            }
+            showEffect(text: isTwoPlayer ? "PLAYERS FROZEN!" : "PLAYER FROZEN!", color: .red)
         case .bomb:
-            // Kills player instantly! Bypasses ship AND shield protection.
-            // No effect if the player is already dead and waiting to respawn.
-            if playerTank.isAlive {
-                playerTank.damage(bypassShip: true, bypassShield: true)
-                if !playerTank.isAlive {
-                    handlePlayerKilled()
+            // Kills all players instantly! Bypasses ship AND shield protection.
+            // No effect on a player who is already dead and waiting to respawn.
+            for player in playerTanks where player.isAlive {
+                player.damage(bypassShip: true, bypassShield: true)
+                if !player.isAlive {
+                    handlePlayerKilled(player)
                 }
             }
             showEffect(text: "BOMB!", color: .red)
@@ -1540,10 +1633,10 @@ class GameScene: SKScene {
         }
     }
 
-    /// Add freeze visual effect to player
-    private func addFreezeEffectToPlayer() {
+    /// Add freeze visual effect to a player
+    private func addFreezeEffect(to player: Tank) {
         // Remove any existing freeze effect
-        playerTank.childNode(withName: "freezeEffect")?.removeFromParent()
+        player.childNode(withName: "freezeEffect")?.removeFromParent()
 
         let freezeNode = SKNode()
         freezeNode.name = "freezeEffect"
@@ -1556,8 +1649,8 @@ class GameScene: SKScene {
             crystal.strokeColor = .white
             crystal.lineWidth = 1
             crystal.position = CGPoint(
-                x: cos(angle) * playerTank.size.width * 0.5,
-                y: sin(angle) * playerTank.size.height * 0.5
+                x: cos(angle) * player.size.width * 0.5,
+                y: sin(angle) * player.size.height * 0.5
             )
             crystal.zRotation = angle
             freezeNode.addChild(crystal)
@@ -1570,11 +1663,11 @@ class GameScene: SKScene {
         ])
         freezeNode.run(SKAction.repeatForever(pulse))
 
-        playerTank.addChild(freezeNode)
-        // Removed in update() when playerFreezeTimer reaches 0
+        player.addChild(freezeNode)
+        // Removed in update() when the player's freeze timer reaches 0
     }
 
-    private func handlePowerUpCollection(_ powerUp: PowerUp) {
+    private func handlePowerUpCollection(_ powerUp: PowerUp, by player: Tank) {
         // Gold gives 99 points, others give 1
         if powerUp.type == .gold {
             addScore(99)
@@ -1599,13 +1692,13 @@ class GameScene: SKScene {
             showEffect(text: "STEEL BASE!", color: .white)
         case .saw:
             // Player can break forest
-            playerTank.canDestroyTrees = true
+            player.canDestroyTrees = true
             showEffect(text: "SAW!", color: .green)
         case .laser:
-            powerUp.apply(to: playerTank)
+            powerUp.apply(to: player)
             showEffect(text: "LASER!", color: .cyan)
         default:
-            powerUp.apply(to: playerTank)
+            powerUp.apply(to: player)
         }
     }
 
@@ -1796,8 +1889,8 @@ class GameScene: SKScene {
             dismissGzhelTank()
         }
 
-        // Check lose condition
-        if playerTank.lives <= 0 && !playerTank.isAlive {
+        // Check lose condition: every player is out of lives
+        if playerTanks.allSatisfy({ $0.lives <= 0 && !$0.isAlive }) {
             gameOver(won: false)
         }
     }
@@ -1812,7 +1905,8 @@ class GameScene: SKScene {
         // Reset consecutive losses on win (exits easy mode)
         GameScene.consecutiveLosses = 0
 
-        showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false)
+        let bonus = awardKillBonus()
+        showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false, bonus: bonus)
 
         // Victory animations
         if alienMode {
@@ -1926,16 +2020,307 @@ class GameScene: SKScene {
         isGameOver = true
         hideFreezeLabels()
         SoundManager.shared.stopGameplaySounds()
-        SoundManager.shared.playGameOver()
 
         // Track consecutive losses for easy mode
         GameScene.consecutiveLosses += 1
 
+        isNewHighScore = score > GameScene.highScore
+        if isNewHighScore {
+            GameScene.highScore = score
+        }
+
+        showGameOverScreen()
+    }
+
+    // MARK: - Game Over Screen
+
+    /// Beat a high score this game (shown on the game over screen and the statistics)
+    private var isNewHighScore = false
+    private var gameOverScreen: SKNode?
+    private var isShowingGameOverScreen: Bool { gameOverScreen != nil }
+    private static let gameOverScreenSeconds = 10
+
+    /// Big "GAME OVER" with score and high score for 10 seconds (with its tune),
+    /// then the statistics. A tap or Enter skips it.
+    private func showGameOverScreen() {
+        let cs = gameCamera.xScale
+        let screen = SKNode()
+        screen.zPosition = 300  // Above touch controls and the pause button
+        screen.alpha = 0
+        gameCamera.addChild(screen)
+        gameOverScreen = screen
+
+        let background = SKShapeNode(rectOf: CGSize(width: size.width * cs * 1.5, height: size.height * cs * 1.5))
+        background.fillColor = SKColor.black.withAlphaComponent(0.88)
+        background.strokeColor = .clear
+        screen.addChild(background)
+        screen.run(SKAction.fadeIn(withDuration: 0.4))
+
+        // "GAME OVER": letters drop in one by one and bounce, then glow
+        let text = Array("GAME OVER")
+        let spacing: CGFloat = 46 * cs
+        let lettersY: CGFloat = 70 * cs
+        for (i, char) in text.enumerated() where char != " " {
+            let letter = SKLabelNode(text: String(char))
+            letter.fontName = "Helvetica-Bold"
+            letter.fontSize = 66 * cs
+            letter.fontColor = .red
+            letter.verticalAlignmentMode = .center
+            letter.position = CGPoint(x: (CGFloat(i) - CGFloat(text.count - 1) / 2) * spacing, y: lettersY + 300 * cs)
+            letter.alpha = 0
+            screen.addChild(letter)
+
+            let drop = SKAction.moveTo(y: lettersY, duration: 0.45)
+            drop.timingMode = .easeIn
+            let bounce = SKAction.sequence([
+                SKAction.moveBy(x: 0, y: 18 * cs, duration: 0.12),
+                SKAction.moveBy(x: 0, y: -18 * cs, duration: 0.12)
+            ])
+            let glow = SKAction.repeatForever(SKAction.sequence([
+                SKAction.run { letter.fontColor = SKColor(red: 1.0, green: 0.25, blue: 0.2, alpha: 1) },
+                SKAction.scale(to: 1.08, duration: 0.5),
+                SKAction.run { letter.fontColor = SKColor(red: 0.6, green: 0.0, blue: 0.0, alpha: 1) },
+                SKAction.scale(to: 1.0, duration: 0.5)
+            ]))
+            letter.run(SKAction.sequence([
+                SKAction.wait(forDuration: 0.3 + Double(i) * 0.12),
+                SKAction.group([SKAction.fadeIn(withDuration: 0.2), drop]),
+                bounce,
+                glow
+            ]))
+        }
+
+        // Score and high score fade in after the title
+        let infoDelay = 0.3 + Double(text.count) * 0.12 + 0.4
+        func addInfo(_ string: String, fontSize: CGFloat, color: SKColor, y: CGFloat, delay: Double) -> SKLabelNode {
+            let label = SKLabelNode(text: string)
+            label.fontName = "Helvetica-Bold"
+            label.fontSize = fontSize * cs
+            label.fontColor = color
+            label.verticalAlignmentMode = .center
+            label.position = CGPoint(x: 0, y: y * cs)
+            label.alpha = 0
+            screen.addChild(label)
+            label.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.fadeIn(withDuration: 0.4)]))
+            return label
+        }
+        _ = addInfo("SCORE: \(score)", fontSize: 28, color: .white, y: -10, delay: infoDelay)
+        _ = addInfo("HIGH SCORE: \(GameScene.highScore)", fontSize: 30,
+                    color: SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1), y: -55, delay: infoDelay + 0.3)
+
+        if isNewHighScore {
+            let record = addInfo("NEW HIGH SCORE!", fontSize: 26, color: .magenta, y: -100, delay: infoDelay + 0.6)
+            record.run(SKAction.sequence([
+                SKAction.wait(forDuration: infoDelay + 1.0),
+                SKAction.run { [weak self] in
+                    self?.showBonusStars(at: CGPoint(x: 0, y: -100 * cs), cameraScale: cs, zPosition: 310)
+                },
+                SKAction.repeatForever(SKAction.sequence([
+                    SKAction.fadeAlpha(to: 0.25, duration: 0.3),
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.3)
+                ]))
+            ]))
+        }
+
+        // Countdown until the statistics appear
+        var secondsLeft = GameScene.gameOverScreenSeconds
+        let countdown = addInfo("Tap to continue  \(secondsLeft)", fontSize: 16, color: .lightGray, y: -155, delay: infoDelay + 0.6)
+        let tick = SKAction.sequence([
+            SKAction.wait(forDuration: 1.0),
+            SKAction.run {
+                secondsLeft -= 1
+                countdown.text = "Tap to continue  \(max(secondsLeft, 0))"
+            }
+        ])
+        screen.run(SKAction.repeat(tick, count: GameScene.gameOverScreenSeconds), withKey: "countdown")
+        screen.run(SKAction.sequence([
+            SKAction.wait(forDuration: TimeInterval(GameScene.gameOverScreenSeconds)),
+            SKAction.run { [weak self] in self?.finishGameOverScreen() }
+        ]), withKey: "finish")
+
+        SoundManager.shared.playGameOver()
+    }
+
+    /// Leave the game over screen (after 10 seconds or when skipped) and show the statistics
+    private func finishGameOverScreen() {
+        guard let screen = gameOverScreen else { return }
+        gameOverScreen = nil
+        SoundManager.shared.stopGameOver()
+
+        screen.removeAllActions()
+        screen.run(SKAction.sequence([SKAction.fadeOut(withDuration: 0.3), SKAction.removeFromParent()]))
         showScoreBreakdown(title: "GAME OVER", titleColor: .red, showRestart: true)
     }
 
+    /// Two players: the one with more kills this level gets a random power-up
+    /// (speed, machinegun, laser or gun), carried into the next level. No bonus on a tie.
+    private func awardKillBonus() -> KillBonus? {
+        guard isTwoPlayer, let player2 = player2Tank else { return nil }
+        let kills1 = killsByPlayer[0].values.reduce(0, +)
+        let kills2 = killsByPlayer[1].values.reduce(0, +)
+        guard kills1 != kills2 else { return nil }
+
+        let winnerIndex = kills1 > kills2 ? 0 : 1
+        let winner = winnerIndex == 0 ? playerTank! : player2
+
+        // Prefer a power-up the winner can still use (e.g. not a 4th machinegun)
+        let candidates: [PowerUp.PowerUpType] = [.car, .machinegun, .laser, .gun]
+        let useful = candidates.filter { type in
+            switch type {
+            case .car: return winner.speedMultiplier < 2.5
+            case .machinegun: return winner.machinegunCount < 3
+            case .gun: return winner.bulletPower < 2
+            default: return true
+            }
+        }
+        let type = (useful.isEmpty ? candidates : useful).randomElement() ?? .car
+
+        PowerUp(position: .zero, type: type).apply(to: winner)
+        winner.drawTank()
+        return KillBonus(playerIndex: winnerIndex, type: type)
+    }
+
+    private func bonusDescription(_ type: PowerUp.PowerUpType) -> String {
+        switch type {
+        case .car: return "🚗 SPEED"
+        case .machinegun: return "💥 MACHINEGUN"
+        case .laser: return "🔦 LASER"
+        case .gun: return "🔫 GUN"
+        default: return ""
+        }
+    }
+
+    /// Kill rows ([tank icon] × count : points) for one set of kills; returns the next free Y
+    private func addKillRows(_ kills: [Tank.EnemyType: Int], x: CGFloat, y: CGFloat,
+                             lineHeight: CGFloat, cameraScale: CGFloat) -> CGFloat {
+        var yPos = y
+        let enemyTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power, .heavy, .alien, .boss]
+        for type in enemyTypes {
+            let count = kills[type] ?? 0
+            if count > 0 {
+                let points = GameConstants.scoreForEnemyType(type) * count
+                let row = createKillRow(enemyType: type, count: count, points: points, cameraScale: cameraScale)
+                row.position = CGPoint(x: x, y: yPos)
+                row.zPosition = 200
+                gameCamera.addChild(row)
+                yPos -= lineHeight
+            }
+        }
+        return yPos
+    }
+
+    private func addBreakdownLabel(_ text: String, fontSize: CGFloat, color: SKColor, at position: CGPoint) -> SKLabelNode {
+        let label = SKLabelNode(text: text)
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = fontSize
+        label.fontColor = color
+        label.position = position
+        label.zPosition = 200
+        gameCamera.addChild(label)
+        return label
+    }
+
+    /// Two-player statistics: one column of kills per player, plus the kill bonus.
+    /// Returns the next free Y below both columns.
+    private func addTwoPlayerKillColumns(y: CGFloat, lineHeight: CGFloat, cameraScale: CGFloat, bonus: KillBonus?) -> CGFloat {
+        let columnX: [CGFloat] = [-140 * cameraScale, 140 * cameraScale]
+        let colors = [GameSettings.shared.playerTankColor.color, GameSettings.shared.player2TankColor.color]
+        var columnEnds: [CGFloat] = []
+
+        for index in 0..<2 {
+            var yPos = y
+            let x = columnX[index]
+            let total = killsByPlayer[index].values.reduce(0, +)
+            _ = addBreakdownLabel("\(index + 1)P: \(total) KILLS", fontSize: 20 * cameraScale, color: colors[index],
+                                  at: CGPoint(x: x, y: yPos))
+            yPos -= lineHeight * 1.1
+
+            yPos = addKillRows(killsByPlayer[index], x: x, y: yPos, lineHeight: lineHeight, cameraScale: cameraScale)
+
+            // Bonus sits beside the winner's column (outer side) so the screen doesn't get taller
+            if let bonus = bonus, bonus.playerIndex == index {
+                let side: CGFloat = index == 0 ? -1 : 1
+                showBonusAnimation(text: bonusDescription(bonus.type),
+                                   at: CGPoint(x: x + side * 190 * cameraScale, y: y - lineHeight * 1.2),
+                                   lineHeight: lineHeight, cameraScale: cameraScale)
+            }
+            columnEnds.append(yPos)
+        }
+        return columnEnds.min() ?? y
+    }
+
+    /// "BONUS!" pops in under the winner's kills, then keeps pulsing in rainbow colors
+    private func showBonusAnimation(text: String, at position: CGPoint, lineHeight: CGFloat, cameraScale: CGFloat) {
+        let container = SKNode()
+        container.position = position
+        container.zPosition = 210
+        container.setScale(0.01)
+        container.alpha = 0
+        gameCamera.addChild(container)
+
+        let bonusLabel = SKLabelNode(text: "BONUS!")
+        bonusLabel.fontName = "Helvetica-Bold"
+        bonusLabel.fontSize = 26 * cameraScale
+        bonusLabel.fontColor = .yellow
+        container.addChild(bonusLabel)
+
+        let powerUpLabel = SKLabelNode(text: text)
+        powerUpLabel.fontName = "Helvetica-Bold"
+        powerUpLabel.fontSize = 18 * cameraScale
+        powerUpLabel.fontColor = .white
+        powerUpLabel.position = CGPoint(x: 0, y: -lineHeight)
+        container.addChild(powerUpLabel)
+
+        // Rainbow color cycle on "BONUS!"
+        let rainbow: [SKColor] = [.yellow, .orange, .red, .magenta, .cyan, .green]
+        let cycle = SKAction.sequence(rainbow.flatMap { color in
+            [SKAction.run { bonusLabel.fontColor = color }, SKAction.wait(forDuration: 0.12)]
+        })
+        bonusLabel.run(SKAction.repeatForever(cycle))
+
+        let popIn = SKAction.group([
+            SKAction.fadeIn(withDuration: 0.25),
+            SKAction.sequence([
+                SKAction.scale(to: 1.4, duration: 0.25),
+                SKAction.scale(to: 1.0, duration: 0.15)
+            ])
+        ])
+        let pulse = SKAction.repeatForever(SKAction.sequence([
+            SKAction.scale(to: 1.12, duration: 0.4),
+            SKAction.scale(to: 1.0, duration: 0.4)
+        ]))
+        let burst = SKAction.run { [weak self] in
+            SoundManager.shared.playPowerUp()
+            self?.showBonusStars(at: CGPoint(x: position.x, y: position.y + 8 * cameraScale), cameraScale: cameraScale)
+        }
+        // Appears after a short pause so the statistics are read first
+        container.run(SKAction.sequence([SKAction.wait(forDuration: 0.8), burst, popIn, pulse]))
+    }
+
+    /// Stars flying out of the bonus label
+    private func showBonusStars(at position: CGPoint, cameraScale: CGFloat, zPosition: CGFloat = 205) {
+        for i in 0..<12 {
+            let star = SKLabelNode(text: "★")
+            star.fontSize = 16 * cameraScale
+            star.fontColor = [SKColor.yellow, .orange, .cyan, .magenta][i % 4]
+            star.verticalAlignmentMode = .center
+            star.position = position
+            star.zPosition = zPosition
+            gameCamera.addChild(star)
+
+            let angle = CGFloat(i) / 12 * .pi * 2
+            let distance = CGFloat.random(in: 50...80) * cameraScale
+            let fly = SKAction.moveBy(x: cos(angle) * distance, y: sin(angle) * distance, duration: 0.7)
+            fly.timingMode = .easeOut
+            star.run(SKAction.sequence([
+                SKAction.group([fly, SKAction.rotate(byAngle: .pi * 2, duration: 0.7), SKAction.fadeOut(withDuration: 0.7)]),
+                SKAction.removeFromParent()
+            ]))
+        }
+    }
+
     /// Show score breakdown screen with tank kill stats
-    private func showScoreBreakdown(title: String, titleColor: SKColor, showRestart: Bool) {
+    private func showScoreBreakdown(title: String, titleColor: SKColor, showRestart: Bool, bonus: KillBonus? = nil) {
         let cameraScale = gameCamera.xScale
         let lineHeight: CGFloat = 28 * cameraScale
         var yPos: CGFloat = 140 * cameraScale
@@ -1960,18 +2345,12 @@ class GameScene: SKScene {
         gameCamera.addChild(titleLabel)
         yPos -= lineHeight * 1.5
 
-        // Kill breakdown for each enemy type (only show types with kills)
-        let enemyTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power, .heavy, .alien, .boss]
-        for type in enemyTypes {
-            let count = killsByType[type] ?? 0
-            if count > 0 {
-                let points = GameConstants.scoreForEnemyType(type) * count
-                let row = createKillRow(enemyType: type, count: count, points: points, cameraScale: cameraScale)
-                row.position = CGPoint(x: 0, y: yPos)
-                row.zPosition = 200
-                gameCamera.addChild(row)
-                yPos -= lineHeight
-            }
+        // Kill breakdown for each enemy type (only show types with kills);
+        // two players get a column each
+        if isTwoPlayer {
+            yPos = addTwoPlayerKillColumns(y: yPos, lineHeight: lineHeight, cameraScale: cameraScale, bonus: bonus)
+        } else {
+            yPos = addKillRows(killsByType, x: 0, y: yPos, lineHeight: lineHeight, cameraScale: cameraScale)
         }
 
         // Separator line
@@ -2005,10 +2384,8 @@ class GameScene: SKScene {
         gameCamera.addChild(totalScoreLabel)
         yPos -= lineHeight
 
-        // Highscore check (only on game over, not level complete)
-        if showRestart && score > GameScene.highScore {
-            GameScene.highScore = score
-
+        // Highscore (only on game over, not level complete; recorded in gameOver())
+        if showRestart && isNewHighScore {
             let highScoreLabel = SKLabelNode(text: "HIGHSCORE \(score)")
             highScoreLabel.fontName = "Helvetica-Bold"
             highScoreLabel.fontSize = 26 * cameraScale
@@ -2142,13 +2519,14 @@ class GameScene: SKScene {
 
     // MARK: - Freeze Countdown HUD
 
-    private var playerFreezeLabel: SKLabelNode?
+    private var playerFreezeLabels: [SKLabelNode] = []  // One per player
     private var enemyFreezeLabel: SKLabelNode?
-    private var shownPlayerFreezeSeconds = -1
+    private var shownPlayerFreezeSeconds = [-1, -1]
     private var shownEnemyFreezeSeconds = -1
 
     private func setupFreezeLabels() {
-        playerFreezeLabel = makeFreezeLabel(color: SKColor(red: 1.0, green: 0.45, blue: 0.45, alpha: 1.0))
+        let playerColor = SKColor(red: 1.0, green: 0.45, blue: 0.45, alpha: 1.0)
+        playerFreezeLabels = (0..<playerCount).map { _ in makeFreezeLabel(color: playerColor) }
         enemyFreezeLabel = makeFreezeLabel(color: .cyan)
     }
 
@@ -2164,17 +2542,18 @@ class GameScene: SKScene {
         return label
     }
 
-    /// Show "YOU ARE FROZEN 27s" / "ENEMIES FROZEN 12s" at the top of the screen.
-    /// Active countdowns stack from the top; text only changes once per second.
+    /// Show "YOU ARE FROZEN 27s" (two players: "1P FROZEN 27s") / "ENEMIES FROZEN 12s"
+    /// at the top of the screen. Active countdowns stack from the top; text only changes once per second.
     private func updateFreezeLabels() {
-        guard playerFreezeTimer > 0 || freezeTimer > 0 ||
-              playerFreezeLabel?.isHidden == false || enemyFreezeLabel?.isHidden == false else { return }
+        guard playerFreezeTimers.contains(where: { $0 > 0 }) || freezeTimer > 0 ||
+              playerFreezeLabels.contains(where: { !$0.isHidden }) || enemyFreezeLabel?.isHidden == false else { return }
 
         var y = cameraY(forPointsBelowVisibleTop: 10)
 
-        if let label = playerFreezeLabel {
-            updateFreezeLabel(label, timer: playerFreezeTimer, title: "YOU ARE FROZEN",
-                              shownSeconds: &shownPlayerFreezeSeconds, y: &y)
+        for (index, label) in playerFreezeLabels.enumerated() {
+            let title = isTwoPlayer ? "\(index + 1)P FROZEN" : "YOU ARE FROZEN"
+            updateFreezeLabel(label, timer: playerFreezeTimers[index], title: title,
+                              shownSeconds: &shownPlayerFreezeSeconds[index], y: &y)
         }
         if let label = enemyFreezeLabel {
             updateFreezeLabel(label, timer: freezeTimer, title: "ENEMIES FROZEN",
@@ -2224,7 +2603,7 @@ class GameScene: SKScene {
     }
 
     private func hideFreezeLabels() {
-        playerFreezeLabel?.isHidden = true
+        playerFreezeLabels.forEach { $0.isHidden = true }
         enemyFreezeLabel?.isHidden = true
     }
 
@@ -2238,27 +2617,35 @@ class GameScene: SKScene {
         scoreLabel.text = "Score: \(score)"
         #endif
 
-        // Build power-up data from player tank
-        var powerUps = Sidebar.PowerUpData()
-        powerUps.starCount = playerTank.starCount
-        powerUps.machinegunCount = playerTank.machinegunCount
-        powerUps.hasGun = playerTank.bulletPower >= 2
-        powerUps.hasShip = playerTank.canSwim
-        powerUps.hasSaw = playerTank.canDestroyTrees
-        powerUps.hasLaser = playerTank.hasLaser
+        // Build power-up data from the player tanks
+        var powerUps = sidebarPowerUps(of: playerTank)
         if let friend = gzhelTank, friend.isAlive {
             powerUps.friendHits = friend.health
         }
-        // Calculate speed boosts (each 0.3 increment is one boost)
-        powerUps.speedBoosts = Int((playerTank.speedMultiplier - 1.0) / 0.3)
+        let powerUps2 = player2Tank.map { sidebarPowerUps(of: $0) } ?? Sidebar.PowerUpData()
 
         // Update sidebar with remaining enemies (not yet spawned)
         sidebar.update(
             remainingEnemies: enemySpawner.remainingEnemies,
             playerLives: playerTank.lives,
+            player2Lives: player2Tank?.lives ?? 0,
             level: level,
-            powerUps: powerUps
+            powerUps: powerUps,
+            powerUps2: powerUps2
         )
+    }
+
+    private func sidebarPowerUps(of player: Tank) -> Sidebar.PowerUpData {
+        var powerUps = Sidebar.PowerUpData()
+        powerUps.starCount = player.starCount
+        powerUps.machinegunCount = player.machinegunCount
+        powerUps.hasGun = player.bulletPower >= 2
+        powerUps.hasShip = player.canSwim
+        powerUps.hasSaw = player.canDestroyTrees
+        powerUps.hasLaser = player.hasLaser
+        // Calculate speed boosts (each 0.3 increment is one boost)
+        powerUps.speedBoosts = Int((player.speedMultiplier - 1.0) / 0.3)
+        return powerUps
     }
 
     /// Add score and check for bonus life every 100 points
@@ -2267,10 +2654,11 @@ class GameScene: SKScene {
         score += points
         let newMilestone = score / 100
 
-        // Award bonus life for each 100-point milestone reached
+        // Award bonus life for each 100-point milestone reached (the score is shared:
+        // every player gets it, which also brings back a player who ran out of lives)
         if newMilestone > oldMilestone {
             let bonusLives = newMilestone - oldMilestone
-            playerTank.addLives(bonusLives)
+            playerTanks.forEach { $0.addLives(bonusLives) }
             showEffect(text: "+\(bonusLives) LIFE!", color: .magenta)
         }
     }
@@ -2279,7 +2667,7 @@ class GameScene: SKScene {
 
     private var allTanks: [Tank] {
         if _allTanksDirty {
-            _cachedAllTanks = [playerTank].compactMap { $0 } + enemyTanks + [gzhelTank].compactMap { $0 }
+            _cachedAllTanks = [playerTank, player2Tank].compactMap { $0 } + enemyTanks + [gzhelTank].compactMap { $0 }
             _allTanksDirty = false
         }
         return _cachedAllTanks
@@ -2318,6 +2706,12 @@ class GameScene: SKScene {
             return
         }
 
+        // Game over screen: a tap skips to the statistics
+        if isShowingGameOverScreen {
+            finishGameOverScreen()
+            return
+        }
+
         // Handle game over buttons
         if isGameOver {
             let location = touch.location(in: gameCamera)
@@ -2350,16 +2744,9 @@ class GameScene: SKScene {
 
     private func nextLevel() {
         // Keep same session seed for consistent level generation within this game session
-        // Carry over player's lives and power-ups to next level
-        var powerUps = PlayerPowerUps()
-        powerUps.starCount = playerTank.starCount
-        powerUps.machinegunCount = playerTank.machinegunCount
-        powerUps.bulletPower = playerTank.bulletPower
-        powerUps.speedMultiplier = playerTank.speedMultiplier
-        powerUps.canSwim = playerTank.canSwim
-        powerUps.canDestroyTrees = playerTank.canDestroyTrees
-        // Laser only carries into one more round (and only if the player still has it)
-        powerUps.laserRounds = max(playerTank.laserRounds - 1, 0)
+        // Carry over players' lives and power-ups to next level
+        let powerUps = carriedPowerUps(of: playerTank)
+        let powerUps2 = player2Tank.map { carriedPowerUps(of: $0) } ?? PlayerPowerUps()
 
         // If player collected easter egg and cat played, next level gets Gzhel decoration (one level only)
         let earnedGzhel = playerCollectedEasterEgg
@@ -2370,19 +2757,22 @@ class GameScene: SKScene {
         let ufoEscaped = ufoEscapedThisLevel || (ufoSpawnedThisLevel && !ufoWasKilled)
         let nextAlienMode = ufoEscaped && !alienMode
 
-        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode)
+        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode,
+                                 playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
 
     private func restartGame() {
+        SoundManager.shared.stopGameOver()
         // Restart the SAME level with score reset to 0 (high score persists until menu or app close)
-        let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed)
+        let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed, playerCount: playerCount)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
 
     private func goToMenu() {
+        SoundManager.shared.stopGameOver()
         // Reset consecutive losses on menu (exits easy mode)
         GameScene.consecutiveLosses = 0
         // Reset high score when going to menu
@@ -2399,68 +2789,71 @@ class GameScene: SKScene {
 
     #if os(iOS) || os(tvOS)
     // iOS keyboard support (hardware keyboard / simulator)
+
+    /// What a key does: move or fire for a player (0 = player 1, 1 = player 2).
+    /// One player: arrows/WASD move, Space/J fire.
+    /// Two players: player 1 WASD + Space/J, player 2 arrows + Enter/Right Shift.
+    private func keyBinding(_ code: UIKeyboardHIDUsage) -> (player: Int, direction: Direction?)? {
+        let p2 = isTwoPlayer ? 1 : 0
+        switch code {
+        case .keyboardW: return (0, .up)
+        case .keyboardS: return (0, .down)
+        case .keyboardA: return (0, .left)
+        case .keyboardD: return (0, .right)
+        case .keyboardUpArrow: return (p2, .up)
+        case .keyboardDownArrow: return (p2, .down)
+        case .keyboardLeftArrow: return (p2, .left)
+        case .keyboardRightArrow: return (p2, .right)
+        case .keyboardSpacebar, .keyboardJ: return (0, nil)
+        case .keyboardReturnOrEnter, .keyboardRightShift:
+            return isTwoPlayer ? (1, nil) : nil
+        default: return nil
+        }
+    }
+
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         for press in presses {
             guard let key = press.key else { continue }
 
-            switch key.keyCode {
-            // Arrow keys
-            case .keyboardUpArrow, .keyboardW:
-                pressedDirectionKeys.insert(key.keyCode)
-                keyboardDirection = .up
-            case .keyboardDownArrow, .keyboardS:
-                pressedDirectionKeys.insert(key.keyCode)
-                keyboardDirection = .down
-            case .keyboardLeftArrow, .keyboardA:
-                pressedDirectionKeys.insert(key.keyCode)
-                keyboardDirection = .left
-            case .keyboardRightArrow, .keyboardD:
-                pressedDirectionKeys.insert(key.keyCode)
-                keyboardDirection = .right
-
-            // Fire: Space or J
-            case .keyboardSpacebar, .keyboardJ:
-                keyboardFiring = true
+            // Continue/restart on Enter when game over
+            if key.keyCode == .keyboardReturnOrEnter && isGameOver {
+                if isShowingGameOverScreen {
+                    finishGameOverScreen()  // Skip to the statistics
+                } else if didWinLevel {
+                    nextLevel()
+                } else {
+                    restartGame()
+                }
+                continue
+            }
 
             // Pause: Escape or P
-            case .keyboardEscape, .keyboardP:
+            if key.keyCode == .keyboardEscape || key.keyCode == .keyboardP {
                 if !isGameOver {
                     togglePause()
                 }
+                continue
+            }
 
-            // Continue/restart on Enter when game over
-            case .keyboardReturnOrEnter:
-                if isGameOver {
-                    if didWinLevel {
-                        nextLevel()
-                    } else {
-                        restartGame()
-                    }
-                }
-
-            default:
-                break
+            guard let binding = keyBinding(key.keyCode) else { continue }
+            if let direction = binding.direction {
+                pressedDirectionKeys.insert(key.keyCode)
+                keyboardDirection[binding.player] = direction
+            } else {
+                keyboardFiring[binding.player] = true
             }
         }
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         for press in presses {
-            guard let key = press.key else { continue }
+            guard let key = press.key, let binding = keyBinding(key.keyCode) else { continue }
 
-            switch key.keyCode {
-            // Direction keys
-            case .keyboardUpArrow, .keyboardDownArrow, .keyboardLeftArrow, .keyboardRightArrow,
-                 .keyboardW, .keyboardS, .keyboardA, .keyboardD:
+            if binding.direction != nil {
                 pressedDirectionKeys.remove(key.keyCode)
-                keyboardDirection = getDirectionFromPressedKeys()
-
-            // Fire: Space or J
-            case .keyboardSpacebar, .keyboardJ:
-                keyboardFiring = false
-
-            default:
-                break
+                keyboardDirection[binding.player] = getDirectionFromPressedKeys(player: binding.player)
+            } else {
+                keyboardFiring[binding.player] = false
             }
         }
     }
@@ -2470,19 +2863,11 @@ class GameScene: SKScene {
         pressesEnded(presses, with: event)
     }
 
-    private func getDirectionFromPressedKeys() -> Direction? {
+    /// Direction of a still-held key of this player (after another key was released)
+    private func getDirectionFromPressedKeys(player: Int) -> Direction? {
         for keyCode in pressedDirectionKeys {
-            switch keyCode {
-            case .keyboardUpArrow, .keyboardW:
-                return .up
-            case .keyboardDownArrow, .keyboardS:
-                return .down
-            case .keyboardLeftArrow, .keyboardA:
-                return .left
-            case .keyboardRightArrow, .keyboardD:
-                return .right
-            default:
-                continue
+            if let binding = keyBinding(keyCode), binding.player == player, let direction = binding.direction {
+                return direction
             }
         }
         return nil
@@ -2505,82 +2890,76 @@ class GameScene: SKScene {
     private static let keyEscape: UInt16 = 53
     private static let keyP: UInt16 = 35
 
+    private static let keyRightShift: UInt16 = 60
+
+    /// Same bindings as on iOS: see the iOS `keyBinding`
+    private func keyBinding(_ code: UInt16) -> (player: Int, direction: Direction?)? {
+        let p2 = isTwoPlayer ? 1 : 0
+        switch code {
+        case GameScene.keyW: return (0, .up)
+        case GameScene.keyS: return (0, .down)
+        case GameScene.keyA: return (0, .left)
+        case GameScene.keyD: return (0, .right)
+        case GameScene.keyUp: return (p2, .up)
+        case GameScene.keyDown: return (p2, .down)
+        case GameScene.keyLeft: return (p2, .left)
+        case GameScene.keyRight: return (p2, .right)
+        case GameScene.keySpace, GameScene.keyJ: return (0, nil)
+        case GameScene.keyReturn, GameScene.keyRightShift:
+            return isTwoPlayer ? (1, nil) : nil
+        default: return nil
+        }
+    }
+
     override func keyDown(with event: NSEvent) {
         // Ignore key repeat
         guard !event.isARepeat else { return }
 
         let keyCode = event.keyCode
 
-        switch keyCode {
-        // Arrow keys and WASD
-        case GameScene.keyUp, GameScene.keyW:
-            pressedDirectionKeys.insert(keyCode)
-            keyboardDirection = .up
-        case GameScene.keyDown, GameScene.keyS:
-            pressedDirectionKeys.insert(keyCode)
-            keyboardDirection = .down
-        case GameScene.keyLeft, GameScene.keyA:
-            pressedDirectionKeys.insert(keyCode)
-            keyboardDirection = .left
-        case GameScene.keyRight, GameScene.keyD:
-            pressedDirectionKeys.insert(keyCode)
-            keyboardDirection = .right
-
-        // Fire: Space or J
-        case GameScene.keySpace, GameScene.keyJ:
-            keyboardFiring = true
+        // Continue/restart on Enter when game over
+        if keyCode == GameScene.keyReturn && isGameOver {
+            if isShowingGameOverScreen {
+                finishGameOverScreen()  // Skip to the statistics
+            } else if didWinLevel {
+                nextLevel()
+            } else {
+                restartGame()
+            }
+            return
+        }
 
         // Pause: P or Escape
-        case GameScene.keyP, GameScene.keyEscape:
+        if keyCode == GameScene.keyP || keyCode == GameScene.keyEscape {
             togglePause()
+            return
+        }
 
-        // Continue/restart on Enter when game over
-        case GameScene.keyReturn:
-            if isGameOver {
-                if didWinLevel {
-                    nextLevel()
-                } else {
-                    restartGame()
-                }
-            }
-
-        default:
-            break
+        guard let binding = keyBinding(keyCode) else { return }
+        if let direction = binding.direction {
+            pressedDirectionKeys.insert(keyCode)
+            keyboardDirection[binding.player] = direction
+        } else {
+            keyboardFiring[binding.player] = true
         }
     }
 
     override func keyUp(with event: NSEvent) {
         let keyCode = event.keyCode
+        guard let binding = keyBinding(keyCode) else { return }
 
-        switch keyCode {
-        // Direction keys
-        case GameScene.keyUp, GameScene.keyDown, GameScene.keyLeft, GameScene.keyRight,
-             GameScene.keyW, GameScene.keyS, GameScene.keyA, GameScene.keyD:
+        if binding.direction != nil {
             pressedDirectionKeys.remove(keyCode)
-            keyboardDirection = getDirectionFromPressedKeys()
-
-        // Fire: Space or J
-        case GameScene.keySpace, GameScene.keyJ:
-            keyboardFiring = false
-
-        default:
-            break
+            keyboardDirection[binding.player] = getDirectionFromPressedKeys(player: binding.player)
+        } else {
+            keyboardFiring[binding.player] = false
         }
     }
 
-    private func getDirectionFromPressedKeys() -> Direction? {
+    private func getDirectionFromPressedKeys(player: Int) -> Direction? {
         for keyCode in pressedDirectionKeys {
-            switch keyCode {
-            case GameScene.keyUp, GameScene.keyW:
-                return .up
-            case GameScene.keyDown, GameScene.keyS:
-                return .down
-            case GameScene.keyLeft, GameScene.keyA:
-                return .left
-            case GameScene.keyRight, GameScene.keyD:
-                return .right
-            default:
-                continue
+            if let binding = keyBinding(keyCode), binding.player == player, let direction = binding.direction {
+                return direction
             }
         }
         return nil

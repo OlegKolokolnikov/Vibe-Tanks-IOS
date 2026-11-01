@@ -114,16 +114,46 @@ class TouchController: SKNode {
 
     // MARK: - Setup
 
-    func setupForScreen(size: CGSize) {
+    /// Single player: joystick and fire on opposite sides.
+    /// Two players: each player gets a joystick with the fire button above it,
+    /// player 1 on the left edge, player 2 on the right edge.
+    enum Layout {
+        case single
+        case leftPlayer
+        case rightPlayer
+    }
+
+    private(set) var showsPauseButton = true
+
+    func setupForScreen(size: CGSize, layout: Layout = .single) {
         // Coordinates are relative to camera center (0,0)
         // Use larger margins to keep controls well inside screen
         let sideMargin: CGFloat = 130
         let bottomMargin: CGFloat = 100
         let topMargin: CGFloat = 80
+        // Fire above the joystick (2 players): far enough apart that the touch zones don't overlap
+        let fireAboveJoystick: CGFloat = 230
 
         let leftX = -size.width / 2 + sideMargin
         let rightX = size.width / 2 - sideMargin
         let bottomY = -size.height / 2 + bottomMargin
+
+        pauseButtonPosition = CGPoint(x: rightX, y: size.height / 2 - topMargin)
+
+        switch layout {
+        case .leftPlayer:
+            joystickPosition = CGPoint(x: leftX, y: bottomY)
+            fireButtonPosition = CGPoint(x: leftX, y: bottomY + fireAboveJoystick)
+            setPauseButtonVisible(false)  // The right player's controller owns pause
+            return
+        case .rightPlayer:
+            joystickPosition = CGPoint(x: rightX, y: bottomY)
+            fireButtonPosition = CGPoint(x: rightX, y: bottomY + fireAboveJoystick)
+            setPauseButtonVisible(true)
+            return
+        case .single:
+            setPauseButtonVisible(true)
+        }
 
         // Check if controls are swapped (fire on left instead of right)
         if GameSettings.shared.controlsSwapped {
@@ -135,8 +165,26 @@ class TouchController: SKNode {
             joystickPosition = CGPoint(x: leftX, y: bottomY)
             fireButtonPosition = CGPoint(x: rightX, y: bottomY)
         }
+    }
 
-        pauseButtonPosition = CGPoint(x: rightX, y: size.height / 2 - topMargin)
+    private func setPauseButtonVisible(_ visible: Bool) {
+        showsPauseButton = visible
+        pauseButton.isHidden = !visible
+    }
+
+    /// Tint the joystick ring with the player's tank color and label it ("1P" / "2P")
+    func setPlayerMarker(text: String, color: SKColor) {
+        joystickBase.strokeColor = color.withAlphaComponent(0.8)
+        joystickBase.lineWidth = 3
+
+        let label = SKLabelNode(text: text)
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = 22
+        label.fontColor = color
+        label.verticalAlignmentMode = .center
+        // In the gap between the joystick and the fire button above it
+        label.position = CGPoint(x: 0, y: joystickRadius + 42)
+        joystickBase.addChild(label)
     }
 
     func setControlsScale(_ scale: CGFloat) {
@@ -163,7 +211,7 @@ class TouchController: SKNode {
             let location = touch.location(in: self)
 
             // Check if touch is on pause button
-            if location.distance(to: pauseButtonPosition) < pauseButtonSize {
+            if showsPauseButton && location.distance(to: pauseButtonPosition) < pauseButtonSize {
                 pausePressed = true
                 pauseButton.fillColor = SKColor.white.withAlphaComponent(0.6)
             }

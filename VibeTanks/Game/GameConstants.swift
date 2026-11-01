@@ -24,6 +24,12 @@ struct GameConstants {
 
     // Player spawn / respawn point
     static let playerSpawnPosition = CGPoint(x: tileSize * 8, y: tileSize * 2)
+    // Player 2 spawn: mirror of player 1 on the right side of the base (base is col 13)
+    static let player2SpawnPosition = CGPoint(x: tileSize * 19, y: tileSize * 2)
+
+    static func spawnPosition(forPlayer number: Int) -> CGPoint {
+        return number == 2 ? player2SpawnPosition : playerSpawnPosition
+    }
 
     // Bullet properties
     static let bulletSize: CGFloat = 8

@@ -36,6 +36,7 @@
 		A10000010000000000000031 /* explosion.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000031 /* explosion.wav */; };
 		A10000010000000000000032 /* intro.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000032 /* intro.wav */; };
 		A10000010000000000000033 /* sad.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000033 /* sad.wav */; };
+		A1000001000000000000003B /* game_over.wav in Resources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000003B /* game_over.wav */; };
 		A10000010000000000000034 /* victory.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000034 /* victory.wav */; };
 		A10000010000000000000035 /* player_death.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000035 /* player_death.wav */; };
 		A10000010000000000000036 /* base_destroyed.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000036 /* base_destroyed.wav */; };
@@ -76,6 +77,7 @@
 		A10000020000000000000031 /* explosion.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = explosion.wav; sourceTree = "<group>"; };
 		A10000020000000000000032 /* intro.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = intro.wav; sourceTree = "<group>"; };
 		A10000020000000000000033 /* sad.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = sad.wav; sourceTree = "<group>"; };
+		A1000002000000000000003B /* game_over.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = game_over.wav; sourceTree = "<group>"; };
 		A10000020000000000000034 /* victory.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = victory.wav; sourceTree = "<group>"; };
 		A10000020000000000000035 /* player_death.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = player_death.wav; sourceTree = "<group>"; };
 		A10000020000000000000036 /* base_destroyed.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = base_destroyed.wav; sourceTree = "<group>"; };
@@ -172,6 +174,7 @@
 				A10000020000000000000031 /* explosion.wav */,
 				A10000020000000000000032 /* intro.wav */,
 				A10000020000000000000033 /* sad.wav */,
+				A1000002000000000000003B /* game_over.wav */,
 				A10000020000000000000034 /* victory.wav */,
 				A10000020000000000000035 /* player_death.wav */,
 				A10000020000000000000036 /* base_destroyed.wav */,
@@ -248,6 +251,7 @@
 				A10000010000000000000031 /* explosion.wav in Resources */,
 				A10000010000000000000032 /* intro.wav in Resources */,
 				A10000010000000000000033 /* sad.wav in Resources */,
+				A1000001000000000000003B /* game_over.wav in Resources */,
 				A10000010000000000000034 /* victory.wav in Resources */,
 				A10000010000000000000035 /* player_death.wav in Resources */,
 				A10000010000000000000036 /* base_destroyed.wav in Resources */,

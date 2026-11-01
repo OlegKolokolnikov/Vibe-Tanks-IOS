@@ -11,6 +11,7 @@ class SoundManager {
     private var explosionPlayers: [AVAudioPlayer] = []
     private var introPlayer: AVAudioPlayer?
     private var sadPlayer: AVAudioPlayer?
+    private var gameOverPlayer: AVAudioPlayer?  // 10-second game over tune
     private var victoryPlayer: AVAudioPlayer?
     private var playerDeathPlayer: AVAudioPlayer?
     private var baseDestroyedPlayer: AVAudioPlayer?
@@ -80,7 +81,7 @@ class SoundManager {
 
     private var allEffectPlayers: [AVAudioPlayer] {
         let singles: [AVAudioPlayer?] = [
-            introPlayer, sadPlayer, victoryPlayer, playerDeathPlayer,
+            introPlayer, sadPlayer, gameOverPlayer, victoryPlayer, playerDeathPlayer,
             baseDestroyedPlayer, treeBurnPlayer, laserPlayer, powerUpSpawnPlayer
         ]
         return shootPlayers + explosionPlayers + singles.compactMap { $0 }
@@ -126,6 +127,7 @@ class SoundManager {
         // Pre-load single-instance sounds
         introPlayer = loadPlayer("intro", volume: 0.6)
         sadPlayer = loadPlayer("sad", volume: 0.6)
+        gameOverPlayer = loadPlayer("game_over", volume: 0.6)
         victoryPlayer = loadPlayer("victory", volume: 0.6)
         playerDeathPlayer = loadPlayer("player_death", volume: 0.6)
         baseDestroyedPlayer = loadPlayer("base_destroyed", volume: 0.7)
@@ -232,8 +234,16 @@ class SoundManager {
         playPowerUpSpawn()
     }
 
+    /// 10-second game over tune (plays with the game over screen)
     func playGameOver() {
-        playSad()
+        guard !isSilent else { return }
+        gameOverPlayer?.currentTime = 0
+        gameOverPlayer?.play()
+    }
+
+    /// Cut the game over tune short (screen skipped, restart, menu)
+    func stopGameOver() {
+        gameOverPlayer?.stop()
     }
 
     // MARK: - Music

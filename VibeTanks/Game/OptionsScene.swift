@@ -3,8 +3,9 @@ import SpriteKit
 class OptionsScene: SKScene {
 
     private var controlsToggle: SKNode!
-    private var colorButtons: [GameSettings.TankColor: SKNode] = [:]
-    private var tankPreview: SKNode?
+    /// Color buttons per player (index 0 = player 1, 1 = player 2)
+    private var colorButtons: [[GameSettings.TankColor: SKNode]] = [[:], [:]]
+    private var tankPreviews: [SKNode] = []
 
     // Two-column layout: controls + volume on the left, tank color on the right
     private var leftColumnX: CGFloat { size.width * 0.27 }
@@ -226,90 +227,79 @@ class OptionsScene: SKScene {
         label.position = CGPoint(x: rightColumnX, y: sectionY + 30)
         addChild(label)
 
-        // Color options
+        // One row of colors per player: [1P] (o) (o) (o) (o) [tank preview]
         let colors = GameSettings.TankColor.allCases
-        let totalWidth: CGFloat = CGFloat(colors.count - 1) * 80
+        let spacing: CGFloat = 70
+        let totalWidth = CGFloat(colors.count - 1) * spacing
         let startX = rightColumnX - totalWidth / 2
+        let rowSpacing: CGFloat = 80
 
-        for (index, tankColor) in colors.enumerated() {
-            let colorButton = createColorButton(
-                tankColor: tankColor,
-                isSelected: GameSettings.shared.playerTankColor == tankColor
-            )
-            colorButton.position = CGPoint(x: startX + CGFloat(index) * 80, y: sectionY - 25)
-            colorButton.name = "color_\(tankColor.rawValue)"
-            addChild(colorButton)
-            colorButtons[tankColor] = colorButton
+        for player in 0..<2 {
+            let rowY = sectionY - 20 - CGFloat(player) * rowSpacing
+
+            let playerLabel = SKLabelNode(text: "\(player + 1)P")
+            playerLabel.fontName = "Helvetica-Bold"
+            playerLabel.fontSize = 20
+            playerLabel.fontColor = .white
+            playerLabel.verticalAlignmentMode = .center
+            playerLabel.position = CGPoint(x: startX - 60, y: rowY)
+            addChild(playerLabel)
+
+            for (index, tankColor) in colors.enumerated() {
+                let colorButton = createColorButton(tankColor: tankColor)
+                colorButton.position = CGPoint(x: startX + CGFloat(index) * spacing, y: rowY)
+                colorButton.name = "color\(player)_\(tankColor.rawValue)"
+                addChild(colorButton)
+                colorButtons[player][tankColor] = colorButton
+            }
+
+            let preview = SKNode()
+            preview.position = CGPoint(x: startX + totalWidth + 60, y: rowY)
+            addChild(preview)
+            tankPreviews.append(preview)
         }
 
-        // Tank preview
-        let preview = createTankPreview()
-        preview.position = CGPoint(x: rightColumnX, y: sectionY - 100)
-        addChild(preview)
-        tankPreview = preview
-        updateTankPreview()
+        updateColorButtons()
+        updateTankPreviews()
     }
 
-    private func createColorButton(tankColor: GameSettings.TankColor, isSelected: Bool) -> SKNode {
+    private func selectedColor(forPlayer player: Int) -> GameSettings.TankColor {
+        return player == 0 ? GameSettings.shared.playerTankColor : GameSettings.shared.player2TankColor
+    }
+
+    private func createColorButton(tankColor: GameSettings.TankColor) -> SKNode {
         let container = SKNode()
 
         // Color circle
-        let circle = SKShapeNode(circleOfRadius: 25)
+        let circle = SKShapeNode(circleOfRadius: 22)
         circle.fillColor = tankColor.color
-        circle.strokeColor = isSelected ? .white : .gray
-        circle.lineWidth = isSelected ? 4 : 2
+        circle.strokeColor = .gray
+        circle.lineWidth = 2
         circle.name = "circle"
         container.addChild(circle)
-
-        // Selection indicator
-        if isSelected {
-            let check = SKLabelNode(text: "\u{2713}")
-            check.fontName = "Helvetica-Bold"
-            check.fontSize = 24
-            check.fontColor = .black
-            check.verticalAlignmentMode = .center
-            check.name = "check"
-            container.addChild(check)
-        }
 
         // Label
         let label = SKLabelNode(text: tankColor.displayName)
         label.fontName = "Helvetica"
-        label.fontSize = 14
-        label.fontColor = isSelected ? .white : .gray
-        label.position = CGPoint(x: 0, y: -40)
+        label.fontSize = 12
+        label.fontColor = .gray
+        label.position = CGPoint(x: 0, y: -36)
         label.name = "colorLabel"
         container.addChild(label)
 
         return container
     }
 
-    private func createTankPreview() -> SKNode {
-        let container = SKNode()
-
-        let label = SKLabelNode(text: "Preview:")
-        label.fontName = "Helvetica"
-        label.fontSize = 16
-        label.fontColor = .gray
-        label.position = CGPoint(x: -50, y: 0)
-        container.addChild(label)
-
-        return container
+    private func updateTankPreviews() {
+        for (player, preview) in tankPreviews.enumerated() {
+            preview.removeAllChildren()
+            preview.addChild(createPreviewTank(color: selectedColor(forPlayer: player).color, tankSize: 32))
+        }
     }
 
-    private func updateTankPreview() {
-        guard let preview = tankPreview else { return }
-
-        // Remove old tank preview
-        preview.childNode(withName: "tankSprite")?.removeFromParent()
-
-        // Create simple tank representation
-        let tankSize: CGFloat = 40
-        let color = GameSettings.shared.playerTankColor.color
-
+    /// Simple tank drawing for the color preview
+    private func createPreviewTank(color: SKColor, tankSize: CGFloat) -> SKNode {
         let tank = SKNode()
-        tank.name = "tankSprite"
-        tank.position = CGPoint(x: 30, y: 0)
 
         // Body
         let body = SKShapeNode(rectOf: CGSize(width: tankSize, height: tankSize * 0.8), cornerRadius: 4)
@@ -327,7 +317,7 @@ class OptionsScene: SKScene {
         tank.addChild(turret)
 
         // Gun
-        let gun = SKShapeNode(rectOf: CGSize(width: tankSize * 0.5, height: 6), cornerRadius: 2)
+        let gun = SKShapeNode(rectOf: CGSize(width: 6, height: tankSize * 0.5), cornerRadius: 2)
         gun.fillColor = color.darker()
         gun.strokeColor = .black
         gun.lineWidth = 1
@@ -335,21 +325,16 @@ class OptionsScene: SKScene {
         tank.addChild(gun)
 
         // Tracks
-        let leftTrack = SKShapeNode(rectOf: CGSize(width: tankSize * 0.2, height: tankSize * 0.9))
-        leftTrack.fillColor = SKColor(white: 0.3, alpha: 1)
-        leftTrack.strokeColor = .black
-        leftTrack.lineWidth = 1
-        leftTrack.position = CGPoint(x: -tankSize * 0.45, y: 0)
-        tank.addChild(leftTrack)
+        for side: CGFloat in [-1, 1] {
+            let track = SKShapeNode(rectOf: CGSize(width: tankSize * 0.2, height: tankSize * 0.9))
+            track.fillColor = SKColor(white: 0.3, alpha: 1)
+            track.strokeColor = .black
+            track.lineWidth = 1
+            track.position = CGPoint(x: side * tankSize * 0.45, y: 0)
+            tank.addChild(track)
+        }
 
-        let rightTrack = SKShapeNode(rectOf: CGSize(width: tankSize * 0.2, height: tankSize * 0.9))
-        rightTrack.fillColor = SKColor(white: 0.3, alpha: 1)
-        rightTrack.strokeColor = .black
-        rightTrack.lineWidth = 1
-        rightTrack.position = CGPoint(x: tankSize * 0.45, y: 0)
-        tank.addChild(rightTrack)
-
-        preview.addChild(tank)
+        return tank
     }
 
     // MARK: - Button Creation
@@ -449,12 +434,14 @@ class OptionsScene: SKScene {
                 return
             }
 
-            // Color buttons
-            for tankColor in GameSettings.TankColor.allCases {
-                let colorName = "color_\(tankColor.rawValue)"
-                if name == colorName || node.parent?.name == colorName {
-                    setTankColor(tankColor)
-                    return
+            // Color buttons (one row per player)
+            for player in 0..<2 {
+                for tankColor in GameSettings.TankColor.allCases {
+                    let colorName = "color\(player)_\(tankColor.rawValue)"
+                    if name == colorName || node.parent?.name == colorName {
+                        setTankColor(tankColor, forPlayer: player)
+                        return
+                    }
                 }
             }
         }
@@ -488,37 +475,48 @@ class OptionsScene: SKScene {
         }
     }
 
-    private func setTankColor(_ color: GameSettings.TankColor) {
-        GameSettings.shared.playerTankColor = color
+    private func setTankColor(_ color: GameSettings.TankColor, forPlayer player: Int) {
+        // The other player's color is taken: both tanks can't have the same color
+        guard color != selectedColor(forPlayer: 1 - player) else { return }
+        if player == 0 {
+            GameSettings.shared.playerTankColor = color
+        } else {
+            GameSettings.shared.player2TankColor = color
+        }
         updateColorButtons()
-        updateTankPreview()
+        updateTankPreviews()
     }
 
+    /// Selected color: white ring + check mark. The other player's color: dimmed with a cross.
     private func updateColorButtons() {
-        let selectedColor = GameSettings.shared.playerTankColor
+        for player in 0..<2 {
+            let selected = selectedColor(forPlayer: player)
+            let taken = selectedColor(forPlayer: 1 - player)
 
-        for (tankColor, button) in colorButtons {
-            let isSelected = tankColor == selectedColor
+            for (tankColor, button) in colorButtons[player] {
+                let isSelected = tankColor == selected
+                let isTaken = tankColor == taken
 
-            if let circle = button.childNode(withName: "circle") as? SKShapeNode {
-                circle.strokeColor = isSelected ? .white : .gray
-                circle.lineWidth = isSelected ? 4 : 2
-            }
+                button.alpha = isTaken ? 0.3 : 1.0
+                if let circle = button.childNode(withName: "circle") as? SKShapeNode {
+                    circle.strokeColor = isSelected ? .white : .gray
+                    circle.lineWidth = isSelected ? 4 : 2
+                }
 
-            // Add/remove check mark
-            button.childNode(withName: "check")?.removeFromParent()
-            if isSelected {
-                let check = SKLabelNode(text: "\u{2713}")
-                check.fontName = "Helvetica-Bold"
-                check.fontSize = 24
-                check.fontColor = .black
-                check.verticalAlignmentMode = .center
-                check.name = "check"
-                button.addChild(check)
-            }
+                button.childNode(withName: "check")?.removeFromParent()
+                if isSelected || isTaken {
+                    let mark = SKLabelNode(text: isSelected ? "\u{2713}" : "\u{2715}")
+                    mark.fontName = "Helvetica-Bold"
+                    mark.fontSize = 22
+                    mark.fontColor = .black
+                    mark.verticalAlignmentMode = .center
+                    mark.name = "check"
+                    button.addChild(mark)
+                }
 
-            if let label = button.childNode(withName: "colorLabel") as? SKLabelNode {
-                label.fontColor = isSelected ? .white : .gray
+                if let label = button.childNode(withName: "colorLabel") as? SKLabelNode {
+                    label.fontColor = isSelected ? .white : .gray
+                }
             }
         }
     }

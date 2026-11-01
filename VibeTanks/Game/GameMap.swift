@@ -32,7 +32,11 @@ class GameMap: SKNode {
         )
     }
 
-    init(level: Int = 1, seed: UInt64 = 0) {
+    /// Two-player game: also keep player 2's spawn area (right of the base) clear
+    private var clearsPlayer2Spawn = false
+
+    init(level: Int = 1, seed: UInt64 = 0, twoPlayers: Bool = false) {
+        self.clearsPlayer2Spawn = twoPlayers
         self.mapWidth = GameConstants.mapWidth
         self.mapHeight = GameConstants.mapHeight
         self.tileSize = GameConstants.tileSize
@@ -712,6 +716,14 @@ class GameMap: SKNode {
         for row in 23...(mapHeight - 2) {
             for col in 7...9 {
                 tiles[row][col] = .empty
+            }
+        }
+        // Player 2 spawn (bottom, mirrored to the right of the base)
+        if clearsPlayer2Spawn {
+            for row in 23...(mapHeight - 2) {
+                for col in 17...19 {
+                    tiles[row][col] = .empty
+                }
             }
         }
     }

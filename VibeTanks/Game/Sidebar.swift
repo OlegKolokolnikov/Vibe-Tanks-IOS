@@ -94,11 +94,20 @@ class Sidebar: SKNode {
     // Cache previous values to avoid unnecessary updates
     private var lastEnemyCount: Int = -1
     private var lastPlayerLives: Int = -1
+    private var lastPlayer2Lives: Int = -1
     private var lastLevel: Int = -1
-    private var lastPowerUpHash: Int = -1
+    private var lastPowerUps: PowerUpData?
+    private var lastPowerUps2: PowerUpData?
 
-    init(height: CGFloat) {
+    /// Two-player game: shows lives for both players and power-ups in two columns
+    private let twoPlayers: Bool
+
+    /// Extra space taken by the player 2 lives section
+    private static let player2SectionHeight: CGFloat = 45
+
+    init(height: CGFloat, twoPlayers: Bool = false) {
         self.sidebarHeight = height
+        self.twoPlayers = twoPlayers
         super.init()
 
         setupBackground()
@@ -134,7 +143,8 @@ class Sidebar: SKNode {
 
     private func setupPowerUps() {
         powerUpNode = SKNode()
-        powerUpNode.position = CGPoint(x: Sidebar.sectionPadding, y: sidebarHeight - Sidebar.powerUpSectionY)
+        let extraOffset = twoPlayers ? Sidebar.player2SectionHeight : 0
+        powerUpNode.position = CGPoint(x: Sidebar.sectionPadding, y: sidebarHeight - Sidebar.powerUpSectionY - extraOffset)
         addChild(powerUpNode)
     }
 
@@ -161,7 +171,7 @@ class Sidebar: SKNode {
     }
 
     /// Power-up data structure for sidebar display
-    struct PowerUpData {
+    struct PowerUpData: Equatable {
         var starCount: Int = 0        // Shooting speed (max 3)
         var machinegunCount: Int = 0  // Extra bullets (max 3)
         var hasGun: Bool = false      // Can break steel
@@ -170,95 +180,46 @@ class Sidebar: SKNode {
         var speedBoosts: Int = 0      // Speed upgrades
         var hasLaser: Bool = false    // Shots pass through walls
         var friendHits: Int = 0       // Gzhel friend's remaining hits (0 = no friend on field)
-
-        var hash: Int {
-            return starCount * 1 + machinegunCount * 10 + (hasGun ? 100 : 0) +
-                   (hasShip ? 1000 : 0) + (hasSaw ? 10000 : 0) + speedBoosts * 100000 +
-                   (hasLaser ? 10000000 : 0) + friendHits * 100000000
-        }
     }
 
-    /// Update the sidebar display (only when values change to avoid recreating nodes every frame)
-    func update(remainingEnemies: Int, playerLives: Int, level: Int, powerUps: PowerUpData = PowerUpData()) {
+    /// Update the sidebar display (only when values change to avoid recreating nodes every frame).
+    /// `player2Lives` / `powerUps2` are used in two-player games only.
+    func update(remainingEnemies: Int, playerLives: Int, player2Lives: Int = 0, level: Int,
+                powerUps: PowerUpData = PowerUpData(), powerUps2: PowerUpData = PowerUpData()) {
         if remainingEnemies != lastEnemyCount {
             lastEnemyCount = remainingEnemies
             updateEnemyIcons(count: remainingEnemies)
         }
-        if playerLives != lastPlayerLives {
+        if playerLives != lastPlayerLives || (twoPlayers && player2Lives != lastPlayer2Lives) {
             lastPlayerLives = playerLives
-            updatePlayerInfo(lives: playerLives)
+            lastPlayer2Lives = player2Lives
+            updatePlayerInfo(lives: playerLives, player2Lives: player2Lives)
         }
         if level != lastLevel {
             lastLevel = level
             updateFlag(level: level)
         }
-        if powerUps.hash != lastPowerUpHash {
-            lastPowerUpHash = powerUps.hash
-            updatePowerUps(powerUps)
+        if powerUps != lastPowerUps || (twoPlayers && powerUps2 != lastPowerUps2) {
+            lastPowerUps = powerUps
+            lastPowerUps2 = powerUps2
+            updatePowerUps(powerUps, player2: twoPlayers ? powerUps2 : nil)
         }
     }
 
-    private func updatePowerUps(_ data: PowerUpData) {
+    private func updatePowerUps(_ data: PowerUpData, player2 data2: PowerUpData?) {
         powerUpNode.removeAllChildren()
 
-        var yOffset: CGFloat = 0
         let lineHeight: CGFloat = 16
-        let iconSize: CGFloat = 12
+        var yOffset: CGFloat
 
-        // Star - shooting speed (max 3)
-        if data.starCount > 0 {
-            let row = createPowerUpRow(icon: "⭐", label: "x\(data.starCount)", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
-        }
-
-        // Machinegun - extra bullets (max 3)
-        if data.machinegunCount > 0 {
-            let row = createPowerUpRow(icon: "💥", label: "x\(data.machinegunCount)", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
-        }
-
-        // Gun - can break steel
-        if data.hasGun {
-            let row = createPowerUpRow(icon: "🔫", label: "", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
-        }
-
-        // Ship - can swim
-        if data.hasShip {
-            let row = createPowerUpRow(icon: "🚢", label: "", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
-        }
-
-        // Saw - can destroy trees
-        if data.hasSaw {
-            let row = createPowerUpRow(icon: "🪚", label: "", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
-        }
-
-        // Laser - shots pass through walls
-        if data.hasLaser {
-            let row = createPowerUpRow(icon: "🔦", label: "", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
-        }
-
-        // Speed boosts
-        if data.speedBoosts > 0 {
-            let row = createPowerUpRow(icon: "🚗", label: "x\(data.speedBoosts)", iconSize: iconSize)
-            row.position = CGPoint(x: 0, y: yOffset)
-            powerUpNode.addChild(row)
-            yOffset -= lineHeight
+        if let data2 = data2 {
+            // Two narrow columns: player 1 on the left, player 2 on the right
+            let columnWidth = (Sidebar.sidebarWidth - Sidebar.sectionPadding) / 2
+            let end1 = addPowerUpRows(data, x: 0, iconSize: 10, fontSize: 9, lineHeight: lineHeight)
+            let end2 = addPowerUpRows(data2, x: columnWidth, iconSize: 10, fontSize: 9, lineHeight: lineHeight)
+            yOffset = min(end1, end2)
+        } else {
+            yOffset = addPowerUpRows(data, x: 0, iconSize: 12, fontSize: 11, lineHeight: lineHeight)
         }
 
         // Friend (Gzhel tank) and its remaining hits
@@ -273,14 +234,36 @@ class Sidebar: SKNode {
             title.position = CGPoint(x: 0, y: yOffset)
             powerUpNode.addChild(title)
             yOffset -= lineHeight
-            let row = createPowerUpRow(icon: "💙", label: "x\(data.friendHits)", iconSize: iconSize)
+            let row = createPowerUpRow(icon: "💙", label: "x\(data.friendHits)", iconSize: 12)
             row.position = CGPoint(x: 0, y: yOffset)
             powerUpNode.addChild(row)
             yOffset -= lineHeight
         }
     }
 
-    private func createPowerUpRow(icon: String, label: String, iconSize: CGFloat) -> SKNode {
+    /// Add one player's power-up rows in a column starting at the top; returns the next free Y
+    private func addPowerUpRows(_ data: PowerUpData, x: CGFloat, iconSize: CGFloat,
+                                fontSize: CGFloat, lineHeight: CGFloat) -> CGFloat {
+        var rows: [(icon: String, label: String)] = []
+        if data.starCount > 0 { rows.append(("⭐", "x\(data.starCount)")) }          // Shooting speed
+        if data.machinegunCount > 0 { rows.append(("💥", "x\(data.machinegunCount)")) } // Extra bullets
+        if data.hasGun { rows.append(("🔫", "")) }      // Can break steel
+        if data.hasShip { rows.append(("🚢", "")) }     // Can swim
+        if data.hasSaw { rows.append(("🪚", "")) }      // Can destroy trees
+        if data.hasLaser { rows.append(("🔦", "")) }    // Shots pass through walls
+        if data.speedBoosts > 0 { rows.append(("🚗", "x\(data.speedBoosts)")) }
+
+        var yOffset: CGFloat = 0
+        for row in rows {
+            let node = createPowerUpRow(icon: row.icon, label: row.label, iconSize: iconSize, fontSize: fontSize)
+            node.position = CGPoint(x: x, y: yOffset)
+            powerUpNode.addChild(node)
+            yOffset -= lineHeight
+        }
+        return yOffset
+    }
+
+    private func createPowerUpRow(icon: String, label: String, iconSize: CGFloat, fontSize: CGFloat = 11) -> SKNode {
         let container = SKNode()
 
         // Icon
@@ -295,11 +278,11 @@ class Sidebar: SKNode {
         if !label.isEmpty {
             let textLabel = SKLabelNode(text: label)
             textLabel.fontName = "Helvetica-Bold"
-            textLabel.fontSize = 11
+            textLabel.fontSize = fontSize
             textLabel.fontColor = Sidebar.textColor
             textLabel.horizontalAlignmentMode = .left
             textLabel.verticalAlignmentMode = .center
-            textLabel.position = CGPoint(x: iconSize + 4, y: 0)
+            textLabel.position = CGPoint(x: iconSize + (fontSize < 11 ? 2 : 4), y: 0)
             container.addChild(textLabel)
         }
 
@@ -327,21 +310,31 @@ class Sidebar: SKNode {
         }
     }
 
-    private func updatePlayerInfo(lives: Int) {
+    private func updatePlayerInfo(lives: Int, player2Lives: Int) {
         playerInfoNode.removeAllChildren()
 
-        // "IP" label (Player 1)
-        let ipLabel = SKLabelNode(text: "IP")
+        addPlayerLivesSection(title: "IP", lives: lives,
+                              tankColor: GameSettings.shared.playerTankColor.color, y: 0)
+        if twoPlayers {
+            addPlayerLivesSection(title: "IIP", lives: player2Lives,
+                                  tankColor: GameSettings.shared.player2TankColor.color,
+                                  y: -Sidebar.player2SectionHeight)
+        }
+    }
+
+    /// "IP" / "IIP" title, small tank icon and remaining lives
+    private func addPlayerLivesSection(title: String, lives: Int, tankColor: SKColor, y: CGFloat) {
+        let ipLabel = SKLabelNode(text: title)
         ipLabel.fontName = "Helvetica-Bold"
         ipLabel.fontSize = 12
         ipLabel.fontColor = Sidebar.playerIconColor
         ipLabel.horizontalAlignmentMode = .left
-        ipLabel.position = CGPoint(x: 0, y: 0)
+        ipLabel.position = CGPoint(x: 0, y: y)
         playerInfoNode.addChild(ipLabel)
 
         // Small player tank icon
-        let tankIcon = createPlayerTankIcon(size: 20)
-        tankIcon.position = CGPoint(x: 10, y: -25)
+        let tankIcon = createPlayerTankIcon(size: 20, color: tankColor)
+        tankIcon.position = CGPoint(x: 10, y: y - 25)
         playerInfoNode.addChild(tankIcon)
 
         // Lives count (show lives - 1 like original)
@@ -351,13 +344,12 @@ class Sidebar: SKNode {
         livesLabel.fontSize = 14
         livesLabel.fontColor = Sidebar.textColor
         livesLabel.horizontalAlignmentMode = .right
-        livesLabel.position = CGPoint(x: Sidebar.sidebarWidth - Sidebar.sectionPadding * 2, y: -18)
+        livesLabel.position = CGPoint(x: Sidebar.sidebarWidth - Sidebar.sectionPadding * 2, y: y - 18)
         playerInfoNode.addChild(livesLabel)
     }
 
-    private func createPlayerTankIcon(size: CGFloat) -> SKNode {
+    private func createPlayerTankIcon(size: CGFloat, color tankColor: SKColor) -> SKNode {
         let container = SKNode()
-        let tankColor = SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Gold
 
         // Body
         let bodyW = size * 0.6
