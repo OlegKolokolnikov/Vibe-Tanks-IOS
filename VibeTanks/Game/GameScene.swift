@@ -128,8 +128,23 @@ class GameScene: SKScene {
     private let goldSpawnChance: Double = 0.0003  // ~1% chance per second at 60fps
     private var ufoMessageLabel: SKLabelNode?
 
-    // Gzhel tank (Gzhel mode only): one ally per level that hunts enemies
+    // Gzhel tank: an ally that hunts enemies. It appears on Gzhel levels, and if it survives
+    // a level it comes back on the next ones until it is destroyed.
     var gzhelTank: Tank?
+
+    /// Friend's state carried into the next level
+    struct FriendCarry {
+        var health: Int
+        var maxHealth: Int
+        var starCount: Int
+        var machinegunCount: Int
+        var bulletPower: Int
+        var speedMultiplier: CGFloat
+        var canSwim: Bool
+        var canDestroyTrees: Bool
+    }
+    /// Friend who survived the previous level (appears shortly after this level starts)
+    private var returningFriend: FriendCarry?
     private var friendLivesLabel: SKLabelNode?
     private var gzhelSpawnedThisLevel: Bool = false
     private var gzhelSpawnFrame: Int = 0      // Random frame when it tries to appear
@@ -222,7 +237,9 @@ class GameScene: SKScene {
 
     // Level initialization
     init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
-         playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0) {
+         playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0,
+         friend: FriendCarry? = nil) {
+        self.returningFriend = friend
         self.level = level
         self.scores = [score, player2Score]
         self.initialLives = lives
@@ -692,7 +709,9 @@ class GameScene: SKScene {
         let totalEnemies = GameScene.isEasyMode ? 18 : min(20 + (level - 1) * 2, 50)
 
         // Gzhel tank appears at a random moment, 10-40 seconds into the level
-        if showGzhelBorder {
+        if returningFriend != nil {
+            gzhelSpawnFrame = 60  // The surviving friend rolls in a second after the start
+        } else if showGzhelBorder {
             gzhelSpawnFrame = Int.random(in: 600...2400)
         }
 
@@ -1019,9 +1038,10 @@ class GameScene: SKScene {
 
     // MARK: - Gzhel Tank
 
-    /// Spawn the Gzhel tank once per Gzhel level, at its random moment
+    /// Spawn the Gzhel tank once per Gzhel level at its random moment,
+    /// or bring back the friend who survived the previous level
     private func updateGzhelSpawn() {
-        guard showGzhelBorder, !gzhelSpawnedThisLevel, victoryDelayTimer == 0 else { return }
+        guard showGzhelBorder || returningFriend != nil, !gzhelSpawnedThisLevel, victoryDelayTimer == 0 else { return }
 
         gzhelFrameCounter += 1
         guard gzhelFrameCounter >= gzhelSpawnFrame else { return }
@@ -1037,12 +1057,25 @@ class GameScene: SKScene {
             guard !blocked else { continue }
 
             let tank = Tank(position: pos, direction: .up, isPlayer: false, playerNumber: 0, enemyType: .gzhel)
+            if let carry = returningFriend {
+                // Same friend as last level: keeps its remaining hits and upgrades
+                tank.health = carry.health
+                tank.maxHealth = carry.maxHealth
+                tank.starCount = carry.starCount
+                tank.machinegunCount = carry.machinegunCount
+                tank.bulletPower = carry.bulletPower
+                tank.speedMultiplier = carry.speedMultiplier
+                tank.canSwim = carry.canSwim
+                tank.canDestroyTrees = carry.canDestroyTrees
+                tank.drawTank()
+            }
             gzhelTank = tank
             gzhelSpawnedThisLevel = true
             invalidateAllTanksCache()
             gameLayer.addChild(tank)
             showSpawnEffect(at: pos)
-            showUFOMessage("FRIEND!", color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
+            showUFOMessage(returningFriend != nil ? "FRIEND IS BACK!" : "FRIEND!",
+                           color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
             return
         }
     }
@@ -1069,7 +1102,7 @@ class GameScene: SKScene {
     }
 
     /// The friend (Gzhel tank) leaves with a colorful farewell:
-    /// when all enemies are destroyed, or when enemies have used up its hits
+    /// when enemies have used up its hits (a friend that survives a level stays for the next one)
     func dismissGzhelTank(killed: Bool = false) {
         gzhelSpawnedThisLevel = true  // Appears only once per level
         guard let gzhel = gzhelTank else { return }
@@ -1931,7 +1964,8 @@ class GameScene: SKScene {
         if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) && victoryDelayTimer == 0 && !isGameOver {
             victoryDelayTimer = GameConstants.victoryDelay
             showEffect(text: "VICTORY! Collect power-ups!", color: .green)
-            dismissGzhelTank()
+            // The friend stays (it comes along to the next level); one that hasn't appeared yet won't now
+            gzhelSpawnedThisLevel = true
         }
 
         // Check lose condition: every player is out of lives
@@ -2854,9 +2888,18 @@ class GameScene: SKScene {
         let ufoEscaped = ufoEscapedThisLevel || (ufoSpawnedThisLevel && !ufoWasKilled)
         let nextAlienMode = ufoEscaped && !alienMode
 
+        // A friend who survived the level comes along
+        let friend = gzhelTank.flatMap { tank -> FriendCarry? in
+            guard tank.isAlive else { return nil }
+            return FriendCarry(health: tank.health, maxHealth: tank.maxHealth, starCount: tank.starCount,
+                               machinegunCount: tank.machinegunCount, bulletPower: tank.bulletPower,
+                               speedMultiplier: tank.speedMultiplier, canSwim: tank.canSwim,
+                               canDestroyTrees: tank.canDestroyTrees)
+        }
+
         let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode,
                                  playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2,
-                                 player2Score: scores[1])
+                                 player2Score: scores[1], friend: friend)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
