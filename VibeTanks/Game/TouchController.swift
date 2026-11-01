@@ -125,14 +125,15 @@ class TouchController: SKNode {
 
     private(set) var showsPauseButton = true
 
-    func setupForScreen(size: CGSize, layout: Layout = .single) {
+    func setupForScreen(size: CGSize, layout: Layout = .single,
+                        firePlacement: GameSettings.FirePlacement = .above) {
         // Coordinates are relative to camera center (0,0)
         // Use larger margins to keep controls well inside screen
         let sideMargin: CGFloat = 130
         let bottomMargin: CGFloat = 100
         let topMargin: CGFloat = 80
-        // Fire above the joystick (2 players): far enough apart that the touch zones don't overlap
-        let fireAboveJoystick: CGFloat = 230
+        // Two players: fire next to the joystick, far enough apart that the touch zones don't overlap
+        let gap: CGFloat = 230
 
         let leftX = -size.width / 2 + sideMargin
         let rightX = size.width / 2 - sideMargin
@@ -140,15 +141,33 @@ class TouchController: SKNode {
 
         pauseButtonPosition = CGPoint(x: rightX, y: size.height / 2 - topMargin)
 
+        // Edge column and the column one step toward the middle of the screen
+        func place(edgeX: CGFloat, inward: CGFloat) {
+            let innerX = edgeX + inward * gap
+            let upperY = bottomY + gap
+            switch firePlacement {
+            case .above:
+                joystickPosition = CGPoint(x: edgeX, y: bottomY)
+                fireButtonPosition = CGPoint(x: edgeX, y: upperY)
+            case .below:
+                joystickPosition = CGPoint(x: edgeX, y: upperY)
+                fireButtonPosition = CGPoint(x: edgeX, y: bottomY)
+            case .inside:
+                joystickPosition = CGPoint(x: edgeX, y: bottomY)
+                fireButtonPosition = CGPoint(x: innerX, y: bottomY)
+            case .outside:
+                joystickPosition = CGPoint(x: innerX, y: bottomY)
+                fireButtonPosition = CGPoint(x: edgeX, y: bottomY)
+            }
+        }
+
         switch layout {
         case .leftPlayer:
-            joystickPosition = CGPoint(x: leftX, y: bottomY)
-            fireButtonPosition = CGPoint(x: leftX, y: bottomY + fireAboveJoystick)
+            place(edgeX: leftX, inward: 1)
             setPauseButtonVisible(false)  // The right player's controller owns pause
             return
         case .rightPlayer:
-            joystickPosition = CGPoint(x: rightX, y: bottomY)
-            fireButtonPosition = CGPoint(x: rightX, y: bottomY + fireAboveJoystick)
+            place(edgeX: rightX, inward: -1)
             setPauseButtonVisible(true)
             return
         case .single:

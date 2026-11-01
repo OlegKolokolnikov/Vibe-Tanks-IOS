@@ -40,10 +40,14 @@ class OptionsScene: SKScene {
         // Tank Color Section
         setupColorSection()
 
-        // Back button
-        let backButton = createButton(text: "BACK", position: CGPoint(x: size.width / 2, y: size.height * 0.1))
+        // Back button and the controls screen (keys and touch layout per player)
+        let backButton = createButton(text: "BACK", position: CGPoint(x: size.width / 2 - 95, y: size.height * 0.1))
         backButton.name = "backButton"
         addChild(backButton)
+
+        let controlsButton = createButton(text: "CONTROLS", position: CGPoint(x: size.width / 2 + 95, y: size.height * 0.1))
+        controlsButton.name = "controlsButton"
+        addChild(controlsButton)
     }
 
     // MARK: - Controls Section
@@ -411,6 +415,12 @@ class OptionsScene: SKScene {
             // Back button
             if name == "backButton" || node.parent?.name == "backButton" {
                 goBack()
+                return
+            }
+            if name == "controlsButton" || node.parent?.name == "controlsButton" {
+                let controls = ControlsScene(size: size)
+                controls.scaleMode = scaleMode
+                view?.presentScene(controls, transition: .fade(withDuration: 0.3))
                 return
             }
 

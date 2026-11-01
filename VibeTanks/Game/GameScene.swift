@@ -180,7 +180,7 @@ class GameScene: SKScene {
     var baseIsSteel: Bool = false
 
     // Keyboard input (for simulator and macOS), indexed by playerNumber - 1.
-    // One player: arrows/WASD + Space/J. Two players: P1 WASD + Space, P2 arrows + Enter/Right Shift.
+    // Keys are set per player in Options → Controls (default P1 WASD + Space, P2 arrows + Enter).
     private var keyboardDirection: [Direction?] = [nil, nil]
     private var keyboardFiring: [Bool] = [false, false]
     #if os(iOS) || os(tvOS)
@@ -762,7 +762,8 @@ class GameScene: SKScene {
         // Touch controller - add to camera so it stays on screen
         // Use the visible screen size in camera coordinates
         touchController = TouchController()
-        touchController.setupForScreen(size: visibleSize, layout: isTwoPlayer ? .leftPlayer : .single)
+        touchController.setupForScreen(size: visibleSize, layout: isTwoPlayer ? .leftPlayer : .single,
+                                       firePlacement: GameSettings.shared.firePlacement(player: 0))
         touchController.setGzhelMode(showGzhelBorder)
         gameCamera.addChild(touchController)
 
@@ -770,7 +771,8 @@ class GameScene: SKScene {
             // Player 1 holds the left edge, player 2 the right edge
             touchController.setPlayerMarker(text: "1P", color: GameSettings.shared.playerTankColor.color)
             let controller2 = TouchController()
-            controller2.setupForScreen(size: visibleSize, layout: .rightPlayer)
+            controller2.setupForScreen(size: visibleSize, layout: .rightPlayer,
+                                       firePlacement: GameSettings.shared.firePlacement(player: 1))
             controller2.setGzhelMode(showGzhelBorder)
             controller2.setPlayerMarker(text: "2P", color: GameSettings.shared.player2TankColor.color)
             gameCamera.addChild(controller2)
@@ -2886,25 +2888,24 @@ class GameScene: SKScene {
     #if os(iOS) || os(tvOS)
     // iOS keyboard support (hardware keyboard / simulator)
 
-    /// What a key does: move or fire for a player (0 = player 1, 1 = player 2).
-    /// One player: arrows/WASD move, Space/J fire.
-    /// Two players: player 1 WASD + Space/J, player 2 arrows + Enter/Right Shift.
-    private func keyBinding(_ code: UIKeyboardHIDUsage) -> (player: Int, direction: Direction?)? {
-        let p2 = isTwoPlayer ? 1 : 0
-        switch code {
-        case .keyboardW: return (0, .up)
-        case .keyboardS: return (0, .down)
-        case .keyboardA: return (0, .left)
-        case .keyboardD: return (0, .right)
-        case .keyboardUpArrow: return (p2, .up)
-        case .keyboardDownArrow: return (p2, .down)
-        case .keyboardLeftArrow: return (p2, .left)
-        case .keyboardRightArrow: return (p2, .right)
-        case .keyboardSpacebar, .keyboardJ: return (0, nil)
-        case .keyboardReturnOrEnter, .keyboardRightShift:
-            return isTwoPlayer ? (1, nil) : nil
-        default: return nil
+    /// Key → (player, direction or nil for fire), from the keys chosen in Options → Controls.
+    /// One player: both players' keys control the single tank.
+    private lazy var keyMap: [UIKeyboardHIDUsage: (player: Int, direction: Direction?)] = {
+        var map: [UIKeyboardHIDUsage: (player: Int, direction: Direction?)] = [:]
+        for player in 0..<2 {
+            for action in GameSettings.KeyAction.allCases {
+                let key = GameSettings.shared.key(for: action, player: player)
+                if map[key] == nil {
+                    map[key] = (isTwoPlayer ? player : 0, action.direction)
+                }
+            }
         }
+        return map
+    }()
+
+    /// What a key does: move or fire for a player (0 = player 1, 1 = player 2)
+    private func keyBinding(_ code: UIKeyboardHIDUsage) -> (player: Int, direction: Direction?)? {
+        return keyMap[code]
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

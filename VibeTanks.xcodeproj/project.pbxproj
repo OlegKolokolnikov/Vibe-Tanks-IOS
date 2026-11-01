@@ -31,6 +31,7 @@
 		A10000010000000000000023 /* Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000023 /* Sidebar.swift */; };
 		A10000010000000000000024 /* GameSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000024 /* GameSettings.swift */; };
 		A10000010000000000000025 /* OptionsScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000025 /* OptionsScene.swift */; };
+		A1000001000000000000003C /* ControlsScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000003C /* ControlsScene.swift */; };
 		A10000010000000000000026 /* GameScene+Collision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000026 /* GameScene+Collision.swift */; };
 		A10000010000000000000030 /* shoot.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000030 /* shoot.wav */; };
 		A10000010000000000000031 /* explosion.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000031 /* explosion.wav */; };
@@ -72,6 +73,7 @@
 		A10000020000000000000023 /* Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar.swift; sourceTree = "<group>"; };
 		A10000020000000000000024 /* GameSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSettings.swift; sourceTree = "<group>"; };
 		A10000020000000000000025 /* OptionsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionsScene.swift; sourceTree = "<group>"; };
+		A1000002000000000000003C /* ControlsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlsScene.swift; sourceTree = "<group>"; };
 		A10000020000000000000026 /* GameScene+Collision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameScene+Collision.swift"; sourceTree = "<group>"; };
 		A10000020000000000000030 /* shoot.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = shoot.wav; sourceTree = "<group>"; };
 		A10000020000000000000031 /* explosion.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = explosion.wav; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				A10000020000000000000023 /* Sidebar.swift */,
 				A10000020000000000000024 /* GameSettings.swift */,
 				A10000020000000000000025 /* OptionsScene.swift */,
+				A1000002000000000000003C /* ControlsScene.swift */,
 				A10000020000000000000026 /* GameScene+Collision.swift */,
 			);
 			path = Game;
@@ -290,6 +293,7 @@
 				A10000010000000000000023 /* Sidebar.swift in Sources */,
 				A10000010000000000000024 /* GameSettings.swift in Sources */,
 				A10000010000000000000025 /* OptionsScene.swift in Sources */,
+				A1000001000000000000003C /* ControlsScene.swift in Sources */,
 				A10000010000000000000026 /* GameScene+Collision.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
