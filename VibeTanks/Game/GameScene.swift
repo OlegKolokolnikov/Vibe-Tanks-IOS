@@ -723,7 +723,8 @@ class GameScene: SKScene {
         // Setup enemy spawner
         enemySpawner = EnemySpawner(
             totalEnemies: totalEnemies,
-            maxOnScreen: GameConstants.maxEnemiesOnScreen
+            maxOnScreen: GameConstants.maxEnemiesOnScreen,
+            hasBoss: level % GameConstants.bossLevelInterval == 0
         )
     }
 
@@ -885,6 +886,7 @@ class GameScene: SKScene {
 
         updatePlayers()
         updateEnemies()
+        updateBossHealthBar()
         updateGzhelSpawn()
         updateGzhelTank()
         updateBullets()
@@ -1208,6 +1210,190 @@ class GameScene: SKScene {
         updateFriendLivesLabel()
     }
 
+    // MARK: - Boss
+
+    private var bossHealthBar: SKNode?
+
+    /// Health bar floating above the boss (10 segments)
+    private func updateBossHealthBar() {
+        guard let boss = enemyTanks.first(where: { $0.isAlive && $0.enemyType == .boss }) else {
+            bossHealthBar?.removeFromParent()
+            bossHealthBar = nil
+            return
+        }
+        let width: CGFloat = 34, height: CGFloat = 5
+        let bar: SKNode
+        if let existing = bossHealthBar {
+            bar = existing
+        } else {
+            bar = SKNode()
+            bar.zPosition = 55
+            let back = SKSpriteNode(color: SKColor(white: 0.1, alpha: 0.85), size: CGSize(width: width + 2, height: height + 2))
+            bar.addChild(back)
+            let fill = SKSpriteNode(color: .red, size: CGSize(width: width, height: height))
+            fill.anchorPoint = CGPoint(x: 0, y: 0.5)
+            fill.position = CGPoint(x: -width / 2, y: 0)
+            fill.name = "fill"
+            bar.addChild(fill)
+            gameLayer.addChild(bar)
+            bossHealthBar = bar
+        }
+        let fraction = CGFloat(max(boss.health, 0)) / CGFloat(max(boss.maxHealth, 1))
+        if let fill = bar.childNode(withName: "fill") as? SKSpriteNode {
+            fill.size.width = width * fraction
+            fill.color = fraction > 0.5 ? .red : (fraction > 0.2 ? .orange : .yellow)
+        }
+        bar.position = CGPoint(x: boss.position.x, y: boss.position.y + boss.size.height / 2 + 6)
+    }
+
+    /// The boss flashes white when hit
+    func flashBossHit(_ boss: Tank) {
+        boss.childNode(withName: "tankBody")?.run(SKAction.sequence([
+            SKAction.colorize(with: .white, colorBlendFactor: 0.8, duration: 0.05),
+            SKAction.colorize(withColorBlendFactor: 0, duration: 0.1)
+        ]))
+    }
+
+    /// Boss destroyed: chain of explosions, fireworks, a big title and the winning fanfare
+    func showBossDefeated(at position: CGPoint) {
+        SoundManager.shared.playBossDefeated()
+        bossHealthBar?.removeFromParent()
+        bossHealthBar = nil
+
+        // White flash over the battlefield
+        let cs = gameCamera.xScale
+        let flash = SKSpriteNode(color: .white, size: CGSize(width: size.width * cs * 2, height: size.height * cs * 2))
+        flash.zPosition = 140
+        flash.alpha = 0.7
+        gameCamera.addChild(flash)
+        flash.run(SKAction.sequence([SKAction.fadeOut(withDuration: 0.4), SKAction.removeFromParent()]))
+
+        // Chain of explosions around the wreck
+        let blasts = SKNode()
+        blasts.zPosition = 60
+        gameLayer.addChild(blasts)
+        var chain: [SKAction] = []
+        for i in 0..<8 {
+            chain.append(SKAction.run { [weak self, weak blasts] in
+                guard let self = self, let blasts = blasts else { return }
+                let offset = i == 0 ? CGPoint.zero : CGPoint(x: CGFloat.random(in: -30...30), y: CGFloat.random(in: -30...30))
+                self.addBossBlast(to: blasts, at: CGPoint(x: position.x + offset.x, y: position.y + offset.y), big: i == 0)
+            })
+            chain.append(SKAction.wait(forDuration: 0.1))
+        }
+        chain.append(SKAction.wait(forDuration: 1.0))
+        chain.append(SKAction.removeFromParent())
+        blasts.run(SKAction.sequence(chain))
+
+        // Fireworks all over the map
+        let fireworks = SKNode()
+        fireworks.zPosition = 61
+        gameLayer.addChild(fireworks)
+        var shots: [SKAction] = [SKAction.wait(forDuration: 0.6)]
+        for _ in 0..<7 {
+            shots.append(SKAction.run { [weak self, weak fireworks] in
+                guard let self = self, let fireworks = fireworks else { return }
+                let point = CGPoint(x: CGFloat.random(in: 120...(GameConstants.gameWidth - 120)),
+                                    y: CGFloat.random(in: 160...(GameConstants.gameHeight - 120)))
+                self.addFireworkBurst(to: fireworks, at: point)
+            })
+            shots.append(SKAction.wait(forDuration: 0.35))
+        }
+        shots.append(SKAction.wait(forDuration: 1.5))
+        shots.append(SKAction.removeFromParent())
+        fireworks.run(SKAction.sequence(shots))
+
+        // Big title: pops in, cycles colors, then fades
+        let title = SKLabelNode(text: "☠ BOSS DEFEATED! ☠")
+        title.fontName = "Helvetica-Bold"
+        title.fontSize = 46 * cs
+        title.fontColor = .yellow
+        title.verticalAlignmentMode = .center
+        title.position = CGPoint(x: 0, y: 140 * cs)
+        title.zPosition = 160
+        title.setScale(0.1)
+        gameCamera.addChild(title)
+
+        let shadow = SKLabelNode(text: title.text)
+        shadow.fontName = title.fontName
+        shadow.fontSize = title.fontSize
+        shadow.fontColor = SKColor(white: 0, alpha: 0.7)
+        shadow.verticalAlignmentMode = .center
+        shadow.position = CGPoint(x: 3 * cs, y: -3 * cs)
+        shadow.zPosition = -1
+        title.addChild(shadow)
+
+        let pop = SKAction.sequence([
+            SKAction.scale(to: 1.3, duration: 0.25),
+            SKAction.scale(to: 1.0, duration: 0.15)
+        ])
+        let colors: [SKColor] = [.yellow, .orange, .red, .magenta, .cyan, .green]
+        let cycle = SKAction.repeat(SKAction.sequence(colors.map { color in
+            SKAction.sequence([SKAction.run { title.fontColor = color }, SKAction.wait(forDuration: 0.12)])
+        }), count: 5)
+        let wobble = SKAction.repeat(SKAction.sequence([
+            SKAction.rotate(toAngle: 0.05, duration: 0.15),
+            SKAction.rotate(toAngle: -0.05, duration: 0.15)
+        ]), count: 6)
+        title.run(SKAction.sequence([
+            pop,
+            SKAction.group([cycle, wobble]),
+            SKAction.rotate(toAngle: 0, duration: 0.1),
+            SKAction.group([SKAction.fadeOut(withDuration: 0.6), SKAction.scale(to: 1.6, duration: 0.6)]),
+            SKAction.removeFromParent()
+        ]))
+    }
+
+    private func addBossBlast(to parent: SKNode, at point: CGPoint, big: Bool) {
+        SoundManager.shared.playExplosion()
+        let radius: CGFloat = big ? 22 : 12
+        for (color, scale, delay) in [(SKColor.yellow, 3.5, 0.0), (SKColor.orange, 2.8, 0.05), (SKColor.red, 2.0, 0.1)] {
+            let ball = SKShapeNode(circleOfRadius: radius)
+            ball.fillColor = color
+            ball.strokeColor = .clear
+            ball.position = point
+            ball.setScale(0.2)
+            parent.addChild(ball)
+            ball.run(SKAction.sequence([
+                SKAction.wait(forDuration: delay),
+                SKAction.group([SKAction.scale(to: CGFloat(scale) * (big ? 1.4 : 1), duration: 0.35),
+                                SKAction.fadeOut(withDuration: 0.45)]),
+                SKAction.removeFromParent()
+            ]))
+        }
+        if big {
+            let ring = SKShapeNode(circleOfRadius: 16)
+            ring.strokeColor = .white
+            ring.lineWidth = 4
+            ring.position = point
+            parent.addChild(ring)
+            ring.run(SKAction.sequence([
+                SKAction.group([SKAction.scale(to: 9, duration: 0.7), SKAction.fadeOut(withDuration: 0.7)]),
+                SKAction.removeFromParent()
+            ]))
+        }
+    }
+
+    private func addFireworkBurst(to parent: SKNode, at point: CGPoint) {
+        let color = SKColor(hue: CGFloat.random(in: 0...1), saturation: 0.9, brightness: 1, alpha: 1)
+        let count = 22
+        for i in 0..<count {
+            let spark = SKSpriteNode(color: i % 4 == 0 ? .white : color, size: CGSize(width: 4, height: 4))
+            spark.position = point
+            parent.addChild(spark)
+            let angle = CGFloat(i) / CGFloat(count) * .pi * 2
+            let distance = CGFloat.random(in: 50...80)
+            let fly = SKAction.moveBy(x: cos(angle) * distance, y: sin(angle) * distance, duration: 0.7)
+            fly.timingMode = .easeOut
+            let fall = SKAction.moveBy(x: 0, y: -18, duration: 0.5)
+            spark.run(SKAction.sequence([
+                SKAction.group([fly, SKAction.sequence([SKAction.wait(forDuration: 0.4), SKAction.fadeOut(withDuration: 0.8)])]),
+                fall,
+                SKAction.removeFromParent()
+            ]))
+        }
+    }
+
     /// Colorful confetti and a blue ring (Gzhel tank farewell)
     private func showConfettiBurst(at position: CGPoint) {
         let colors: [SKColor] = [.red, .orange, .yellow, .green, .cyan, .blue, .magenta, .white]
@@ -1344,6 +1530,9 @@ class GameScene: SKScene {
             invalidateAllTanksCache()
             gameLayer.addChild(newEnemy)
             showSpawnEffect(at: newEnemy.position)
+            if newEnemy.enemyType == .boss {
+                showEffect(text: "☠ BOSS IS COMING! ☠", color: .red)
+            }
         }
 
         // Spawn extra enemies (from tank power-up collection, don't spawn on player)
@@ -1675,6 +1864,11 @@ class GameScene: SKScene {
             // Alien stays an alien, but shoots more
             enemy.machinegunCount = 2
             showEffect(text: "GOLD ALIEN!", color: .red)
+        case .boss:
+            // The boss stays the boss: fully healed and shoots more
+            enemy.health = enemy.maxHealth
+            enemy.machinegunCount = 2
+            showEffect(text: "GOLD BOSS!", color: .red)
         case .heavy:
             // Heavy tank → gets speed + machinegun + ship (ultimate form)
             enemy.speedMultiplier = 1.8
@@ -1848,7 +2042,19 @@ class GameScene: SKScene {
     }
 
     private func destroyAllEnemies() {
-        for enemy in enemyTanks {
+        // The boss is too tough for a bomb: it just takes one hit
+        var survivors: [Tank] = []
+        for enemy in enemyTanks where enemy.isAlive && enemy.enemyType == .boss {
+            bombUsedThisLevel = true
+            enemy.damage(bypassShip: true, bypassShield: true)
+            if enemy.isAlive {
+                flashBossHit(enemy)
+                survivors.append(enemy)
+            } else {
+                showBossDefeated(at: enemy.position)
+            }
+        }
+        for enemy in enemyTanks where !survivors.contains(where: { $0 === enemy }) {
             if enemy.isAlive {
                 bombUsedThisLevel = true
                 // No score or kill credit for bomb kills
@@ -1860,7 +2066,7 @@ class GameScene: SKScene {
             // Remove from scene
             enemy.removeFromParent()
         }
-        enemyTanks.removeAll()
+        enemyTanks = survivors
         invalidateAllTanksCache()
     }
 

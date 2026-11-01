@@ -19,7 +19,7 @@ struct GameConstants {
     static let tankSize: CGFloat = 28
     static let tankSpeed: CGFloat = 2.0
     static let enemyTankSpeed: CGFloat = 1.5
-    static let bossTankSize: CGFloat = 28 * 4
+    static let bossTankSize: CGFloat = 28  // Same size as other tanks so it fits every corridor
     static let alienSize: CGFloat = 22  // Small alien enemy (alien mode)
 
     // Player spawn / respawn point
@@ -45,7 +45,8 @@ struct GameConstants {
     static let spawnDelay = 50 // frames (~0.8 seconds)
 
     // Boss settings
-    static let bossBaseHealth = 12
+    static let bossBaseHealth = 10
+    static let bossLevelInterval = 10  // Boss is the last tank of every 10th level
 
     // Spawn type thresholds (cumulative probabilities)
     static let spawnRegularThreshold = 0.50

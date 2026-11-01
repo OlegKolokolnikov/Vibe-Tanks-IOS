@@ -13,6 +13,7 @@ class SoundManager {
     private var sadPlayer: AVAudioPlayer?
     private var gameOverPlayer: AVAudioPlayer?  // 10-second game over tune
     private var victoryPlayer: AVAudioPlayer?
+    private var bossDefeatedPlayer: AVAudioPlayer?  // Fanfare when the boss tank dies
     private var playerDeathPlayer: AVAudioPlayer?
     private var baseDestroyedPlayer: AVAudioPlayer?
     private var treeBurnPlayer: AVAudioPlayer?
@@ -81,7 +82,7 @@ class SoundManager {
 
     private var allEffectPlayers: [AVAudioPlayer] {
         let singles: [AVAudioPlayer?] = [
-            introPlayer, sadPlayer, gameOverPlayer, victoryPlayer, playerDeathPlayer,
+            introPlayer, sadPlayer, gameOverPlayer, victoryPlayer, bossDefeatedPlayer, playerDeathPlayer,
             baseDestroyedPlayer, treeBurnPlayer, laserPlayer, powerUpSpawnPlayer
         ]
         return shootPlayers + explosionPlayers + singles.compactMap { $0 }
@@ -129,6 +130,7 @@ class SoundManager {
         sadPlayer = loadPlayer("sad", volume: 0.6)
         gameOverPlayer = loadPlayer("game_over", volume: 0.6)
         victoryPlayer = loadPlayer("victory", volume: 0.6)
+        bossDefeatedPlayer = loadPlayer("boss_defeated", volume: 0.7)
         playerDeathPlayer = loadPlayer("player_death", volume: 0.6)
         baseDestroyedPlayer = loadPlayer("base_destroyed", volume: 0.7)
         treeBurnPlayer = loadPlayer("tree_burn", volume: 0.5)
@@ -198,6 +200,12 @@ class SoundManager {
         guard !isSilent else { return }
         victoryPlayer?.currentTime = 0
         victoryPlayer?.play()
+    }
+
+    func playBossDefeated() {
+        guard !isSilent else { return }
+        bossDefeatedPlayer?.currentTime = 0
+        bossDefeatedPlayer?.play()
     }
 
     func playPlayerDeath() {

@@ -44,6 +44,9 @@ extension GameScene {
                     if !enemy.isAlive {
                         enemiesToRemove.append(enemy)
                         SoundManager.shared.playExplosion()
+                        if enemy.enemyType == .boss { showBossDefeated(at: enemy.position) }
+                    } else if enemy.enemyType == .boss {
+                        flashBossHit(enemy)
                     }
                     break
                 }
@@ -63,10 +66,13 @@ extension GameScene {
                 for enemy in enemyTanks {
                     if enemy.isAlive && bullet.collidesWith(enemy) {
                         let wasPowerTank = enemy.enemyType == .power
-                        if bullet.isLaser {
-                            enemy.destroyInstantly()  // Laser kills any enemy with one shot
+                        if bullet.isLaser && enemy.enemyType != .boss {
+                            enemy.destroyInstantly()  // Laser kills any enemy with one shot (the boss takes it as one hit)
                         } else {
                             enemy.damage()
+                        }
+                        if enemy.isAlive && enemy.enemyType == .boss {
+                            flashBossHit(enemy)
                         }
                         bulletsToRemove.append(bullet)
 
@@ -86,7 +92,9 @@ extension GameScene {
                             killsByPlayer[shooterIndex][killedType, default: 0] += 1
                             SoundManager.shared.playExplosion()
 
-                            if killedType == .alien {
+                            if killedType == .boss {
+                                showBossDefeated(at: enemy.position)
+                            } else if killedType == .alien {
                                 // The alien always drops the LASER (its only source)
                                 spawnPowerUp(at: enemy.position, type: .laser)
                                 showEffect(text: "ALIEN DOWN!", color: .green)

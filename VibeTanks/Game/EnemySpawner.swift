@@ -14,8 +14,12 @@ class EnemySpawner {
     // Spawn positions (top of map)
     private let spawnPositions: [CGPoint]
 
-    init(totalEnemies: Int, maxOnScreen: Int) {
+    /// Every 10th level: the last planned tank is the boss
+    private let hasBoss: Bool
+
+    init(totalEnemies: Int, maxOnScreen: Int, hasBoss: Bool = false) {
         self.totalEnemies = totalEnemies
+        self.hasBoss = hasBoss
         self.maxOnScreen = maxOnScreen
         self.spawnCooldown = GameConstants.spawnDelay
 
@@ -93,6 +97,11 @@ class EnemySpawner {
         if GameScene.isAlienModeActive,
            let alienIndex = result.indices.filter({ result[$0] == .heavy }).randomElement() {
             result[alienIndex] = .alien
+        }
+
+        // Boss level: the very last tank is the boss
+        if hasBoss, !result.isEmpty {
+            result[result.count - 1] = .boss
         }
 
         return result

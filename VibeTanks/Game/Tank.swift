@@ -207,9 +207,17 @@ class Tank: SKSpriteNode {
     var laserRounds: Int = 0
     var hasLaser: Bool { laserRounds > 0 }
 
-    /// Can drive on water: SHIP power-up, or innate for the alien.
-    /// Unlike SHIP, the alien's swimming gives no extra protection.
-    var canMoveOnWater: Bool { canSwim || enemyType == .alien }
+    /// Can drive on water: SHIP power-up, or innate for the alien and the boss.
+    /// Unlike SHIP, innate swimming gives no extra protection.
+    var canMoveOnWater: Bool { canSwim || (!isPlayer && (enemyType == .alien || enemyType == .boss)) }
+
+    /// Boss tank: a new random color every time one appears
+    private var bossColor: SKColor?
+
+    private static func randomBossColor() -> SKColor {
+        SKColor(hue: CGFloat.random(in: 0...1), saturation: CGFloat.random(in: 0.75...1),
+                brightness: CGFloat.random(in: 0.75...1), alpha: 1)
+    }
 
     /// The alien ignores the FREEZE power-up and keeps moving and shooting
     var isFreezeImmune: Bool { !isPlayer && enemyType == .alien }
@@ -250,7 +258,7 @@ class Tank: SKSpriteNode {
             case .fast:
                 self.moveSpeed = GameConstants.enemyTankSpeed * 1.5
             case .boss:
-                self.moveSpeed = GameConstants.enemyTankSpeed * 0.6
+                self.moveSpeed = GameConstants.enemyTankSpeed * 1.5  // As fast as the FAST tank
             case .alien:
                 self.moveSpeed = GameConstants.enemyTankSpeed * 1.2
             case .gzhel:
@@ -276,6 +284,7 @@ class Tank: SKSpriteNode {
         case .boss:
             self.health = GameConstants.bossBaseHealth
             self.maxHealth = GameConstants.bossBaseHealth
+            self.bulletPower = 2  // Breaks steel
         case .gzhel:
             self.health = GameConstants.friendHits
             self.maxHealth = GameConstants.friendHits
@@ -299,6 +308,10 @@ class Tank: SKSpriteNode {
         self.direction = direction
         self.zRotation = direction.rotation
         self.zPosition = 10
+
+        if !isPlayer && enemyType == .boss {
+            bossColor = Tank.randomBossColor()
+        }
 
         // No physics body: all collisions are resolved manually against the tile map.
 
@@ -492,9 +505,33 @@ class Tank: SKSpriteNode {
                     ctx.fill(CGRect(x: center - 4 * scale, y: turretCenterY - 0.5 * scale, width: 8 * scale, height: 1 * scale))
                     ctx.fill(CGRect(x: center - 0.5 * scale, y: turretCenterY - 4 * scale, width: 1 * scale, height: 8 * scale))
                 case .boss:
-                    // Red star
-                    ctx.setFillColor(UIColor.red.cgColor)
-                    ctx.fillEllipse(in: CGRect(x: center - 3 * scale, y: turretCenterY - 3 * scale, width: 6 * scale, height: 6 * scale))
+                    // Skull over the turret (top of the skull faces the barrel)
+                    let bone = UIColor(white: 0.96, alpha: 1)
+                    let hole = UIColor(white: 0.05, alpha: 1)
+                    let cy = turretCenterY - 0.5 * scale
+                    ctx.setFillColor(bone.cgColor)
+                    // Cranium
+                    ctx.fillEllipse(in: CGRect(x: center - 5.5 * scale, y: cy - 2.5 * scale, width: 11 * scale, height: 10 * scale))
+                    // Jaw
+                    ctx.fill(CGRect(x: center - 3.5 * scale, y: cy - 5 * scale, width: 7 * scale, height: 4 * scale))
+                    // Eye sockets
+                    ctx.setFillColor(hole.cgColor)
+                    ctx.fillEllipse(in: CGRect(x: center - 4.2 * scale, y: cy + 0.3 * scale, width: 3.4 * scale, height: 3.6 * scale))
+                    ctx.fillEllipse(in: CGRect(x: center + 0.8 * scale, y: cy + 0.3 * scale, width: 3.4 * scale, height: 3.6 * scale))
+                    // Nose
+                    ctx.move(to: CGPoint(x: center, y: cy + 0.2 * scale))
+                    ctx.addLine(to: CGPoint(x: center - 1 * scale, y: cy - 1.6 * scale))
+                    ctx.addLine(to: CGPoint(x: center + 1 * scale, y: cy - 1.6 * scale))
+                    ctx.closePath()
+                    ctx.fillPath()
+                    // Teeth gaps
+                    ctx.setLineWidth(0.6 * scale)
+                    ctx.setStrokeColor(hole.cgColor)
+                    for dx in [-1.75, 0.0, 1.75] {
+                        ctx.move(to: CGPoint(x: center + CGFloat(dx) * scale, y: cy - 5 * scale))
+                        ctx.addLine(to: CGPoint(x: center + CGFloat(dx) * scale, y: cy - 2.6 * scale))
+                    }
+                    ctx.strokePath()
                 case .gzhel:
                     // Cobalt-blue Gzhel ornament on white porcelain
                     let cobalt = UIColor(red: 0.0, green: 0.28, blue: 0.67, alpha: 1.0)
@@ -556,11 +593,8 @@ class Tank: SKSpriteNode {
                 // Start with red, rainbow animation will be added separately
                 return (.red, SKColor(red: 0.55, green: 0, blue: 0, alpha: 1))
             case .boss:
-                // Pulsing red/orange
-                let pulse = (sin(CACurrentMediaTime() * 4) + 1) / 2
-                let red = 0.59 + pulse * 0.41
-                let green = pulse * 0.2
-                return (SKColor(red: red, green: green, blue: 0, alpha: 1), SKColor(red: red * 0.6, green: 0, blue: 0, alpha: 1))
+                let main = bossColor ?? SKColor(hex: "#FF4500")
+                return (main, main.darker())
             case .heavy:
                 return (.darkGray, .black)
             case .alien:
@@ -1216,7 +1250,7 @@ class Tank: SKSpriteNode {
     }
 
     func convertToType(_ newType: EnemyType) {
-        guard !isPlayer, enemyType != .alien, enemyType != .gzhel else { return }  // Special tanks keep their type
+        guard !isPlayer, enemyType != .alien, enemyType != .gzhel, enemyType != .boss else { return }  // Special tanks keep their type
 
         // Stop any existing rainbow animation
         removeAction(forKey: "rainbowAnimation")
