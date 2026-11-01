@@ -1030,7 +1030,11 @@ class GameScene: SKScene {
                 if shouldShoot {
                     let newBullets = enemy.shoot()
                     if !newBullets.isEmpty {
-                        SoundManager.shared.playShoot()
+                        if enemy.firesAlienLaser {
+                            SoundManager.shared.playLaser()
+                        } else {
+                            SoundManager.shared.playShoot()
+                        }
                         addBulletsWithSpawnCheck(newBullets)
                     }
                 }

@@ -52,7 +52,7 @@ class TankAI {
         case .alien:
             aggressiveness = 0.5
             directionChangeInterval = 45
-            shootChance = 0.06  // Fires steadily, whatever is in front of it
+            shootChance = 0.03  // Fires steadily, whatever is in front of it (laser goes through walls, so less often)
         case .gzhel:
             // Hunts enemies (passed in as its targets); never goes for the base
             aggressiveness = 0.8

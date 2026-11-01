@@ -46,7 +46,7 @@ class Bullet: SKSpriteNode {
 
         if isLaser {
             // Elongated glowing bolt, drawn pointing up and rotated to the direction
-            super.init(texture: Bullet.getLaserTexture(), color: .white, size: Bullet.laserSize)
+            super.init(texture: Bullet.getLaserTexture(alien: !owner.isPlayer), color: .white, size: Bullet.laserSize)
             self.zRotation = direction.rotation
             self.blendMode = .add
         } else {
@@ -90,20 +90,22 @@ class Bullet: SKSpriteNode {
 
     private static let laserSize = CGSize(width: 6, height: 20)
     private static var laserTexture: SKTexture?
+    private static var alienLaserTexture: SKTexture?
 
-    /// Cyan glow with a white-hot core (vertical)
-    private static func getLaserTexture() -> SKTexture {
-        if let cached = laserTexture {
+    /// Glow with a white-hot core (vertical): cyan for players, green for the alien
+    private static func getLaserTexture(alien: Bool = false) -> SKTexture {
+        if let cached = alien ? alienLaserTexture : laserTexture {
             return cached
         }
+        let glow: UIColor = alien ? UIColor(red: 0.3, green: 1.0, blue: 0.3, alpha: 1) : .cyan
         let size = laserSize
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in
             let ctx = context.cgContext
-            ctx.setFillColor(UIColor.cyan.withAlphaComponent(0.45).cgColor)
+            ctx.setFillColor(glow.withAlphaComponent(0.45).cgColor)
             ctx.addPath(UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 3).cgPath)
             ctx.fillPath()
-            ctx.setFillColor(UIColor.cyan.cgColor)
+            ctx.setFillColor(glow.cgColor)
             ctx.addPath(UIBezierPath(roundedRect: CGRect(x: 1, y: 1, width: size.width - 2, height: size.height - 2), cornerRadius: 2).cgPath)
             ctx.fillPath()
             ctx.setFillColor(UIColor.white.cgColor)
@@ -111,7 +113,7 @@ class Bullet: SKSpriteNode {
             ctx.fillPath()
         }
         let texture = SKTexture(image: image)
-        laserTexture = texture
+        if alien { alienLaserTexture = texture } else { laserTexture = texture }
         return texture
     }
 

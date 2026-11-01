@@ -219,6 +219,9 @@ class Tank: SKSpriteNode {
                 brightness: CGFloat.random(in: 0.75...1), alpha: 1)
     }
 
+    /// The alien always shoots laser light (through walls, but it can't hurt the base)
+    var firesAlienLaser: Bool { !isPlayer && enemyType == .alien }
+
     /// The alien and the boss ignore the FREEZE power-up and keep moving and shooting
     var isFreezeImmune: Bool { !isPlayer && (enemyType == .alien || enemyType == .boss) }
 
@@ -1009,7 +1012,7 @@ class Tank: SKSpriteNode {
                 direction: direction,
                 owner: self,
                 power: bulletPower,
-                isLaser: hasLaser
+                isLaser: hasLaser || firesAlienLaser
             )
             bullets.append(bullet)
             activeBullets += 1

@@ -162,11 +162,11 @@ extension GameScene {
                 let b = bullets[j]
                 guard !isBulletRemoved(b), !bulletsToRemove.contains(b) else { continue }
                 if a.isLaser || b.isLaser {
-                    // Laser light burns through enemy bullets and keeps going;
-                    // it passes through friendly bullets (and other lasers)
+                    // Laser light burns through the other side's bullets and keeps going;
+                    // it passes through its own side's bullets (and other lasers)
                     let laser = a.isLaser ? a : b
                     let other = a.isLaser ? b : a
-                    if !other.isLaser && other.isFromEnemy && laser.collidesWith(other) {
+                    if !other.isLaser && other.isFromEnemy != laser.isFromEnemy && laser.collidesWith(other) {
                         bulletsToRemove.insert(other)
                     }
                     continue
@@ -187,7 +187,7 @@ extension GameScene {
 
     /// Check bullets hitting the base
     func checkBulletBaseCollision() {
-        // Laser light passes the cat harmlessly (it also goes through the base walls)
+        // Laser light (the players' and the alien's) passes the cat harmlessly (it also goes through the base walls)
         for bullet in bullets where !isBulletRemoved(bullet) && !bullet.isLaser {
             if base.checkCollision(bulletPosition: bullet.position) {
                 // The Gzhel friend can't kill the base: its stray shots stop there harmlessly
