@@ -219,8 +219,8 @@ class Tank: SKSpriteNode {
                 brightness: CGFloat.random(in: 0.75...1), alpha: 1)
     }
 
-    /// The alien ignores the FREEZE power-up and keeps moving and shooting
-    var isFreezeImmune: Bool { !isPlayer && enemyType == .alien }
+    /// The alien and the boss ignore the FREEZE power-up and keep moving and shooting
+    var isFreezeImmune: Bool { !isPlayer && (enemyType == .alien || enemyType == .boss) }
 
     // Respawn
     var respawnTimer: Int = 0
