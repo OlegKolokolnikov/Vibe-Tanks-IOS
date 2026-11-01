@@ -182,6 +182,11 @@ extension GameScene {
         // Laser light passes the cat harmlessly (it also goes through the base walls)
         for bullet in bullets where !isBulletRemoved(bullet) && !bullet.isLaser {
             if base.checkCollision(bulletPosition: bullet.position) {
+                // The Gzhel friend can't kill the base: its stray shots stop there harmlessly
+                if bullet.isFromGzhel {
+                    removeBullet(bullet)
+                    continue
+                }
                 base.destroy()
                 removeBullet(bullet)
                 SoundManager.shared.playBaseDestroyed()

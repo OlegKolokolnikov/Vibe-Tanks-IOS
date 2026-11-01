@@ -1586,7 +1586,7 @@ class GameScene: SKScene {
         case .freeze:
             // Freeze all players for 30 seconds (can still shoot)
             for player in playerTanks where player.isAlive {
-                playerFreezeTimers[player.playerNumber - 1] = GameConstants.freezeDuration
+                playerFreezeTimers[player.playerNumber - 1] = playerFreezeDuration
                 addFreezeEffect(to: player)
             }
             showEffect(text: isTwoPlayer ? "PLAYERS FROZEN!" : "PLAYER FROZEN!", color: .red)
@@ -1667,6 +1667,13 @@ class GameScene: SKScene {
             enemy.health = enemy.maxHealth
             showEffect(text: "ENEMY HEALED!", color: .red)
         }
+    }
+
+    /// How long an enemy freeze holds the players: easy 10s, Gzhel / alien levels 15s, normal 20s
+    private var playerFreezeDuration: Int {
+        if GameScene.isEasyMode { return GameConstants.playerFreezeEasy }
+        if showGzhelBorder || alienMode { return GameConstants.playerFreezeSpecial }
+        return GameConstants.playerFreezeNormal
     }
 
     /// Add freeze visual effect to a player

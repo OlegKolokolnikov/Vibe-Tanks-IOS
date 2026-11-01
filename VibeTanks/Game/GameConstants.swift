@@ -66,6 +66,10 @@ struct GameConstants {
     static let powerUpLifetime = 600 // 10 seconds
     static let freezeTime = 600 // 10 seconds
     static let freezeDuration = 1800 // 30 seconds (freeze power-up effect)
+    // How long players stay frozen when an enemy takes the freeze power-up (frames)
+    static let playerFreezeNormal = 1200  // 20 seconds
+    static let playerFreezeEasy = 600     // 10 seconds
+    static let playerFreezeSpecial = 900  // 15 seconds (Gzhel and alien levels)
     static let baseProtectionTime = 3600 // 1 minute (shovel power-up)
 
     // UFO settings
