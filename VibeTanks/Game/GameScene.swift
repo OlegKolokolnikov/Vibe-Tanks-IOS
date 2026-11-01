@@ -1069,9 +1069,11 @@ class GameScene: SKScene {
 
             let tank = Tank(position: pos, direction: .up, isPlayer: false, playerNumber: 0, enemyType: .gzhel)
             if let carry = returningFriend {
-                // Same friend as last level: keeps its remaining hits and upgrades
-                tank.health = carry.health
-                tank.maxHealth = carry.maxHealth
+                // Same friend as last level: keeps its remaining hits and upgrades.
+                // Another Gzhel level heals it back to at least the full 3 hits (extra hearts are kept).
+                let hits = showGzhelBorder ? max(carry.health, GameConstants.friendHits) : carry.health
+                tank.health = hits
+                tank.maxHealth = max(carry.maxHealth, hits)
                 tank.starCount = carry.starCount
                 tank.machinegunCount = carry.machinegunCount
                 tank.bulletPower = carry.bulletPower
