@@ -64,6 +64,16 @@ struct GameConstants {
 
     // Power-up settings
     static let powerUpLifetime = 600 // 10 seconds
+
+    // Level-clear bonuses
+    static let strawberryScoreThreshold = 250
+    static let bananaScoreThreshold = 500
+    static let strawberryPoints = 50
+    static let bananaPoints = 75
+    static let ballPoints = 90
+    static let ballSpeedBoost: CGFloat = 0.15   // Start speed per ball
+    static let ballMaxBaseSpeed: CGFloat = 1.6  // Start speed cap
+    static let levelBonusVictoryDelay = 720     // 12 seconds to grab the bonuses
     static let freezeTime = 600 // 10 seconds
     static let freezeDuration = 1800 // 30 seconds (freeze power-up effect)
     // How long players stay frozen when an enemy takes the freeze power-up (frames)

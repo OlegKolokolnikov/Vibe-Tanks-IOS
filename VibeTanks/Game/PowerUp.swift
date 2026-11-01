@@ -17,6 +17,15 @@ class PowerUp: SKSpriteNode {
         case bomb       // Explode all enemies
         case gold       // Gzhel-only: 99 points, enemies get major upgrade
         case laser      // Only dropped by the alien: shots of light pass through walls
+        // Level-clear bonuses (appear when the last enemy dies)
+        case strawberry // Player crossed 250 points this level: +50 points
+        case banana     // Player crossed 500 points this level: +75 points
+        case ball       // No bomb used this level: +90 points and faster start speed for the rest of the game
+
+        /// Level-clear bonus items: only players can pick them up
+        var isLevelBonus: Bool {
+            self == .strawberry || self == .banana || self == .ball
+        }
     }
 
     let type: PowerUpType
@@ -25,7 +34,8 @@ class PowerUp: SKSpriteNode {
 
     init(position: CGPoint, type: PowerUpType? = nil) {
         self.type = type ?? PowerUp.randomType()
-        self.lifetime = GameConstants.powerUpLifetime
+        // Level-clear bonuses stay until the level ends
+        self.lifetime = self.type.isLevelBonus ? Int.max : GameConstants.powerUpLifetime
 
         let size = CGSize(width: 28, height: 28)
         super.init(texture: nil, color: .clear, size: size)
@@ -46,6 +56,8 @@ class PowerUp: SKSpriteNode {
         if type == .gold {
             // Lode Runner style gold bar/ingot
             drawGoldBar()
+        } else if type.isLevelBonus {
+            drawLevelBonus()
         } else {
             let background = SKShapeNode(rectOf: size, cornerRadius: 4)
             background.fillColor = colorForType
@@ -98,6 +110,41 @@ class PowerUp: SKSpriteNode {
         addSparkle()
     }
 
+    /// Fruit / soccer ball: no box, a soft glow and a gentle bounce
+    private func drawLevelBonus() {
+        let glowColor: SKColor
+        let icon: String
+        let iconSize: CGFloat
+        switch type {
+        case .strawberry: glowColor = .red; icon = "🍓"; iconSize = 16  // Small strawberry
+        case .banana: glowColor = .yellow; icon = "🍌"; iconSize = 22
+        default: glowColor = .white; icon = "⚽"; iconSize = 22
+        }
+
+        let glow = SKShapeNode(circleOfRadius: 14)
+        glow.fillColor = glowColor.withAlphaComponent(0.25)
+        glow.strokeColor = glowColor.withAlphaComponent(0.6)
+        glow.lineWidth = 1.5
+        addChild(glow)
+        glow.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.scale(to: 1.2, duration: 0.5),
+            SKAction.scale(to: 0.9, duration: 0.5)
+        ])))
+
+        let label = SKLabelNode(text: icon)
+        label.fontSize = iconSize
+        label.verticalAlignmentMode = .center
+        addChild(label)
+        let bounce = SKAction.sequence([
+            SKAction.moveBy(x: 0, y: 3, duration: 0.3),
+            SKAction.moveBy(x: 0, y: -3, duration: 0.3)
+        ])
+        label.run(SKAction.repeatForever(bounce))
+        if type == .ball {
+            label.run(SKAction.repeatForever(SKAction.rotate(byAngle: -.pi * 2, duration: 1.2)))
+        }
+    }
+
     /// Add sparkle animation to gold
     private func addSparkle() {
         let sparkle = SKShapeNode(circleOfRadius: 3)
@@ -132,6 +179,9 @@ class PowerUp: SKSpriteNode {
         case .bomb: return SKColor(red: 0.5, green: 0.0, blue: 0.0, alpha: 1.0) // Dark red
         case .gold: return SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Bright gold
         case .laser: return SKColor(red: 0.0, green: 0.85, blue: 0.85, alpha: 1.0) // Cyan
+        case .strawberry: return .red
+        case .banana: return .yellow
+        case .ball: return .white
         }
     }
 
@@ -150,6 +200,9 @@ class PowerUp: SKSpriteNode {
         case .bomb: return "💣"
         case .gold: return "$"  // Lode Runner style
         case .laser: return "🔦"
+        case .strawberry: return "🍓"
+        case .banana: return "🍌"
+        case .ball: return "⚽"
         }
     }
 
@@ -197,6 +250,11 @@ class PowerUp: SKSpriteNode {
             break
         case .laser:
             tank.laserRounds = GameConstants.laserRoundsOnPickup
+        case .strawberry, .banana:
+            // Handled by game scene (points only)
+            break
+        case .ball:
+            tank.addBallSpeedBoost()
         }
     }
 

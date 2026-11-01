@@ -197,6 +197,8 @@ class Tank: SKSpriteNode {
     var hasShield: Bool = false
     var shieldTimer: Int = 0
     var speedMultiplier: CGFloat = 1.0
+    /// Start speed from soccer balls: kept through deaths and levels until a new game
+    var baseSpeedMultiplier: CGFloat = 1.0
     var starCount: Int = 0           // Faster shooting (stackable)
     var canSwim: Bool = false         // SHIP power-up
     var canDestroyTrees: Bool = false // SAW power-up
@@ -1179,12 +1181,21 @@ class Tank: SKSpriteNode {
     func resetPowerUps() {
         starCount = 0
         bulletPower = 1
-        speedMultiplier = 1.0
+        speedMultiplier = baseSpeedMultiplier
         canSwim = false
         canDestroyTrees = false
         machinegunCount = 0
         laserRounds = 0
         moveSpeed = isPlayer ? GameConstants.tankSpeed : GameConstants.enemyTankSpeed
+    }
+
+    /// Soccer ball: raises the start speed (and the current speed) by one step
+    func addBallSpeedBoost() {
+        let step = GameConstants.ballSpeedBoost
+        let newBase = min(baseSpeedMultiplier + step, GameConstants.ballMaxBaseSpeed)
+        let gained = newBase - baseSpeedMultiplier
+        baseSpeedMultiplier = newBase
+        speedMultiplier = min(speedMultiplier + gained, 2.5)
     }
 
     func addLives(_ count: Int) {

@@ -188,6 +188,10 @@ class GameScene: SKScene {
 
     // Victory delay (5 seconds to collect remaining power-ups)
     private var victoryDelayTimer: Int = 0
+    /// A bomb killed enemies this level (no soccer ball at the end)
+    private var bombUsedThisLevel = false
+    /// Level-clear bonuses were put on the field (the level ends early once they are all taken)
+    private var levelBonusesSpawned = false
 
     // Base protection
     var baseProtectionTimer: Int = 0
@@ -224,6 +228,7 @@ class GameScene: SKScene {
         var canSwim: Bool = false
         var canDestroyTrees: Bool = false
         var laserRounds: Int = 0  // LASER: rounds left including the one being started
+        var baseSpeedMultiplier: CGFloat = 1.0  // Soccer-ball start speed (until a new game)
     }
     private var initialPowerUps = PlayerPowerUps()
     private var initialPowerUps2 = PlayerPowerUps()
@@ -740,6 +745,7 @@ class GameScene: SKScene {
         tank.canSwim = powerUps.canSwim
         tank.canDestroyTrees = powerUps.canDestroyTrees
         tank.laserRounds = powerUps.laserRounds
+        tank.baseSpeedMultiplier = powerUps.baseSpeedMultiplier
 
         // Always redraw tank to show power-up indicators
         tank.drawTank()
@@ -763,6 +769,7 @@ class GameScene: SKScene {
         powerUps.speedMultiplier = tank.speedMultiplier
         powerUps.canSwim = tank.canSwim
         powerUps.canDestroyTrees = tank.canDestroyTrees
+        powerUps.baseSpeedMultiplier = tank.baseSpeedMultiplier
         // Laser only carries into one more round (and only if the player still has it)
         powerUps.laserRounds = max(tank.laserRounds - 1, 0)
         return powerUps
@@ -866,6 +873,10 @@ class GameScene: SKScene {
             if victoryDelayTimer == 0 {
                 levelComplete()
                 return
+            }
+            // Every bonus item taken: no need to wait the full time
+            if levelBonusesSpawned, victoryDelayTimer > 90, !powerUps.contains(where: { $0.type.isLevelBonus }) {
+                victoryDelayTimer = 90
             }
         }
 
@@ -1557,7 +1568,7 @@ class GameScene: SKScene {
             }
 
             // The friend collects power-ups too (except the player's laser)
-            if let friend = gzhelTank, friend.isAlive, powerUp.type != .laser {
+            if let friend = gzhelTank, friend.isAlive, powerUp.type != .laser, !powerUp.type.isLevelBonus {
                 let friendDist = (friend.size.width + powerUp.size.width) / 2
                 if abs(friend.position.x - powerUp.position.x) < friendDist &&
                     abs(friend.position.y - powerUp.position.y) < friendDist {
@@ -1569,7 +1580,7 @@ class GameScene: SKScene {
             }
 
             // Check enemy collisions (the laser is the player's reward: enemies can't take it)
-            for enemy in enemyTanks where powerUp.type != .laser {
+            for enemy in enemyTanks where powerUp.type != .laser && !powerUp.type.isLevelBonus {
                 guard enemy.isAlive else { continue }
                 let enemyDx = abs(enemy.position.x - powerUp.position.x)
                 let enemyDy = abs(enemy.position.y - powerUp.position.y)
@@ -1646,7 +1657,7 @@ class GameScene: SKScene {
         case .gold:
             // Major upgrade based on current type
             handleEnemyGoldCollection(enemy)
-        case .laser:
+        case .laser, .strawberry, .banana, .ball:
             break  // Never collected by enemies
         }
     }
@@ -1752,6 +1763,24 @@ class GameScene: SKScene {
             showEffect(text: "+99 GOLD!", color: .yellow)
             return
         }
+        switch powerUp.type {
+        case .strawberry:
+            addScore(GameConstants.strawberryPoints, for: player)
+            showEffect(text: "+\(GameConstants.strawberryPoints) STRAWBERRY!", color: .red)
+            return
+        case .banana:
+            addScore(GameConstants.bananaPoints, for: player)
+            showEffect(text: "+\(GameConstants.bananaPoints) BANANA!", color: .yellow)
+            return
+        case .ball:
+            addScore(GameConstants.ballPoints, for: player)
+            powerUp.apply(to: player)
+            player.drawTank()
+            showEffect(text: "+\(GameConstants.ballPoints) GOAL! SPEED UP!", color: .white)
+            return
+        default:
+            break
+        }
 
         addScore(1, for: player)
 
@@ -1819,6 +1848,7 @@ class GameScene: SKScene {
     private func destroyAllEnemies() {
         for enemy in enemyTanks {
             if enemy.isAlive {
+                bombUsedThisLevel = true
                 // No score or kill credit for bomb kills
                 // Force kill - keep damaging until dead (for heavy tanks with multiple health)
                 while enemy.isAlive {
@@ -1873,6 +1903,29 @@ class GameScene: SKScene {
             baseIsSteel = false
             gameMap.setBaseProtection(steel: false)
         }
+    }
+
+    /// Level cleared: strawberry for crossing 250 points this level, banana for crossing 500,
+    /// soccer ball when no bomb was used. Returns true if anything appeared.
+    private func spawnLevelBonuses() -> Bool {
+        var bonuses: [PowerUp.PowerUpType] = []
+        for index in 0..<playerCount {
+            let before = levelStartScores[index], now = scores[index]
+            if before < GameConstants.strawberryScoreThreshold && now >= GameConstants.strawberryScoreThreshold {
+                bonuses.append(.strawberry)
+            }
+            if before < GameConstants.bananaScoreThreshold && now >= GameConstants.bananaScoreThreshold {
+                bonuses.append(.banana)
+            }
+        }
+        if !bombUsedThisLevel {
+            bonuses.append(.ball)
+        }
+        for type in bonuses {
+            spawnPowerUp(at: .zero, type: type)
+        }
+        levelBonusesSpawned = !bonuses.isEmpty
+        return levelBonusesSpawned
     }
 
     func spawnPowerUp(at position: CGPoint, type: PowerUp.PowerUpType? = nil) {
@@ -1964,6 +2017,9 @@ class GameScene: SKScene {
         if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) && victoryDelayTimer == 0 && !isGameOver {
             victoryDelayTimer = GameConstants.victoryDelay
             showEffect(text: "VICTORY! Collect power-ups!", color: .green)
+            if spawnLevelBonuses() {
+                victoryDelayTimer = GameConstants.levelBonusVictoryDelay
+            }
             // The friend stays (it comes along to the next level); one that hasn't appeared yet won't now
             gzhelSpawnedThisLevel = true
         }
