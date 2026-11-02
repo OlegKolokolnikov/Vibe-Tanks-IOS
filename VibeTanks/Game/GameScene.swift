@@ -1106,9 +1106,16 @@ class GameScene: SKScene {
     private func updateGzhelTank() {
         guard let gzhel = gzhelTank, gzhel.isAlive, let ai = gzhel.ai else { return }
 
-        let enemyBullets = bullets.filter { $0.isFromEnemy && !isBulletRemoved($0) }
-        let (direction, shouldShoot) = ai.updateFriend(map: gameMap, enemies: enemyTanks, allTanks: allTanks,
+        let direction: Direction?, shouldShoot: Bool
+        if victoryDelayTimer > 0 {
+            // Level cleared: collect what the friend may take, then park at the base
+            let takeable = powerUps.filter { $0.type != .laser && !$0.type.isLevelBonus }.map { $0.position }
+            (direction, shouldShoot) = ai.updateFriendLevelCleared(map: gameMap, powerUps: takeable)
+        } else {
+            let enemyBullets = bullets.filter { $0.isFromEnemy && !isBulletRemoved($0) }
+            (direction, shouldShoot) = ai.updateFriend(map: gameMap, enemies: enemyTanks, allTanks: allTanks,
                                                        enemyBullets: enemyBullets)
+        }
 
         if let dir = direction {
             gzhel.move(direction: dir, map: gameMap, allTanks: allTanks)

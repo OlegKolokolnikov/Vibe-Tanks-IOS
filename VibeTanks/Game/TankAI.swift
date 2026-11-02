@@ -19,6 +19,8 @@ class TankAI {
     private var friendRouteTimer: Int = 0
     private var friendWanderTimer: Int = 0
     private var friendWanderDirection: Direction = .up
+    /// Level cleared: the friend heads for the base once no power-ups are left to collect
+    private var friendGoingHome = false
 
     // AI behavior settings
     private let directionChangeInterval: Int
@@ -469,35 +471,91 @@ extension TankAI {
         }
 
         // Step to the neighboring tile that is closest to the target
+        guard let step = bestStep(row: row, col: col, here: here) else {
+            return (findOpenDirection(map: map, allTanks: allTanks, exclude: nil), false)
+        }
+        return driveOrOpen(step, row: row, col: col, map: map)
+    }
+
+    /// Level cleared: pick up the power-ups the friend can take (nearest reachable first),
+    /// then drive to the spot in front of the base and stop there.
+    func updateFriendLevelCleared(map: GameMap, powerUps: [CGPoint]) -> (direction: Direction?, shouldShoot: Bool) {
+        guard let tank = tank, tank.isAlive else { return (nil, false) }
+        if shotAtWallTimer > 0 { shotAtWallTimer -= 1 }
+        let (row, col) = TankAI.tileOf(tank.position)
+
+        friendRouteTimer -= 1
+        if friendRouteTimer <= 0 || friendRoute.isEmpty {
+            friendRouteTimer = 15
+            friendGoingHome = true
+            friendRoute = []
+            for point in powerUps.sorted(by: { $0.distance(to: tank.position) < $1.distance(to: tank.position) }) {
+                let route = buildRoute(to: point, map: map)
+                if TankAI.routeDistance(route, row: row, col: col) < TankAI.unreachable {
+                    friendRoute = route
+                    friendGoingHome = false
+                    break
+                }
+            }
+            if friendGoingHome {
+                friendRoute = buildRoute(to: TankAI.homeSpot, map: map)
+            }
+        }
+
+        let here = TankAI.routeDistance(friendRoute, row: row, col: col)
+        if here == 0 {
+            if friendGoingHome {
+                if tank.direction != .up { tank.turn(to: .up) }  // Home: stop, facing the field
+            } else {
+                friendRouteTimer = 0  // On the power-up tile: choose the next target
+            }
+            return (nil, false)
+        }
+        guard here < TankAI.unreachable, let step = bestStep(row: row, col: col, here: here) else {
+            return (nil, false)  // No way there: just wait
+        }
+        return driveOrOpen(step, row: row, col: col, map: map)
+    }
+
+    /// Neighbor tile that gets closer to the route's target
+    private func bestStep(row: Int, col: Int, here: Int) -> Direction? {
         var best: (direction: Direction, distance: Int)?
         for direction in Direction.allCases {
             let (dr, dc) = TankAI.tileStep(direction)
-            let r = row + dr, c = col + dc
-            guard r >= 0, r < friendRoute.count, c >= 0, c < friendRoute[r].count else { continue }
-            let d = friendRoute[r][c]
+            let d = TankAI.routeDistance(friendRoute, row: row + dr, col: col + dc)
             if d < (best?.distance ?? here) {
                 best = (direction, d)
             }
         }
-        guard let step = best else {
-            return (findOpenDirection(map: map, allTanks: allTanks, exclude: nil), false)
-        }
+        return best?.direction
+    }
 
-        // The way leads through a brick wall: face it and shoot it open
-        let nextTile = map.getTile(at: TankAI.center(row: row + TankAI.tileStep(step.direction).0,
-                                                     col: col + TankAI.tileStep(step.direction).1))
-        if nextTile == .brick {
-            tank.turn(to: step.direction)
+    /// Drive one step along the route; a brick wall in the way gets shot open first
+    private func driveOrOpen(_ direction: Direction, row: Int, col: Int, map: GameMap) -> (direction: Direction?, shouldShoot: Bool) {
+        guard let tank = tank else { return (nil, false) }
+        let (dr, dc) = TankAI.tileStep(direction)
+        if map.getTile(at: TankAI.center(row: row + dr, col: col + dc)) == .brick {
+            tank.turn(to: direction)
             if shotAtWallTimer == 0 && tank.canShoot {
                 shotAtWallTimer = 20
                 return (nil, true)
             }
             return (nil, false)
         }
-        return (step.direction, false)
+        return (direction, false)
     }
 
     // MARK: Friend helpers
+
+    /// Where the friend parks when the level is cleared: right in front of the base
+    private static var homeSpot: CGPoint {
+        center(row: GameConstants.mapHeight - 4, col: GameConstants.mapWidth / 2)
+    }
+
+    private static func routeDistance(_ route: [[Int]], row: Int, col: Int) -> Int {
+        guard row >= 0, row < route.count, col >= 0, col < route[row].count else { return unreachable }
+        return route[row][col]
+    }
 
     private static var basePosition: CGPoint {
         CGPoint(x: 13 * GameConstants.tileSize + GameConstants.tileSize / 2, y: GameConstants.tileSize * 1.5)
