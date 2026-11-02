@@ -514,6 +514,14 @@ extension TankAI {
         guard here < TankAI.unreachable, let step = bestStep(row: row, col: col, here: here) else {
             return (nil, false)  // No way there: just wait
         }
+        if friendGoingHome {
+            // On the way to the parking spot: never shoot, a brick in the way means park right here
+            let (dr, dc) = TankAI.tileStep(step)
+            if map.getTile(at: TankAI.center(row: row + dr, col: col + dc)) == .brick {
+                return (nil, false)
+            }
+            return (step, false)
+        }
         return driveOrOpen(step, row: row, col: col, map: map)
     }
 
