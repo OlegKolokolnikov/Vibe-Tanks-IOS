@@ -200,8 +200,10 @@ class Tank: SKSpriteNode {
     /// Start speed from soccer balls: kept through deaths and levels until a new game
     var baseSpeedMultiplier: CGFloat = 1.0
     var starCount: Int = 0           // Faster shooting (stackable)
-    /// Bosses killed this game: each one makes shooting faster for good (kept through deaths and levels)
+    /// Bosses killed this game: each one gives faster shooting, every 10th one also
+    /// one more bullet per shot, for good (kept through deaths and levels)
     var bossFireBoost: Int = 0
+    var bossExtraBullets: Int { bossFireBoost / GameConstants.bossesPerExtraBullet }
     /// Player deaths on this level that cost the soccer ball (a new tank is made every level).
     /// Deaths from an enemy's bomb are taken back off by the scene.
     var deathsThisLevel = 0
@@ -995,8 +997,8 @@ class Tank: SKSpriteNode {
 
         var bullets: [Bullet] = []
 
-        // Number of bullets based on machinegun power-up (1 + machinegunCount, max 4)
-        let bulletCount = min(1 + machinegunCount, 4)
+        // Number of bullets: 1 + machinegun power-ups + every 10th defeated boss (max 4)
+        let bulletCount = min(1 + machinegunCount + bossExtraBullets, 4)
 
         // Base cooldown reduced by star power-ups and defeated bosses (min 5 frames)
         let baseCooldown = max(5, 30 - (starCount + bossFireBoost) * GameConstants.fireBoostStep)

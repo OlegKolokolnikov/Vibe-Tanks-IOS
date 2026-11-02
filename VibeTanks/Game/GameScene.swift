@@ -1266,7 +1266,7 @@ class GameScene: SKScene {
     func showBossDefeated(at position: CGPoint) {
         SoundManager.shared.playBossDefeated()
 
-        // Reward: both players shoot faster from now until a new game
+        // Reward: both players shoot faster until a new game; every 10th boss also adds a bullet per shot
         for player in [playerTank, player2Tank].compactMap({ $0 }) {
             player.bossFireBoost += 1
             player.drawTank()
@@ -1349,7 +1349,8 @@ class GameScene: SKScene {
             SKAction.rotate(toAngle: 0.05, duration: 0.15),
             SKAction.rotate(toAngle: -0.05, duration: 0.15)
         ]), count: 6)
-        let reward = SKLabelNode(text: "🔥 FASTER SHOOTING! 🔥")
+        let extraBullet = (playerTank?.bossFireBoost ?? 0) % GameConstants.bossesPerExtraBullet == 0
+        let reward = SKLabelNode(text: extraBullet ? "🔥 FASTER SHOOTING + 1 BULLET! 🔥" : "🔥 FASTER SHOOTING! 🔥")
         reward.fontName = "Helvetica-Bold"
         reward.fontSize = 20 * cs
         reward.fontColor = .white
