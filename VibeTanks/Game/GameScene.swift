@@ -188,7 +188,7 @@ class GameScene: SKScene {
 
     // Victory delay (5 seconds to collect remaining power-ups)
     private var victoryDelayTimer: Int = 0
-    /// A bomb killed enemies this level (no soccer ball at the end)
+    /// A bomb killed enemies this level (no soccer ball at the end; neither if a player died)
     private var bombUsedThisLevel = false
     /// Level-clear bonuses were put on the field (the level ends early once they are all taken)
     private var levelBonusesSpawned = false
@@ -229,6 +229,7 @@ class GameScene: SKScene {
         var canDestroyTrees: Bool = false
         var laserRounds: Int = 0  // LASER: rounds left including the one being started
         var baseSpeedMultiplier: CGFloat = 1.0  // Soccer-ball start speed (until a new game)
+        var bossFireBoost: Int = 0  // Faster shooting from defeated bosses (until a new game)
     }
     private var initialPowerUps = PlayerPowerUps()
     private var initialPowerUps2 = PlayerPowerUps()
@@ -747,6 +748,7 @@ class GameScene: SKScene {
         tank.canDestroyTrees = powerUps.canDestroyTrees
         tank.laserRounds = powerUps.laserRounds
         tank.baseSpeedMultiplier = powerUps.baseSpeedMultiplier
+        tank.bossFireBoost = powerUps.bossFireBoost
 
         // Always redraw tank to show power-up indicators
         tank.drawTank()
@@ -771,6 +773,7 @@ class GameScene: SKScene {
         powerUps.canSwim = tank.canSwim
         powerUps.canDestroyTrees = tank.canDestroyTrees
         powerUps.baseSpeedMultiplier = tank.baseSpeedMultiplier
+        powerUps.bossFireBoost = tank.bossFireBoost
         // Laser only carries into one more round (and only if the player still has it)
         powerUps.laserRounds = max(tank.laserRounds - 1, 0)
         return powerUps
@@ -1262,6 +1265,12 @@ class GameScene: SKScene {
     /// Boss destroyed: chain of explosions, fireworks, a big title and the winning fanfare
     func showBossDefeated(at position: CGPoint) {
         SoundManager.shared.playBossDefeated()
+
+        // Reward: both players shoot faster from now until a new game
+        for player in [playerTank, player2Tank].compactMap({ $0 }) {
+            player.bossFireBoost += 1
+            player.drawTank()
+        }
         bossHealthBar?.removeFromParent()
         bossHealthBar = nil
 
@@ -1340,6 +1349,14 @@ class GameScene: SKScene {
             SKAction.rotate(toAngle: 0.05, duration: 0.15),
             SKAction.rotate(toAngle: -0.05, duration: 0.15)
         ]), count: 6)
+        let reward = SKLabelNode(text: "🔥 FASTER SHOOTING! 🔥")
+        reward.fontName = "Helvetica-Bold"
+        reward.fontSize = 20 * cs
+        reward.fontColor = .white
+        reward.verticalAlignmentMode = .center
+        reward.position = CGPoint(x: 0, y: -44 * cs)
+        title.addChild(reward)
+
         title.run(SKAction.sequence([
             pop,
             SKAction.group([cycle, wobble]),
@@ -1842,6 +1859,7 @@ class GameScene: SKScene {
             for player in playerTanks where player.isAlive {
                 player.damage(bypassShip: true, bypassShield: true)
                 if !player.isAlive {
+                    player.deathsThisLevel -= 1  // A bomb death doesn't cost the soccer ball
                     handlePlayerKilled(player)
                 }
             }
@@ -2123,7 +2141,8 @@ class GameScene: SKScene {
     }
 
     /// Level cleared: strawberry for crossing 250 points this level, banana for crossing 500,
-    /// soccer ball when no bomb was used. Returns true if anything appeared.
+    /// soccer ball when no bomb was used and no player died (enemy bomb deaths don't count).
+    /// Returns true if anything appeared.
     private func spawnLevelBonuses() -> Bool {
         var bonuses: [PowerUp.PowerUpType] = []
         for index in 0..<playerCount {
@@ -2135,7 +2154,8 @@ class GameScene: SKScene {
                 bonuses.append(.banana)
             }
         }
-        if !bombUsedThisLevel {
+        let playerDied = [playerTank, player2Tank].compactMap { $0 }.contains { $0.deathsThisLevel > 0 }
+        if !bombUsedThisLevel && !playerDied {
             bonuses.append(.ball)
         }
         for type in bonuses {
@@ -3050,6 +3070,7 @@ class GameScene: SKScene {
     private func sidebarPowerUps(of player: Tank) -> Sidebar.PowerUpData {
         var powerUps = Sidebar.PowerUpData()
         powerUps.starCount = player.starCount
+        powerUps.bossFireBoost = player.bossFireBoost
         powerUps.machinegunCount = player.machinegunCount
         powerUps.hasGun = player.bulletPower >= 2
         powerUps.hasShip = player.canSwim

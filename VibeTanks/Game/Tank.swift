@@ -200,6 +200,11 @@ class Tank: SKSpriteNode {
     /// Start speed from soccer balls: kept through deaths and levels until a new game
     var baseSpeedMultiplier: CGFloat = 1.0
     var starCount: Int = 0           // Faster shooting (stackable)
+    /// Bosses killed this game: each one makes shooting faster for good (kept through deaths and levels)
+    var bossFireBoost: Int = 0
+    /// Player deaths on this level that cost the soccer ball (a new tank is made every level).
+    /// Deaths from an enemy's bomb are taken back off by the scene.
+    var deathsThisLevel = 0
     var canSwim: Bool = false         // SHIP power-up
     var canDestroyTrees: Bool = false // SAW power-up
     var machinegunCount: Int = 0      // Extra bullets (stackable)
@@ -993,8 +998,8 @@ class Tank: SKSpriteNode {
         // Number of bullets based on machinegun power-up (1 + machinegunCount, max 4)
         let bulletCount = min(1 + machinegunCount, 4)
 
-        // Base cooldown reduced by star power-ups (min 5 frames)
-        let baseCooldown = max(5, 30 - (starCount * 5))
+        // Base cooldown reduced by star power-ups and defeated bosses (min 5 frames)
+        let baseCooldown = max(5, 30 - (starCount + bossFireBoost) * GameConstants.fireBoostStep)
         shootCooldown = baseCooldown
 
         let bulletOffset: CGFloat = size.width / 2 + GameConstants.bulletSize / 2
@@ -1092,6 +1097,7 @@ class Tank: SKSpriteNode {
         }
         if isPlayer {
             lives -= 1
+            deathsThisLevel += 1
             isHidden = true
             health = 0  // Ensure health is 0
         } else {

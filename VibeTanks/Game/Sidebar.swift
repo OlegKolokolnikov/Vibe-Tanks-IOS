@@ -179,6 +179,7 @@ class Sidebar: SKNode {
     /// Power-up data structure for sidebar display
     struct PowerUpData: Equatable {
         var starCount: Int = 0        // Shooting speed (max 3)
+        var bossFireBoost: Int = 0    // Permanent faster shooting from defeated bosses
         var machinegunCount: Int = 0  // Extra bullets (max 3)
         var hasGun: Bool = false      // Can break steel
         var hasShip: Bool = false     // Can swim
@@ -254,6 +255,7 @@ class Sidebar: SKNode {
                                 fontSize: CGFloat, lineHeight: CGFloat) -> CGFloat {
         var rows: [(icon: String, label: String)] = []
         if data.starCount > 0 { rows.append(("⭐", "x\(data.starCount)")) }          // Shooting speed
+        if data.bossFireBoost > 0 { rows.append(("🔥", "x\(data.bossFireBoost)")) }  // Boss reward: faster shooting
         if data.machinegunCount > 0 { rows.append(("💥", "x\(data.machinegunCount)")) } // Extra bullets
         if data.hasGun { rows.append(("🔫", "")) }      // Can break steel
         if data.hasShip { rows.append(("🚢", "")) }     // Can swim
