@@ -1535,6 +1535,10 @@ class GameScene: SKScene {
             gameLayer.addChild(newEnemy)
             showSpawnEffect(at: newEnemy.position)
             if newEnemy.enemyType == .boss {
+                // Every next boss is one hit tougher: level 10 → 10 HP, level 20 → 11, level 30 → 12...
+                let bossNumber = max(level / GameConstants.bossLevelInterval, 1)
+                newEnemy.health = GameConstants.bossBaseHealth + bossNumber - 1
+                newEnemy.maxHealth = newEnemy.health
                 showEffect(text: "☠ BOSS IS COMING! ☠", color: .red)
             }
         }
