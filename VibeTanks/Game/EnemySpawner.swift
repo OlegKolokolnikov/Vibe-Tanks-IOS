@@ -163,9 +163,16 @@ class EnemySpawner {
     ) -> CGPoint? {
         let tankSize = GameConstants.tankSize
 
-        // Try random spawn position
-        let shuffled = spawnPositions.shuffled()
-        for pos in shuffled {
+        // Try random spawn position. Heavy tanks use the side spawns
+        // and take the center one only when both sides are blocked.
+        let candidates: [CGPoint]
+        if type == .heavy {
+            let center = spawnPositions[1]
+            candidates = [spawnPositions[0], spawnPositions[2]].shuffled() + [center]
+        } else {
+            candidates = spawnPositions.shuffled()
+        }
+        for pos in candidates {
             if isPositionValid(pos, tankSize: tankSize, existingEnemies: existingEnemies + otherTanks, playerTank: playerTank, map: map) {
                 return pos
             }
