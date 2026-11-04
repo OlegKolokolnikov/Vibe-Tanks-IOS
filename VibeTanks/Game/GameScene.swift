@@ -1659,12 +1659,7 @@ class GameScene: SKScene {
     }
 
     private func spawnUFO() {
-        let mapSize = gameMap.pixelSize
-        let fromRight = Bool.random()
-        let startX = fromRight ? mapSize.width + 48 : -48
-        let startY = 100 + CGFloat.random(in: 0...200)
-
-        ufo = UFO(startX: startX, startY: startY, movingRight: !fromRight)
+        ufo = UFO(mapSize: gameMap.pixelSize)
         gameLayer.addChild(ufo!)
         ufoSpawnedThisLevel = true
 

@@ -4,15 +4,26 @@ import SpriteKit
 class UFO: SKNode {
 
     private static let size: CGFloat = 48
-    private static let speed: CGFloat = 1.5
 
-    private var dx: CGFloat = 0
-    private var dy: CGFloat = 0
-    private var movingRight: Bool
+    /// How the UFO gets around: a new style every time one shows up
+    private enum FlightStyle: CaseIterable {
+        case cruise   // Smooth glide through a few points
+        case wave     // Weaves side to side along its way
+        case zigzag   // Many short, sharp legs
+        case hover    // Stops and hangs over spots before moving on
+    }
+
+    private let style: FlightStyle
+    private let flySpeed: CGFloat
+    private let mapSize: CGSize
+    /// Points to fly through; the last one is off the map (where it escapes)
+    private var waypoints: [CGPoint] = []
+    private var pauseTimer: Int = 0
+    private var wavePhase: CGFloat = 0
     private var health: Int = 3
     private var lifetime: Int
     private var shootCooldown: Int
-    private var directionChangeTimer: Int
+    private var leaving = false
 
     private let bodyNode: SKShapeNode
     private let domeNode: SKShapeNode
@@ -21,11 +32,13 @@ class UFO: SKNode {
 
     var isAlive: Bool = true
 
-    init(startX: CGFloat, startY: CGFloat, movingRight: Bool) {
-        self.movingRight = movingRight
+    /// Comes in from a random side (left, right or top) and leaves through a random side
+    init(mapSize: CGSize) {
+        self.mapSize = mapSize
+        self.style = FlightStyle.allCases.randomElement()!
+        self.flySpeed = CGFloat.random(in: 1.2...2.2)
         self.lifetime = GameConstants.ufoLifetime
         self.shootCooldown = GameConstants.ufoShootCooldown
-        self.directionChangeTimer = GameConstants.ufoDirectionChange
 
         // Create body (metallic gray ellipse)
         bodyNode = SKShapeNode(ellipseOf: CGSize(width: UFO.size, height: UFO.size * 0.4))
@@ -45,8 +58,9 @@ class UFO: SKNode {
 
         super.init()
 
-        self.position = CGPoint(x: startX, y: startY)
+        self.position = UFO.offMapPoint(mapSize: mapSize, edge: Int.random(in: 0..<3))
         self.zPosition = 100
+        planRoute()
 
         addChild(bodyNode)
         addChild(domeNode)
@@ -64,11 +78,6 @@ class UFO: SKNode {
 
         // Add health indicator
         updateHealthIndicator()
-
-        // Set initial direction
-        dx = movingRight ? UFO.speed : -UFO.speed
-        dy = 0
-        randomizeDirection()
 
         // Start hover animation
         let hoverUp = SKAction.moveBy(x: 0, y: 3, duration: 0.3)
@@ -100,23 +109,49 @@ class UFO: SKNode {
         }
     }
 
-    private func randomizeDirection() {
-        let baseX = movingRight ? UFO.speed : -UFO.speed
-        let randomY = (CGFloat.random(in: 0...1) - 0.5) * UFO.speed * 1.5
-
-        dx = baseX + (CGFloat.random(in: 0...1) - 0.5) * 0.5
-        dy = randomY
-
-        // Normalize to maintain consistent speed
-        let magnitude = sqrt(dx * dx + dy * dy)
-        if magnitude > 0 {
-            dx = (dx / magnitude) * UFO.speed
-            dy = (dy / magnitude) * UFO.speed
+    /// A point just outside the map: 0 = left, 1 = right, 2 = top, 3 = bottom
+    private static func offMapPoint(mapSize: CGSize, edge: Int) -> CGPoint {
+        let margin = size + 10
+        switch edge {
+        case 0: return CGPoint(x: -margin, y: CGFloat.random(in: 120...(mapSize.height - 80)))
+        case 1: return CGPoint(x: mapSize.width + margin, y: CGFloat.random(in: 120...(mapSize.height - 80)))
+        case 2: return CGPoint(x: CGFloat.random(in: 80...(mapSize.width - 80)), y: mapSize.height + margin)
+        default: return CGPoint(x: CGFloat.random(in: 80...(mapSize.width - 80)), y: -margin)
         }
+    }
 
-        // Ensure still moving in general direction
-        if movingRight && dx < 0.3 { dx = 0.5 }
-        if !movingRight && dx > -0.3 { dx = -0.5 }
+    /// Random point over the battlefield (anywhere from just above the base to the top)
+    private func randomFieldPoint() -> CGPoint {
+        CGPoint(x: CGFloat.random(in: 60...(mapSize.width - 60)),
+                y: CGFloat.random(in: 110...(mapSize.height - 60)))
+    }
+
+    private func planRoute() {
+        waypoints = []
+        switch style {
+        case .cruise, .wave:
+            for _ in 0..<Int.random(in: 2...3) { waypoints.append(randomFieldPoint()) }
+        case .zigzag:
+            var point = randomFieldPoint()
+            waypoints.append(point)
+            for _ in 0..<Int.random(in: 5...8) {
+                point = CGPoint(x: min(max(point.x + CGFloat.random(in: -220...220), 60), mapSize.width - 60),
+                                y: min(max(point.y + CGFloat.random(in: -180...180), 110), mapSize.height - 60))
+                waypoints.append(point)
+            }
+        case .hover:
+            for _ in 0..<Int.random(in: 2...4) { waypoints.append(randomFieldPoint()) }
+        }
+        // Escape through any side except the bottom (the base is there)
+        waypoints.append(UFO.offMapPoint(mapSize: mapSize, edge: Int.random(in: 0..<3)))
+    }
+
+    /// Short time left: skip the remaining points and head for the exit
+    private func leaveNow() {
+        guard !leaving, let exit = waypoints.last else { return }
+        leaving = true
+        pauseTimer = 0
+        waypoints = [exit]
     }
 
     private func updateHealthIndicator() {
@@ -139,41 +174,38 @@ class UFO: SKNode {
 
         var newBullets: [Bullet] = []
 
+        // Time is up: head straight for the exit (it never vanishes in the middle of the map)
         lifetime -= 1
         if lifetime <= 0 {
-            isAlive = false
-            return []
+            leaveNow()
         }
 
-        // Change direction periodically
-        directionChangeTimer -= 1
-        if directionChangeTimer <= 0 {
-            randomizeDirection()
-            directionChangeTimer = GameConstants.ufoDirectionChange + Int.random(in: 0..<60)
-        }
-
-        // Move
-        position.x += dx
-        position.y += dy
-
-        // Keep within vertical bounds (bounce)
-        if position.y < 50 {
-            position.y = 50
-            dy = abs(dy)
-        }
-        if position.y > mapHeight - UFO.size - 50 {
-            position.y = mapHeight - UFO.size - 50
-            dy = -abs(dy)
-        }
-
-        // Check if reached other side
-        if movingRight && position.x > mapWidth {
-            isAlive = false
-            return []
-        }
-        if !movingRight && position.x < -UFO.size {
-            isAlive = false
-            return []
+        if pauseTimer > 0 {
+            pauseTimer -= 1  // Hanging over a spot
+        } else if let target = waypoints.first {
+            let dx = target.x - position.x, dy = target.y - position.y
+            let distance = sqrt(dx * dx + dy * dy)
+            if distance <= flySpeed * 2 + 4 {
+                waypoints.removeFirst()
+                if waypoints.isEmpty {
+                    isAlive = false  // Flew off the map: escaped
+                    return []
+                }
+                if style == .hover && waypoints.count >= 1 && !leaving {
+                    pauseTimer = Int.random(in: 50...120)
+                }
+            } else {
+                var vx = dx / distance * flySpeed, vy = dy / distance * flySpeed
+                if style == .wave {
+                    // Sideways swing across the direction of travel
+                    wavePhase += 0.06
+                    let swing = cos(wavePhase) * 1.6
+                    vx += -dy / distance * swing
+                    vy += dx / distance * swing
+                }
+                position.x += vx
+                position.y += vy
+            }
         }
 
         // Shooting
