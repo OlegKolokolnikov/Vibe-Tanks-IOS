@@ -48,7 +48,7 @@ struct GameConstants {
     static let bossBaseHealth = 10
     static let bossLevelInterval = 10  // Boss is the last tank of every 10th level
     static let fireBoostStep = 5       // Frames off the shot cooldown per star / defeated boss
-    static let bossesPerExtraBullet = 10  // Every 10th defeated boss adds a bullet per shot
+    static let bossesPerExtraBullet = 3   // Every 3rd defeated boss adds a bullet per shot
 
     // Spawn type thresholds (cumulative probabilities)
     static let spawnRegularThreshold = 0.50

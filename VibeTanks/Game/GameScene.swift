@@ -1273,7 +1273,7 @@ class GameScene: SKScene {
     func showBossDefeated(at position: CGPoint) {
         SoundManager.shared.playBossDefeated()
 
-        // Reward: both players shoot faster until a new game; every 10th boss also adds a bullet per shot
+        // Reward: both players shoot faster until a new game; every 3rd boss also adds a bullet per shot
         for player in [playerTank, player2Tank].compactMap({ $0 }) {
             player.bossFireBoost += 1
             player.drawTank()

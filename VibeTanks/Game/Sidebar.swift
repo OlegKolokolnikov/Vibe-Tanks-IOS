@@ -179,7 +179,7 @@ class Sidebar: SKNode {
     /// Power-up data structure for sidebar display
     struct PowerUpData: Equatable {
         var starCount: Int = 0        // Shooting speed (max 3)
-        var bossFireBoost: Int = 0    // Defeated bosses: faster shooting (every 10th: extra bullet)
+        var bossFireBoost: Int = 0    // Defeated bosses: faster shooting (every 3rd: extra bullet)
         var machinegunCount: Int = 0  // Extra bullets (max 3)
         var hasGun: Bool = false      // Can break steel
         var hasShip: Bool = false     // Can swim
