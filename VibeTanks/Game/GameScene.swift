@@ -879,7 +879,7 @@ class GameScene: SKScene {
                 return
             }
             // Every bonus item taken: no need to wait the full time
-            if levelBonusesSpawned, victoryDelayTimer > 90, !powerUps.contains(where: { $0.type.isLevelBonus }) {
+            if levelBonusesSpawned, victoryDelayTimer > 90, !powerUps.contains(where: { $0.isPlayersOnly }) {
                 victoryDelayTimer = 90
             }
         }
@@ -1109,7 +1109,7 @@ class GameScene: SKScene {
         let direction: Direction?, shouldShoot: Bool
         if victoryDelayTimer > 0 {
             // Level cleared: collect what the friend may take, then park at the base
-            let takeable = powerUps.filter { $0.type != .laser && !$0.type.isLevelBonus }.map { $0.position }
+            let takeable = powerUps.filter { $0.type != .laser && !$0.isPlayersOnly }.map { $0.position }
             (direction, shouldShoot) = ai.updateFriendLevelCleared(map: gameMap, powerUps: takeable)
         } else {
             let enemyBullets = bullets.filter { $0.isFromEnemy && !isBulletRemoved($0) }
@@ -1272,6 +1272,14 @@ class GameScene: SKScene {
     /// Boss destroyed: chain of explosions, fireworks, a big title and the winning fanfare
     func showBossDefeated(at position: CGPoint) {
         SoundManager.shared.playBossDefeated()
+
+        // The boss drops a question mark: a random power-up for the player who grabs it
+        // Boss swims and breaks steel: if it fell on water or steel, drop it on open ground instead
+        let tile = gameMap.getTile(at: position)
+        let dropPoint = (tile == .water || tile == .steel) ? findRandomEmptyPosition() : position
+        let drop = PowerUp(position: dropPoint, mystery: true)
+        powerUps.append(drop)
+        gameLayer.addChild(drop)
 
         // Reward: both players shoot faster until a new game; every 3rd boss also adds a bullet per shot
         for player in [playerTank, player2Tank].compactMap({ $0 }) {
@@ -1788,7 +1796,7 @@ class GameScene: SKScene {
             }
 
             // The friend collects power-ups too (except the player's laser)
-            if let friend = gzhelTank, friend.isAlive, powerUp.type != .laser, !powerUp.type.isLevelBonus {
+            if let friend = gzhelTank, friend.isAlive, powerUp.type != .laser, !powerUp.isPlayersOnly {
                 let friendDist = (friend.size.width + powerUp.size.width) / 2
                 if abs(friend.position.x - powerUp.position.x) < friendDist &&
                     abs(friend.position.y - powerUp.position.y) < friendDist {
@@ -1800,7 +1808,7 @@ class GameScene: SKScene {
             }
 
             // Check enemy collisions (the laser is the player's reward: enemies can't take it)
-            for enemy in enemyTanks where powerUp.type != .laser && !powerUp.type.isLevelBonus {
+            for enemy in enemyTanks where powerUp.type != .laser && !powerUp.isPlayersOnly {
                 guard enemy.isAlive else { continue }
                 let enemyDx = abs(enemy.position.x - powerUp.position.x)
                 let enemyDy = abs(enemy.position.y - powerUp.position.y)
@@ -1983,6 +1991,9 @@ class GameScene: SKScene {
     }
 
     private func handlePowerUpCollection(_ powerUp: PowerUp, by player: Tank) {
+        if powerUp.isMystery {
+            revealMystery(powerUp)
+        }
         // Gold gives 99 points, others give 1
         if powerUp.type == .gold {
             addScore(99, for: player)
@@ -2033,6 +2044,23 @@ class GameScene: SKScene {
         default:
             powerUp.apply(to: player)
         }
+    }
+
+    /// The question mark opens: what was inside pops up and floats away
+    private func revealMystery(_ powerUp: PowerUp) {
+        let icon = SKLabelNode(text: powerUp.iconForType)
+        icon.fontName = "Helvetica-Bold"
+        icon.fontSize = 26
+        icon.verticalAlignmentMode = .center
+        icon.position = powerUp.position
+        icon.zPosition = 120
+        icon.setScale(0.3)
+        gameLayer.addChild(icon)
+        icon.run(SKAction.sequence([
+            SKAction.scale(to: 1.6, duration: 0.2),
+            SKAction.group([SKAction.moveBy(x: 0, y: 40, duration: 0.9), SKAction.fadeOut(withDuration: 0.9)]),
+            SKAction.removeFromParent()
+        ]))
     }
 
     /// Add freeze visual effect to all enemies
@@ -2271,7 +2299,9 @@ class GameScene: SKScene {
         if enemySpawner.allEnemiesDefeated(currentEnemies: enemyTanks) && victoryDelayTimer == 0 && !isGameOver {
             victoryDelayTimer = GameConstants.victoryDelay
             showEffect(text: "VICTORY! Collect power-ups!", color: .green)
-            if spawnLevelBonuses() {
+            // Wait longer while there are bonuses (or the boss's question mark) to pick up
+            if spawnLevelBonuses() || powerUps.contains(where: { $0.isMystery }) {
+                levelBonusesSpawned = true
                 victoryDelayTimer = GameConstants.levelBonusVictoryDelay
             }
             // The friend stays (it comes along to the next level); one that hasn't appeared yet won't now

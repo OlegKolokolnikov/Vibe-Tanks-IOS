@@ -29,13 +29,20 @@ class PowerUp: SKSpriteNode {
     }
 
     let type: PowerUpType
+    /// Question mark dropped by a defeated boss: a random power-up, revealed when picked up
+    let isMystery: Bool
     private var lifetime: Int
     private var blinkTimer: Int = 0
 
-    init(position: CGPoint, type: PowerUpType? = nil) {
+    /// Only players can take it (level-clear bonuses and the boss's question mark),
+    /// and the level waits for it
+    var isPlayersOnly: Bool { type.isLevelBonus || isMystery }
+
+    init(position: CGPoint, type: PowerUpType? = nil, mystery: Bool = false) {
         self.type = type ?? PowerUp.randomType()
-        // Level-clear bonuses stay until the level ends
-        self.lifetime = self.type.isLevelBonus ? Int.max : GameConstants.powerUpLifetime
+        self.isMystery = mystery
+        // Level-clear bonuses and the question mark stay until the level ends
+        self.lifetime = (self.type.isLevelBonus || mystery) ? Int.max : GameConstants.powerUpLifetime
 
         let size = CGSize(width: 28, height: 28)
         super.init(texture: nil, color: .clear, size: size)
@@ -53,7 +60,9 @@ class PowerUp: SKSpriteNode {
     private func drawPowerUp() {
         removeAllChildren()
 
-        if type == .gold {
+        if isMystery {
+            drawMystery()
+        } else if type == .gold {
             // Lode Runner style gold bar/ingot
             drawGoldBar()
         } else if type.isLevelBonus {
@@ -108,6 +117,32 @@ class PowerUp: SKSpriteNode {
 
         // Add sparkle effect
         addSparkle()
+    }
+
+    /// Boss drop: purple box with a big pulsing question mark
+    private func drawMystery() {
+        let background = SKShapeNode(rectOf: size, cornerRadius: 4)
+        background.fillColor = SKColor(red: 0.45, green: 0.1, blue: 0.75, alpha: 1.0)
+        background.strokeColor = .white
+        background.lineWidth = 2
+        addChild(background)
+
+        let mark = SKLabelNode(text: "?")
+        mark.fontName = "Helvetica-Bold"
+        mark.fontSize = 22
+        mark.fontColor = .yellow
+        mark.verticalAlignmentMode = .center
+        addChild(mark)
+        mark.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.scale(to: 1.25, duration: 0.4),
+            SKAction.scale(to: 0.9, duration: 0.4)
+        ])))
+        background.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.run { background.strokeColor = .yellow },
+            SKAction.wait(forDuration: 0.25),
+            SKAction.run { background.strokeColor = .white },
+            SKAction.wait(forDuration: 0.25)
+        ])))
     }
 
     /// Fruit / soccer ball: no box, a soft glow and a gentle bounce
@@ -185,7 +220,7 @@ class PowerUp: SKSpriteNode {
         }
     }
 
-    private var iconForType: String {
+    var iconForType: String {
         switch type {
         case .gun: return "🔫"
         case .star: return "⭐"
