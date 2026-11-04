@@ -144,10 +144,28 @@ class Bullet: SKSpriteNode {
     }
 
     func collidesWith(_ other: Bullet) -> Bool {
+        if isLaser != other.isLaser {
+            // The fast laser covers more than a bullet's width per frame:
+            // check the whole stretch it (and the other shot) moved through this frame
+            let laser = isLaser ? self : other
+            let shot = isLaser ? other : self
+            return laser.sweptHit(shot)
+        }
         let dx = position.x - other.position.x
         let dy = position.y - other.position.y
         let dist = sqrt(dx * dx + dy * dy)
         return dist < GameConstants.bulletSize
+    }
+
+    /// Did `other` cross the path this shot travelled during the last frame?
+    private func sweptHit(_ other: Bullet) -> Bool {
+        let v = direction.velocity
+        let rx = other.position.x - position.x, ry = other.position.y - position.y
+        let along = rx * v.dx + ry * v.dy           // Ahead (+) or behind (-) along the flight line
+        let aside = abs(rx * v.dy - ry * v.dx)      // Distance off the flight line
+        let reach = GameConstants.bulletSize
+        let back = moveSpeed + other.moveSpeed + reach
+        return aside < reach && along > -back && along < reach
     }
 
     func collidesWith(_ tank: Tank) -> Bool {
