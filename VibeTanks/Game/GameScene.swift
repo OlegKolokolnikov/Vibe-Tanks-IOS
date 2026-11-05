@@ -155,6 +155,20 @@ class GameScene: SKScene {
     var touchController2: TouchController?  // Player 2 (two-player mode, touch screens)
     var sidebar: Sidebar!
     var scoreLabel: SKLabelNode!
+    /// White plate behind the score on Gzhel levels (touch devices)
+    private var scorePlate: SKShapeNode?
+
+    /// Enemy speed: +10% for every boss defeated this game, at most 1.6x
+    private var enemySpeedFactor: CGFloat {
+        let bosses = playerTanks.map { $0.bossFireBoost }.max() ?? 0
+        return min(1 + CGFloat(bosses) * GameConstants.enemySpeedPerBoss, GameConstants.enemyMaxBossSpeed)
+    }
+
+    private func updateScorePlate() {
+        guard let plate = scorePlate, let label = scoreLabel else { return }
+        let rect = label.frame.insetBy(dx: -10, dy: -5)
+        plate.path = CGPath(roundedRect: rect, cornerWidth: 6, cornerHeight: 6, transform: nil)
+    }
 
     // Game state
     /// Each player has their own score (indexed by playerNumber - 1)
@@ -821,6 +835,18 @@ class GameScene: SKScene {
         )
         scoreLabel.zPosition = 100
         gameCamera.addChild(scoreLabel)
+        if showGzhelBorder {
+            // The white Gzhel border hides the score: put it on a white plate with dark blue text
+            scoreLabel.fontColor = SKColor(red: 0.0, green: 0.2, blue: 0.6, alpha: 1.0)
+            let plate = SKShapeNode()
+            plate.fillColor = SKColor.white.withAlphaComponent(0.9)
+            plate.strokeColor = SKColor(red: 0.0, green: 0.3, blue: 0.7, alpha: 1.0)
+            plate.lineWidth = 2
+            plate.zPosition = 99
+            gameCamera.addChild(plate)
+            scorePlate = plate
+            updateScorePlate()
+        }
         #endif
 
         // Freeze countdowns (shown on all platforms)
@@ -1566,6 +1592,11 @@ class GameScene: SKScene {
         if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap, otherTanks: nonEnemyTanks) {
             enemyTanks.append(newEnemy)
             invalidateAllTanksCache()
+
+            // Enemies get faster with every boss defeated this game
+            let speedUp = enemySpeedFactor
+            newEnemy.baseSpeedMultiplier = speedUp
+            newEnemy.speedMultiplier = speedUp
             gameLayer.addChild(newEnemy)
             showSpawnEffect(at: newEnemy.position)
             if newEnemy.enemyType == .boss {
@@ -3076,10 +3107,13 @@ class GameScene: SKScene {
         #if targetEnvironment(macCatalyst)
         // Post notification for UIKit overlay to update
         NotificationCenter.default.post(name: .gameScoreDidChange, object: nil,
-                                        userInfo: ["score": score, "text": scoreText])
+                                        userInfo: ["score": score, "text": scoreText, "gzhel": showGzhelBorder])
         #else
         let text = scoreText
-        if scoreLabel.text != text { scoreLabel.text = text }
+        if scoreLabel.text != text {
+            scoreLabel.text = text
+            updateScorePlate()
+        }
         #endif
 
         // Build power-up data from the player tanks

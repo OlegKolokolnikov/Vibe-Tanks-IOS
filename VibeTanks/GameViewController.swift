@@ -8,6 +8,8 @@ class GameViewController: UIViewController {
     #if targetEnvironment(macCatalyst)
     // Mac overlay UI elements (positioned in letterbox area)
     private var scoreLabel: UILabel?
+    /// Plate behind the score: only shown on Gzhel levels, where the white border hides white text
+    private var scorePlate: UIView?
     private var pauseButton: UIButton?
     #endif
 
@@ -29,12 +31,19 @@ class GameViewController: UIViewController {
     #if targetEnvironment(macCatalyst)
     private func setupMacOverlay() {
         // Score label - positioned at top left in letterbox area
+        let plate = UIView()
+        plate.layer.cornerRadius = 8
+        plate.backgroundColor = .clear
+        plate.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(plate)
+        scorePlate = plate
+
         let score = UILabel()
         score.text = "Score: 0"
         score.font = UIFont.boldSystemFont(ofSize: 24)
         score.textColor = .white
         score.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(score)
+        plate.addSubview(score)
         scoreLabel = score
 
         // Pause button - positioned at top right in letterbox area
@@ -51,8 +60,12 @@ class GameViewController: UIViewController {
         pauseButton = pause
 
         NSLayoutConstraint.activate([
-            score.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
-            score.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+            plate.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 8),
+            plate.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
+            score.leadingAnchor.constraint(equalTo: plate.leadingAnchor, constant: 12),
+            score.trailingAnchor.constraint(equalTo: plate.trailingAnchor, constant: -12),
+            score.topAnchor.constraint(equalTo: plate.topAnchor, constant: 6),
+            score.bottomAnchor.constraint(equalTo: plate.bottomAnchor, constant: -6),
 
             pause.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
             pause.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20)
@@ -72,9 +85,15 @@ class GameViewController: UIViewController {
         // "text" carries both scores in a two-player game
         let text = notification.userInfo?["text"] as? String
             ?? (notification.userInfo?["score"] as? Int).map { "Score: \($0)" }
+        let gzhel = notification.userInfo?["gzhel"] as? Bool ?? false
         if let text = text {
             DispatchQueue.main.async {
                 if self.scoreLabel?.text != text { self.scoreLabel?.text = text }
+                // Gzhel level: dark blue text on a white plate, otherwise plain white text
+                self.scoreLabel?.textColor = gzhel ? UIColor(red: 0.0, green: 0.2, blue: 0.6, alpha: 1.0) : .white
+                self.scorePlate?.backgroundColor = gzhel ? UIColor.white.withAlphaComponent(0.9) : .clear
+                self.scorePlate?.layer.borderWidth = gzhel ? 2 : 0
+                self.scorePlate?.layer.borderColor = UIColor(red: 0.0, green: 0.3, blue: 0.7, alpha: 1.0).cgColor
             }
         }
     }
