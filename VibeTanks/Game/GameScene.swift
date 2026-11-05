@@ -1304,6 +1304,7 @@ class GameScene: SKScene {
         let tile = gameMap.getTile(at: position)
         let dropPoint = (tile == .water || tile == .steel) ? findRandomEmptyPosition() : position
         let drop = PowerUp(position: dropPoint, mystery: true)
+        drop.zPosition = 16  // Above the forest (15): never hidden under the trees
         powerUps.append(drop)
         gameLayer.addChild(drop)
 
@@ -2079,6 +2080,14 @@ class GameScene: SKScene {
 
     /// The question mark opens: what was inside pops up and floats away
     private func revealMystery(_ powerUp: PowerUp) {
+        // Power-ups without a message of their own get one, so the player sees what they won
+        let names: [PowerUp.PowerUpType: String] = [
+            .gun: "GUN!", .star: "STAR!", .car: "SPEED!", .ship: "SHIP!", .tank: "EXTRA LIFE!",
+            .shield: "SHIELD!", .machinegun: "MACHINEGUN!"
+        ]
+        if let name = names[powerUp.type] {
+            showEffect(text: "? = \(powerUp.iconForType) \(name)", color: SKColor(red: 0.8, green: 0.5, blue: 1.0, alpha: 1.0))
+        }
         let icon = SKLabelNode(text: powerUp.iconForType)
         icon.fontName = "Helvetica-Bold"
         icon.fontSize = 26
