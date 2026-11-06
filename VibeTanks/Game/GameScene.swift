@@ -155,6 +155,8 @@ class GameScene: SKScene {
     var touchController2: TouchController?  // Player 2 (two-player mode, touch screens)
     var sidebar: Sidebar!
     var scoreLabel: SKLabelNode!
+    /// Set while several power-ups are handed out at once: their own messages are skipped
+    private var quietEffects = false
     /// White plate behind the score on Gzhel levels (touch devices)
     private var scorePlate: SKShapeNode?
 
@@ -2024,7 +2026,8 @@ class GameScene: SKScene {
 
     private func handlePowerUpCollection(_ powerUp: PowerUp, by player: Tank) {
         if powerUp.isMystery {
-            revealMystery(powerUp)
+            openMystery(powerUp, by: player)
+            return
         }
         // Gold gives 99 points, others give 1
         if powerUp.type == .gold {
@@ -2078,29 +2081,45 @@ class GameScene: SKScene {
         }
     }
 
-    /// The question mark opens: what was inside pops up and floats away
-    private func revealMystery(_ powerUp: PowerUp) {
-        // Power-ups without a message of their own get one, so the player sees what they won
-        let names: [PowerUp.PowerUpType: String] = [
-            .gun: "GUN!", .star: "STAR!", .car: "SPEED!", .ship: "SHIP!", .tank: "EXTRA LIFE!",
-            .shield: "SHIELD!", .machinegun: "MACHINEGUN!"
-        ]
-        if let name = names[powerUp.type] {
-            showEffect(text: "? = \(powerUp.iconForType) \(name)", color: SKColor(red: 0.8, green: 0.5, blue: 1.0, alpha: 1.0))
+    /// The boss's question mark opens: every enemy on the field dies and the player gets 3 random power-ups
+    private func openMystery(_ powerUp: PowerUp, by player: Tank) {
+        destroyAllEnemies(countsAsBomb: false)
+
+        // Bomb and freeze would be wasted with no enemies left
+        var prizes: [PowerUp.PowerUpType] = []
+        while prizes.count < GameConstants.mysteryPrizeCount {
+            let type = PowerUp.randomType()
+            if type != .bomb && type != .freeze { prizes.append(type) }
         }
-        let icon = SKLabelNode(text: powerUp.iconForType)
-        icon.fontName = "Helvetica-Bold"
-        icon.fontSize = 26
-        icon.verticalAlignmentMode = .center
-        icon.position = powerUp.position
-        icon.zPosition = 120
-        icon.setScale(0.3)
-        gameLayer.addChild(icon)
-        icon.run(SKAction.sequence([
-            SKAction.scale(to: 1.6, duration: 0.2),
-            SKAction.group([SKAction.moveBy(x: 0, y: 40, duration: 0.9), SKAction.fadeOut(withDuration: 0.9)]),
-            SKAction.removeFromParent()
-        ]))
+
+        quietEffects = true  // One message for the whole prize instead of one per power-up
+        for type in prizes {
+            handlePowerUpCollection(PowerUp(position: powerUp.position, type: type), by: player)
+        }
+        quietEffects = false
+
+        let icons = prizes.map { PowerUp(position: .zero, type: $0).iconForType }
+        showEffect(text: "? = \(icons.joined(separator: " ")) ENEMIES DOWN!",
+                   color: SKColor(red: 0.8, green: 0.5, blue: 1.0, alpha: 1.0))
+
+        // The prizes pop out of the box and float away
+        for (index, iconText) in icons.enumerated() {
+            let icon = SKLabelNode(text: iconText)
+            icon.fontName = "Helvetica-Bold"
+            icon.fontSize = 26
+            icon.verticalAlignmentMode = .center
+            icon.position = powerUp.position
+            icon.zPosition = 120
+            icon.setScale(0.3)
+            gameLayer.addChild(icon)
+            let spread = CGFloat(index - (icons.count - 1) / 2) * 34
+            icon.run(SKAction.sequence([
+                SKAction.wait(forDuration: Double(index) * 0.12),
+                SKAction.group([SKAction.scale(to: 1.6, duration: 0.2), SKAction.moveBy(x: spread, y: 10, duration: 0.2)]),
+                SKAction.group([SKAction.moveBy(x: 0, y: 40, duration: 0.9), SKAction.fadeOut(withDuration: 0.9)]),
+                SKAction.removeFromParent()
+            ]))
+        }
     }
 
     /// Add freeze visual effect to all enemies
@@ -2139,11 +2158,12 @@ class GameScene: SKScene {
         // Removed in update() when freezeTimer reaches 0
     }
 
-    private func destroyAllEnemies() {
+    /// `countsAsBomb`: false for the boss's question mark (keeps the soccer ball)
+    private func destroyAllEnemies(countsAsBomb: Bool = true) {
         // The boss is too tough for a bomb: it just takes one hit
         var survivors: [Tank] = []
         for enemy in enemyTanks where enemy.isAlive && enemy.enemyType == .boss {
-            bombUsedThisLevel = true
+            if countsAsBomb { bombUsedThisLevel = true }
             enemy.damage(bypassShip: true, bypassShield: true)
             if enemy.isAlive {
                 flashBossHit(enemy)
@@ -2154,7 +2174,7 @@ class GameScene: SKScene {
         }
         for enemy in enemyTanks where !survivors.contains(where: { $0 === enemy }) {
             if enemy.isAlive {
-                bombUsedThisLevel = true
+                if countsAsBomb { bombUsedThisLevel = true }
                 // No score or kill credit for bomb kills
                 // Force kill - keep damaging until dead (for heavy tanks with multiple health)
                 while enemy.isAlive {
@@ -2291,6 +2311,7 @@ class GameScene: SKScene {
     }
 
     func showEffect(text: String, color: SKColor) {
+        guard !quietEffects else { return }
         let cameraScale = gameCamera.xScale
 
         let label = SKLabelNode(text: text)

@@ -49,6 +49,7 @@ struct GameConstants {
     static let bossLevelInterval = 10  // Boss is the last tank of every 10th level
     static let fireBoostStep = 5       // Frames off the shot cooldown per star / defeated boss
     static let bossesPerExtraBullet = 3   // Every 3rd defeated boss adds a bullet per shot
+    static let mysteryPrizeCount = 3  // Power-ups inside the boss's question mark
     static let enemySpeedPerBoss: CGFloat = 0.1  // Enemies are 10% faster per defeated boss
     static let enemyMaxBossSpeed: CGFloat = 1.6  // ...up to 1.6x
 
