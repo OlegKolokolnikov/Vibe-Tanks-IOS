@@ -440,6 +440,169 @@ class GameScene: SKScene {
         gameLayer.addChild(gzhelLayer)
     }
 
+    // MARK: - Khokhloma (alien mode)
+
+    /// Khokhloma style border (Russian black-red-gold painted wood) for alien levels:
+    /// black ground, gold stems with leaves and curls, red berries, in the same place as the Gzhel border
+    private func setupKhokhlomaBorder() {
+        let layer = SKNode()
+        layer.zPosition = -10  // Behind everything
+
+        let mapWidth = CGFloat(GameConstants.mapWidth) * GameConstants.tileSize
+        let mapHeight = CGFloat(GameConstants.mapHeight) * GameConstants.tileSize
+        let totalWidth = mapWidth + GameConstants.sidebarWidth
+
+        let ground = UIColor(red: 0.06, green: 0.03, blue: 0.02, alpha: 1)
+        let groundTexture = SKTexture(image: UIImage.solidColor(ground, size: CGSize(width: 4, height: 4)))
+        for (size, position) in [
+            (CGSize(width: 200, height: mapHeight + 400), CGPoint(x: -100, y: mapHeight / 2)),
+            (CGSize(width: 200, height: mapHeight + 400), CGPoint(x: totalWidth + 100, y: mapHeight / 2)),
+            (CGSize(width: totalWidth + 400, height: 200), CGPoint(x: totalWidth / 2, y: mapHeight + 100)),
+            (CGSize(width: totalWidth + 400, height: 200), CGPoint(x: totalWidth / 2, y: -100))
+        ] {
+            let sprite = SKSpriteNode(texture: groundTexture)
+            sprite.size = size
+            sprite.position = position
+            layer.addChild(sprite)
+        }
+
+        // Thin gold frame around the battlefield
+        let frame = SKShapeNode(rect: CGRect(x: -6, y: -6, width: totalWidth + 12, height: mapHeight + 12), cornerRadius: 4)
+        frame.strokeColor = SKColor(red: 0.95, green: 0.72, blue: 0.2, alpha: 1)
+        frame.lineWidth = 3
+        frame.fillColor = .clear
+        frame.zPosition = 1
+        layer.addChild(frame)
+
+        let branch = renderKhokhlomaBranchTexture(size: 34)
+        let smallBranch = renderKhokhlomaBranchTexture(size: 28)
+        let curl = renderKhokhlomaCurlTexture(size: 22)
+        let spacing: CGFloat = 80
+
+        func place(_ texture: SKTexture, at point: CGPoint, rotation: CGFloat, flip: Bool = false) {
+            let sprite = SKSpriteNode(texture: texture)
+            sprite.position = point
+            sprite.zRotation = rotation
+            if flip { sprite.xScale = -1 }
+            sprite.zPosition = 2
+            layer.addChild(sprite)
+        }
+
+        for (i, y) in stride(from: CGFloat(40), to: mapHeight, by: spacing).enumerated() {
+            place(branch, at: CGPoint(x: -34, y: y), rotation: 0, flip: i % 2 == 1)
+            place(branch, at: CGPoint(x: totalWidth + 34, y: y), rotation: 0, flip: i % 2 == 0)
+            place(curl, at: CGPoint(x: -40, y: y + spacing / 2), rotation: 0)
+            place(curl, at: CGPoint(x: totalWidth + 40, y: y + spacing / 2), rotation: 0, flip: true)
+        }
+        for (i, x) in stride(from: CGFloat(40), to: totalWidth, by: spacing).enumerated() {
+            place(smallBranch, at: CGPoint(x: x, y: mapHeight + 32), rotation: -.pi / 2, flip: i % 2 == 1)
+            place(smallBranch, at: CGPoint(x: x, y: -32), rotation: .pi / 2, flip: i % 2 == 0)
+            place(curl, at: CGPoint(x: x + spacing / 2, y: mapHeight + 38), rotation: -.pi / 2)
+            place(curl, at: CGPoint(x: x + spacing / 2, y: -38), rotation: .pi / 2)
+        }
+
+        gameLayer.addChild(layer)
+    }
+
+    /// Khokhloma rowan branch: curved gold stem, gold leaves, a cluster of red berries with highlights
+    private func renderKhokhlomaBranchTexture(size: CGFloat) -> SKTexture {
+        let textureSize = CGSize(width: size * 2, height: size * 2)
+        let image = UIGraphicsImageRenderer(size: textureSize).image { context in
+            let ctx = context.cgContext
+            let c = CGPoint(x: textureSize.width / 2, y: textureSize.height / 2)
+            let gold = UIColor(red: 0.98, green: 0.76, blue: 0.2, alpha: 1)
+            let darkGold = UIColor(red: 0.75, green: 0.5, blue: 0.08, alpha: 1)
+            let red = UIColor(red: 0.85, green: 0.08, blue: 0.06, alpha: 1)
+            let darkRed = UIColor(red: 0.55, green: 0.02, blue: 0.02, alpha: 1)
+
+            // Stem: an S-curve from bottom to top
+            ctx.setStrokeColor(gold.cgColor)
+            ctx.setLineWidth(size * 0.07)
+            ctx.setLineCap(.round)
+            ctx.move(to: CGPoint(x: c.x, y: c.y + size * 0.9))
+            ctx.addCurve(to: CGPoint(x: c.x, y: c.y - size * 0.85),
+                         control1: CGPoint(x: c.x - size * 0.6, y: c.y + size * 0.3),
+                         control2: CGPoint(x: c.x + size * 0.6, y: c.y - size * 0.3))
+            ctx.strokePath()
+
+            // Leaves: pointed drops along the stem, gold with a darker vein
+            func leaf(at p: CGPoint, angle: CGFloat, length: CGFloat) {
+                ctx.saveGState()
+                ctx.translateBy(x: p.x, y: p.y)
+                ctx.rotate(by: angle)
+                let path = CGMutablePath()
+                path.move(to: .zero)
+                path.addQuadCurve(to: CGPoint(x: length, y: 0), control: CGPoint(x: length * 0.5, y: -length * 0.45))
+                path.addQuadCurve(to: .zero, control: CGPoint(x: length * 0.5, y: length * 0.45))
+                ctx.addPath(path)
+                ctx.setFillColor(gold.cgColor)
+                ctx.fillPath()
+                ctx.setStrokeColor(darkGold.cgColor)
+                ctx.setLineWidth(1)
+                ctx.move(to: CGPoint(x: length * 0.1, y: 0))
+                ctx.addLine(to: CGPoint(x: length * 0.85, y: 0))
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
+            leaf(at: CGPoint(x: c.x - size * 0.2, y: c.y + size * 0.5), angle: .pi * 0.85, length: size * 0.5)
+            leaf(at: CGPoint(x: c.x - size * 0.12, y: c.y + size * 0.2), angle: .pi * 0.1, length: size * 0.45)
+            leaf(at: CGPoint(x: c.x + size * 0.12, y: c.y - size * 0.25), angle: -.pi * 0.9, length: size * 0.45)
+            leaf(at: CGPoint(x: c.x + size * 0.15, y: c.y - size * 0.55), angle: -.pi * 0.15, length: size * 0.4)
+
+            // Berries: a cluster near the middle, red with a dark rim and a white highlight
+            let berries: [(CGFloat, CGFloat)] = [(0.28, -0.02), (0.42, 0.14), (0.46, -0.14), (0.6, 0.02), (0.3, 0.26)]
+            for (bx, by) in berries {
+                let p = CGPoint(x: c.x + size * bx * 0.9 - size * 0.05, y: c.y + size * by)
+                let r = size * 0.12
+                let rect = CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)
+                ctx.setFillColor(red.cgColor)
+                ctx.fillEllipse(in: rect)
+                ctx.setStrokeColor(darkRed.cgColor)
+                ctx.setLineWidth(1)
+                ctx.strokeEllipse(in: rect)
+                ctx.setFillColor(UIColor(white: 1, alpha: 0.85).cgColor)
+                ctx.fillEllipse(in: CGRect(x: p.x - r * 0.45, y: p.y - r * 0.55, width: r * 0.5, height: r * 0.5))
+            }
+        }
+        return SKTexture(image: image)
+    }
+
+    /// Khokhloma "kudrina" curl: a gold spiral with little grass strokes
+    private func renderKhokhlomaCurlTexture(size: CGFloat) -> SKTexture {
+        let textureSize = CGSize(width: size * 2, height: size * 2)
+        let image = UIGraphicsImageRenderer(size: textureSize).image { context in
+            let ctx = context.cgContext
+            let c = CGPoint(x: textureSize.width / 2, y: textureSize.height / 2)
+            let gold = UIColor(red: 0.98, green: 0.76, blue: 0.2, alpha: 1)
+            ctx.setStrokeColor(gold.cgColor)
+            ctx.setLineCap(.round)
+
+            // Spiral curl
+            ctx.setLineWidth(size * 0.09)
+            var first = true
+            for step in 0...60 {
+                let t = CGFloat(step) / 60
+                let angle = t * .pi * 3.2
+                let radius = size * (0.75 - 0.6 * t)
+                let p = CGPoint(x: c.x + cos(angle) * radius, y: c.y + sin(angle) * radius)
+                if first { ctx.move(to: p); first = false } else { ctx.addLine(to: p) }
+            }
+            ctx.strokePath()
+
+            // Grass strokes ("travka") fanning out of the curl
+            ctx.setLineWidth(size * 0.05)
+            for i in 0..<4 {
+                let angle = -CGFloat.pi * 0.35 - CGFloat(i) * 0.3
+                let start = CGPoint(x: c.x + cos(angle) * size * 0.78, y: c.y + sin(angle) * size * 0.78)
+                let end = CGPoint(x: c.x + cos(angle) * size * 0.98, y: c.y + sin(angle) * size * 0.98)
+                ctx.move(to: start)
+                ctx.addLine(to: end)
+            }
+            ctx.strokePath()
+        }
+        return SKTexture(image: image)
+    }
+
     /// Render Gzhel chamomile flower to texture - white petals, yellow center, blue accents
     private func renderGzhelFlowerTexture(size: CGFloat, blueColor: SKColor, lightBlue: SKColor) -> SKTexture {
         let textureSize = CGSize(width: size * 2, height: size * 2)
@@ -687,6 +850,8 @@ class GameScene: SKScene {
         GameScene.isAlienModeActive = alienMode
         if showGzhelBorder {
             setupGzhelBorder()
+        } else if alienMode {
+            setupKhokhlomaBorder()
         }
 
         // Create map with session seed + level for deterministic but session-unique generation
