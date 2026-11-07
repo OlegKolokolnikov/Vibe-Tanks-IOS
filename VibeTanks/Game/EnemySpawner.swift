@@ -99,6 +99,11 @@ class EnemySpawner {
             result[alienIndex] = .alien
         }
 
+        // Secret Gorodets bonus stage: every tank is a rainbow POWER bird (the alien stays itself)
+        if Tank.isBirdStage {
+            result = result.map { $0 == .alien ? .alien : .power }
+        }
+
         // Boss level: the very last tank is the boss
         if hasBoss, !result.isEmpty {
             result[result.count - 1] = .boss
