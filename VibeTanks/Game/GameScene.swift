@@ -255,13 +255,19 @@ class GameScene: SKScene {
 
     // Alien mode (when UFO escaped previous level - alien is at base instead of cat)
     private var alienMode: Bool = false
+    /// Gzhel levels played in a row (5 in a row opens the secret Gorodets bonus stage)
+    private var gzhelStreak: Int = 0
+    /// Secret bonus stage: Gorodets painted border, enemy tanks look like birds
+    private var bonusStage: Bool = false
     private var ufoEscapedThisLevel: Bool = false  // Track if UFO escapes to trigger alien mode next level
 
     // Level initialization
     init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
          playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0,
-         friend: FriendCarry? = nil) {
+         friend: FriendCarry? = nil, gzhelStreak: Int = 0, bonusStage: Bool = false) {
         self.returningFriend = friend
+        self.gzhelStreak = gzhelStreak
+        self.bonusStage = bonusStage
         self.level = level
         self.scores = [score, player2Score]
         self.initialLives = lives
@@ -285,6 +291,9 @@ class GameScene: SKScene {
         setupCamera()
         setupGame()
         setupUI()
+        if bonusStage {
+            showUFOMessage("✨ SECRET BONUS STAGE! ✨", color: SKColor(red: 1.0, green: 0.55, blue: 0.1, alpha: 1))
+        }
 
         #if targetEnvironment(macCatalyst)
         // Listen for pause button from UIKit overlay
@@ -438,6 +447,209 @@ class GameScene: SKScene {
         }
 
         gameLayer.addChild(gzhelLayer)
+    }
+
+    // MARK: - Gorodets (secret bonus stage)
+
+    /// Gorodets style border (Russian painted wood): warm ochre ground, big "kupavka" flowers
+    /// in red and blue with white strokes, green leaves, and painted birds
+    private func setupGorodetsBorder() {
+        let layer = SKNode()
+        layer.zPosition = -10  // Behind everything
+
+        let mapWidth = CGFloat(GameConstants.mapWidth) * GameConstants.tileSize
+        let mapHeight = CGFloat(GameConstants.mapHeight) * GameConstants.tileSize
+        let totalWidth = mapWidth + GameConstants.sidebarWidth
+
+        let ochre = UIColor(red: 0.93, green: 0.7, blue: 0.3, alpha: 1)
+        let groundTexture = SKTexture(image: UIImage.solidColor(ochre, size: CGSize(width: 4, height: 4)))
+        for (size, position) in [
+            (CGSize(width: 200, height: mapHeight + 400), CGPoint(x: -100, y: mapHeight / 2)),
+            (CGSize(width: 200, height: mapHeight + 400), CGPoint(x: totalWidth + 100, y: mapHeight / 2)),
+            (CGSize(width: totalWidth + 400, height: 200), CGPoint(x: totalWidth / 2, y: mapHeight + 100)),
+            (CGSize(width: totalWidth + 400, height: 200), CGPoint(x: totalWidth / 2, y: -100))
+        ] {
+            let sprite = SKSpriteNode(texture: groundTexture)
+            sprite.size = size
+            sprite.position = position
+            layer.addChild(sprite)
+        }
+
+        // Dark brown frame with a thin red line, like a painted board edge
+        for (inset, color, width) in [(CGFloat(6), SKColor(red: 0.35, green: 0.16, blue: 0.05, alpha: 1), CGFloat(4)),
+                                      (CGFloat(12), SKColor(red: 0.8, green: 0.12, blue: 0.08, alpha: 1), CGFloat(2))] {
+            let frame = SKShapeNode(rect: CGRect(x: -inset, y: -inset, width: totalWidth + inset * 2, height: mapHeight + inset * 2), cornerRadius: 4)
+            frame.strokeColor = color
+            frame.lineWidth = width
+            frame.fillColor = .clear
+            frame.zPosition = 1
+            layer.addChild(frame)
+        }
+
+        let redFlower = renderGorodetsFlowerTexture(size: 30, petal: UIColor(red: 0.85, green: 0.12, blue: 0.1, alpha: 1),
+                                                    core: UIColor(red: 0.5, green: 0.03, blue: 0.03, alpha: 1))
+        let blueFlower = renderGorodetsFlowerTexture(size: 26, petal: UIColor(red: 0.2, green: 0.38, blue: 0.82, alpha: 1),
+                                                     core: UIColor(red: 0.06, green: 0.14, blue: 0.45, alpha: 1))
+        let bird = renderGorodetsBirdTexture(size: 30)
+        let spacing: CGFloat = 80
+
+        func place(_ texture: SKTexture, at point: CGPoint, flip: Bool = false) {
+            let sprite = SKSpriteNode(texture: texture)
+            sprite.position = point
+            if flip { sprite.xScale = -1 }
+            sprite.zPosition = 2
+            layer.addChild(sprite)
+        }
+
+        // Sides: flowers with a bird every third spot; top and bottom: alternating red and blue flowers
+        for (i, y) in stride(from: CGFloat(40), to: mapHeight, by: spacing).enumerated() {
+            let left: SKTexture = i % 3 == 1 ? bird : (i % 2 == 0 ? redFlower : blueFlower)
+            let right: SKTexture = i % 3 == 2 ? bird : (i % 2 == 0 ? blueFlower : redFlower)
+            place(left, at: CGPoint(x: -38, y: y), flip: true)
+            place(right, at: CGPoint(x: totalWidth + 38, y: y))
+        }
+        for (i, x) in stride(from: CGFloat(40), to: totalWidth, by: spacing).enumerated() {
+            place(i % 2 == 0 ? redFlower : blueFlower, at: CGPoint(x: x, y: mapHeight + 36))
+            place(i % 2 == 0 ? blueFlower : redFlower, at: CGPoint(x: x, y: -36))
+        }
+
+        gameLayer.addChild(layer)
+    }
+
+    /// Gorodets "kupavka": round flower with a dark core, white petal strokes and two green leaves
+    private func renderGorodetsFlowerTexture(size: CGFloat, petal: UIColor, core: UIColor) -> SKTexture {
+        let textureSize = CGSize(width: size * 2, height: size * 2)
+        let image = UIGraphicsImageRenderer(size: textureSize).image { context in
+            let ctx = context.cgContext
+            let c = CGPoint(x: textureSize.width / 2, y: textureSize.height / 2)
+            let green = UIColor(red: 0.12, green: 0.5, blue: 0.22, alpha: 1)
+            let white = UIColor(white: 1, alpha: 0.95)
+            ctx.setLineCap(.round)
+
+            // Leaves on both sides
+            for side: CGFloat in [-1, 1] {
+                ctx.saveGState()
+                ctx.translateBy(x: c.x + side * size * 0.45, y: c.y + size * 0.35)
+                ctx.rotate(by: side * 0.5)
+                let leaf = CGMutablePath()
+                leaf.move(to: .zero)
+                leaf.addQuadCurve(to: CGPoint(x: side * size * 0.55, y: size * 0.1), control: CGPoint(x: side * size * 0.3, y: -size * 0.25))
+                leaf.addQuadCurve(to: .zero, control: CGPoint(x: side * size * 0.3, y: size * 0.35))
+                ctx.addPath(leaf)
+                ctx.setFillColor(green.cgColor)
+                ctx.fillPath()
+                ctx.setStrokeColor(white.cgColor)
+                ctx.setLineWidth(1)
+                ctx.move(to: CGPoint(x: side * size * 0.08, y: 0))
+                ctx.addLine(to: CGPoint(x: side * size * 0.42, y: size * 0.06))
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
+
+            // Flower head
+            let r = size * 0.55
+            ctx.setFillColor(petal.cgColor)
+            ctx.fillEllipse(in: CGRect(x: c.x - r, y: c.y - r * 0.9, width: r * 2, height: r * 1.8))
+            // Dark core, set toward the top like a cup
+            let cr = r * 0.45
+            ctx.setFillColor(core.cgColor)
+            ctx.fillEllipse(in: CGRect(x: c.x - cr, y: c.y - r * 0.75, width: cr * 2, height: cr * 1.6))
+            // White "ozhivka": arcs along the petals and dots around the core
+            ctx.setStrokeColor(white.cgColor)
+            ctx.setLineWidth(1.4)
+            for i in 0..<5 {
+                let angle = CGFloat.pi * (0.15 + 0.175 * CGFloat(i))
+                let p = CGPoint(x: c.x + cos(angle) * r * 0.75, y: c.y + sin(angle) * r * 0.65)
+                ctx.addArc(center: p, radius: r * 0.22, startAngle: angle - 1.2, endAngle: angle + 1.2, clockwise: false)
+                ctx.strokePath()
+            }
+            ctx.setFillColor(white.cgColor)
+            for i in 0..<6 {
+                let angle = CGFloat.pi + CGFloat(i) * .pi / 5
+                let p = CGPoint(x: c.x + cos(angle) * cr * 1.25, y: c.y - r * 0.75 + cr * 0.8 + sin(angle) * cr * 1.0)
+                ctx.fillEllipse(in: CGRect(x: p.x - 1.2, y: p.y - 1.2, width: 2.4, height: 2.4))
+            }
+        }
+        return SKTexture(image: image)
+    }
+
+    /// Gorodets bird in profile: black body, red and green tail sweeping up, white strokes
+    private func renderGorodetsBirdTexture(size: CGFloat) -> SKTexture {
+        let textureSize = CGSize(width: size * 2, height: size * 2)
+        let image = UIGraphicsImageRenderer(size: textureSize).image { context in
+            let ctx = context.cgContext
+            let c = CGPoint(x: textureSize.width / 2, y: textureSize.height / 2)
+            let black = UIColor(white: 0.08, alpha: 1)
+            let red = UIColor(red: 0.85, green: 0.12, blue: 0.1, alpha: 1)
+            let green = UIColor(red: 0.12, green: 0.5, blue: 0.22, alpha: 1)
+            let white = UIColor(white: 1, alpha: 0.95)
+            ctx.setLineCap(.round)
+
+            // Tail: three long feathers curving up behind (to the left)
+            for (i, color) in [green, red, green].enumerated() {
+                let path = CGMutablePath()
+                let base = CGPoint(x: c.x - size * 0.25, y: c.y + size * 0.1)
+                let tip = CGPoint(x: c.x - size * (0.75 + 0.08 * CGFloat(i)), y: c.y - size * (0.7 - 0.25 * CGFloat(i)))
+                path.move(to: base)
+                path.addQuadCurve(to: tip, control: CGPoint(x: c.x - size * 0.9, y: c.y + size * 0.1))
+                path.addQuadCurve(to: base, control: CGPoint(x: c.x - size * 0.45, y: c.y - size * 0.35))
+                ctx.addPath(path)
+                ctx.setFillColor(color.cgColor)
+                ctx.fillPath()
+            }
+
+            // Body: a plump drop
+            let body = CGMutablePath()
+            body.move(to: CGPoint(x: c.x + size * 0.35, y: c.y - size * 0.3))
+            body.addQuadCurve(to: CGPoint(x: c.x - size * 0.35, y: c.y + size * 0.15), control: CGPoint(x: c.x + size * 0.5, y: c.y + size * 0.55))
+            body.addQuadCurve(to: CGPoint(x: c.x + size * 0.35, y: c.y - size * 0.3), control: CGPoint(x: c.x - size * 0.1, y: c.y - size * 0.2))
+            ctx.addPath(body)
+            ctx.setFillColor(black.cgColor)
+            ctx.fillPath()
+
+            // Head, red comb, gold beak, white eye
+            let head = CGPoint(x: c.x + size * 0.38, y: c.y - size * 0.38)
+            ctx.fillEllipse(in: CGRect(x: head.x - size * 0.14, y: head.y - size * 0.14, width: size * 0.28, height: size * 0.28))
+            ctx.setFillColor(red.cgColor)
+            for j in 0..<3 {
+                ctx.fillEllipse(in: CGRect(x: head.x - size * 0.14 + CGFloat(j) * size * 0.08, y: head.y - size * 0.26, width: size * 0.1, height: size * 0.12))
+            }
+            ctx.setFillColor(UIColor(red: 1, green: 0.78, blue: 0.2, alpha: 1).cgColor)
+            ctx.move(to: CGPoint(x: head.x + size * 0.12, y: head.y - size * 0.04))
+            ctx.addLine(to: CGPoint(x: head.x + size * 0.28, y: head.y + size * 0.02))
+            ctx.addLine(to: CGPoint(x: head.x + size * 0.12, y: head.y + size * 0.08))
+            ctx.closePath()
+            ctx.fillPath()
+            ctx.setFillColor(white.cgColor)
+            ctx.fillEllipse(in: CGRect(x: head.x + size * 0.01, y: head.y - size * 0.06, width: size * 0.08, height: size * 0.08))
+
+            // Wing: red with white strokes
+            let wing = CGMutablePath()
+            wing.move(to: CGPoint(x: c.x + size * 0.15, y: c.y - size * 0.05))
+            wing.addQuadCurve(to: CGPoint(x: c.x - size * 0.3, y: c.y + size * 0.1), control: CGPoint(x: c.x, y: c.y + size * 0.35))
+            wing.addQuadCurve(to: CGPoint(x: c.x + size * 0.15, y: c.y - size * 0.05), control: CGPoint(x: c.x - size * 0.1, y: c.y - size * 0.1))
+            ctx.addPath(wing)
+            ctx.setFillColor(red.cgColor)
+            ctx.fillPath()
+            ctx.setStrokeColor(white.cgColor)
+            ctx.setLineWidth(1)
+            for j in 0..<3 {
+                let x = c.x + size * (0.05 - 0.12 * CGFloat(j))
+                ctx.move(to: CGPoint(x: x, y: c.y + size * 0.02))
+                ctx.addQuadCurve(to: CGPoint(x: x - size * 0.06, y: c.y + size * 0.16), control: CGPoint(x: x + size * 0.03, y: c.y + size * 0.12))
+            }
+            ctx.strokePath()
+
+            // Legs
+            ctx.setStrokeColor(black.cgColor)
+            ctx.setLineWidth(1.5)
+            for dx: CGFloat in [-0.02, 0.1] {
+                ctx.move(to: CGPoint(x: c.x + size * dx, y: c.y + size * 0.3))
+                ctx.addLine(to: CGPoint(x: c.x + size * dx, y: c.y + size * 0.5))
+            }
+            ctx.strokePath()
+        }
+        return SKTexture(image: image)
     }
 
     // MARK: - Khokhloma (alien mode)
@@ -848,7 +1060,10 @@ class GameScene: SKScene {
         // Add Gzhel border decoration if earned from previous level (must be after gameLayer exists)
         GameScene.isGzhelActive = showGzhelBorder
         GameScene.isAlienModeActive = alienMode
-        if showGzhelBorder {
+        Tank.isBirdStage = bonusStage
+        if bonusStage {
+            setupGorodetsBorder()
+        } else if showGzhelBorder {
             setupGzhelBorder()
         } else if alienMode {
             setupKhokhlomaBorder()
@@ -1002,8 +1217,8 @@ class GameScene: SKScene {
         )
         scoreLabel.zPosition = 100
         gameCamera.addChild(scoreLabel)
-        if showGzhelBorder {
-            // The white Gzhel border hides the score: put it on a white plate with dark blue text
+        if showGzhelBorder || bonusStage {
+            // The white Gzhel (or bright Gorodets) border hides the score: put it on a white plate with dark blue text
             scoreLabel.fontColor = SKColor(red: 0.0, green: 0.2, blue: 0.6, alpha: 1.0)
             let plate = SKShapeNode()
             plate.fillColor = SKColor.white.withAlphaComponent(0.9)
@@ -3302,7 +3517,7 @@ class GameScene: SKScene {
         #if targetEnvironment(macCatalyst)
         // Post notification for UIKit overlay to update
         NotificationCenter.default.post(name: .gameScoreDidChange, object: nil,
-                                        userInfo: ["score": score, "text": scoreText, "gzhel": showGzhelBorder])
+                                        userInfo: ["score": score, "text": scoreText, "gzhel": showGzhelBorder || bonusStage])
         #else
         let text = scoreText
         if scoreLabel.text != text {
@@ -3467,9 +3682,14 @@ class GameScene: SKScene {
                                canDestroyTrees: tank.canDestroyTrees)
         }
 
-        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel, alienMode: nextAlienMode,
+        // Five Gzhel levels in a row open the secret Gorodets bonus stage
+        var streak = showGzhelBorder ? gzhelStreak + 1 : 0
+        let nextIsBonus = streak >= GameConstants.gzhelLevelsForBonusStage
+        if nextIsBonus { streak = 0 }
+
+        let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel && !nextIsBonus, alienMode: nextAlienMode,
                                  playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2,
-                                 player2Score: scores[1], friend: friend)
+                                 player2Score: scores[1], friend: friend, gzhelStreak: streak, bonusStage: nextIsBonus)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }

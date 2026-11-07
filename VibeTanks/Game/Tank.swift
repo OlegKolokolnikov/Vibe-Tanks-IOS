@@ -8,6 +8,9 @@ class Tank: SKSpriteNode {
     private static var rainbowTextureCache: [String: [[SKTexture]]] = [:]
     private static let rainbowFrameCount = 30  // 30 hue steps for smooth animation
 
+    /// Secret Gorodets bonus stage: enemy tanks are drawn as painted birds
+    static var isBirdStage = false
+
     // Static explosion texture cache - pre-rendered circles for explosion effects
     private static var explosionTextureCache: [String: SKTexture] = [:]
 
@@ -43,7 +46,7 @@ class Tank: SKSpriteNode {
 
     /// Get or create cached rainbow textures for a given tank size
     private static func getRainbowTextures(size: CGFloat) -> [[SKTexture]] {
-        let key = "\(Int(size))"
+        let key = "\(Int(size))\(isBirdStage ? "_bird" : "")"
         if let cached = rainbowTextureCache[key] {
             return cached
         }
@@ -401,6 +404,10 @@ class Tank: SKSpriteNode {
 
     /// Render tank to texture for better performance (no SKShapeNodes at runtime)
     private static func renderTankTexture(size: CGFloat, mainColor: SKColor, darkColor: SKColor, isPlayer: Bool, enemyType: EnemyType, trackOffset: CGFloat = 0) -> SKTexture {
+        if !isPlayer && isBirdStage && enemyType != .gzhel && enemyType != .alien {
+            return renderBirdTexture(size: size, mainColor: mainColor, darkColor: darkColor,
+                                     enemyType: enemyType, wingsUp: trackOffset > 0)
+        }
         let scale = size / GameConstants.tankSize
 
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
@@ -587,7 +594,134 @@ class Tank: SKSpriteNode {
         return SKTexture(image: image)
     }
 
+    /// Gorodets painted bird seen from above, beak pointing up (the sprite is rotated by direction).
+    /// Two frames: wings spread and wings raised, swapped while moving like the tank tracks.
+    private static func renderBirdTexture(size: CGFloat, mainColor: SKColor, darkColor: SKColor,
+                                          enemyType: EnemyType, wingsUp: Bool) -> SKTexture {
+        let k = size / GameConstants.tankSize
+        let image = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { context in
+            let ctx = context.cgContext
+            ctx.translateBy(x: 0, y: size)
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.scaleBy(x: k, y: k)
+            ctx.setLineCap(.round)
+            let c: CGFloat = 14
+            let main = mainColor.cgColor, dark = darkColor.cgColor
+            let white = UIColor(white: 1, alpha: 0.9).cgColor
+            let gold = UIColor(red: 1.0, green: 0.78, blue: 0.2, alpha: 1).cgColor
+            let green = UIColor(red: 0.15, green: 0.55, blue: 0.25, alpha: 1).cgColor
+
+            // Tail: a fan of feathers behind the body, colors alternating
+            for i in 0..<5 {
+                let angle = -CGFloat.pi / 2 + CGFloat(i - 2) * 0.32
+                ctx.saveGState()
+                ctx.translateBy(x: c, y: 9)
+                ctx.rotate(by: angle)
+                let feather = CGRect(x: 0, y: -2, width: 9.5, height: 4)
+                ctx.setFillColor(i % 2 == 0 ? dark : green)
+                ctx.fillEllipse(in: feather)
+                ctx.setStrokeColor(white)
+                ctx.setLineWidth(0.6)
+                ctx.move(to: CGPoint(x: 3, y: 0)); ctx.addLine(to: CGPoint(x: 8.5, y: 0))
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
+
+            // Wings: spread out to the sides, or raised forward for the flap
+            for side: CGFloat in [-1, 1] {
+                ctx.saveGState()
+                ctx.translateBy(x: c + side * 4, y: 14)
+                ctx.rotate(by: side * (wingsUp ? 0.9 : 0.25))
+                let wing = CGRect(x: side < 0 ? -11 : 0, y: -3.5, width: 11, height: 7)
+                ctx.setFillColor(dark)
+                ctx.fillEllipse(in: wing)
+                // White "ozhivka" strokes along the feathers
+                ctx.setStrokeColor(white)
+                ctx.setLineWidth(0.7)
+                for j in 0..<3 {
+                    let x = side * (3 + CGFloat(j) * 2.6)
+                    ctx.move(to: CGPoint(x: x, y: -2)); ctx.addQuadCurve(to: CGPoint(x: x + side * 1.4, y: 2), control: CGPoint(x: x + side * 1.6, y: 0))
+                }
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
+
+            // Body
+            let body = CGRect(x: c - 6, y: 6, width: 12, height: 15)
+            ctx.setFillColor(main)
+            ctx.fillEllipse(in: body)
+            ctx.setStrokeColor(dark)
+            ctx.setLineWidth(1)
+            ctx.strokeEllipse(in: body)
+            // Breast ornament: white scallops
+            ctx.setStrokeColor(white)
+            ctx.setLineWidth(0.7)
+            for j in 0..<3 {
+                let y = 9 + CGFloat(j) * 3
+                ctx.move(to: CGPoint(x: c - 3, y: y)); ctx.addQuadCurve(to: CGPoint(x: c + 3, y: y), control: CGPoint(x: c, y: y - 2.2))
+            }
+            ctx.strokePath()
+
+            // Head with comb, eyes and a golden beak
+            let head = CGRect(x: c - 4.5, y: 18.5, width: 9, height: 8)
+            ctx.setFillColor(main)
+            ctx.fillEllipse(in: head)
+            ctx.setStrokeColor(dark)
+            ctx.strokeEllipse(in: head)
+            ctx.setFillColor(gold)
+            ctx.move(to: CGPoint(x: c - 2.2, y: 25.6))
+            ctx.addLine(to: CGPoint(x: c, y: 28))
+            ctx.addLine(to: CGPoint(x: c + 2.2, y: 25.6))
+            ctx.closePath()
+            ctx.fillPath()
+            for side: CGFloat in [-1, 1] {
+                ctx.setFillColor(white)
+                ctx.fillEllipse(in: CGRect(x: c + side * 2.2 - 1.3, y: 22.2, width: 2.6, height: 2.6))
+                ctx.setFillColor(UIColor.black.cgColor)
+                ctx.fillEllipse(in: CGRect(x: c + side * 2.2 - 0.7, y: 22.8, width: 1.4, height: 1.4))
+            }
+
+            if enemyType == .boss {
+                // The boss bird wears a golden crown and a skull on its back
+                ctx.setFillColor(gold)
+                ctx.move(to: CGPoint(x: c - 4, y: 18.5))
+                ctx.addLine(to: CGPoint(x: c - 4.5, y: 15.5))
+                ctx.addLine(to: CGPoint(x: c - 2, y: 17))
+                ctx.addLine(to: CGPoint(x: c, y: 14.8))
+                ctx.addLine(to: CGPoint(x: c + 2, y: 17))
+                ctx.addLine(to: CGPoint(x: c + 4.5, y: 15.5))
+                ctx.addLine(to: CGPoint(x: c + 4, y: 18.5))
+                ctx.closePath()
+                ctx.fillPath()
+                let bone = UIColor(white: 0.96, alpha: 1).cgColor
+                ctx.setFillColor(bone)
+                ctx.fillEllipse(in: CGRect(x: c - 3, y: 9.5, width: 6, height: 5.5))
+                ctx.fill(CGRect(x: c - 1.8, y: 8.2, width: 3.6, height: 2))
+                ctx.setFillColor(UIColor.black.cgColor)
+                ctx.fillEllipse(in: CGRect(x: c - 2.3, y: 11.4, width: 1.8, height: 2))
+                ctx.fillEllipse(in: CGRect(x: c + 0.5, y: 11.4, width: 1.8, height: 2))
+            } else {
+                // Red comb on top of the head
+                ctx.setFillColor(UIColor(red: 0.9, green: 0.1, blue: 0.1, alpha: 1).cgColor)
+                for j in 0..<3 {
+                    ctx.fillEllipse(in: CGRect(x: c - 2.6 + CGFloat(j) * 1.8, y: 17.6, width: 1.8, height: 2.2))
+                }
+            }
+        }
+        return SKTexture(image: image)
+    }
+
     private func getTankColors() -> (main: SKColor, dark: SKColor) {
+        // Bonus stage birds wear Gorodets colors
+        if !isPlayer && Tank.isBirdStage {
+            switch enemyType {
+            case .regular: return (SKColor(red: 0.88, green: 0.16, blue: 0.1, alpha: 1), SKColor(red: 0.5, green: 0.04, blue: 0.04, alpha: 1))
+            case .fast: return (SKColor(red: 1.0, green: 0.68, blue: 0.1, alpha: 1), SKColor(red: 0.72, green: 0.36, blue: 0.0, alpha: 1))
+            case .armored: return (SKColor(red: 0.16, green: 0.36, blue: 0.82, alpha: 1), SKColor(red: 0.05, green: 0.14, blue: 0.45, alpha: 1))
+            case .heavy: return (SKColor(white: 0.16, alpha: 1), SKColor(white: 0.03, alpha: 1))
+            default: break
+            }
+        }
         if isPlayer {
             let main = playerColor
             return (main, main.darker())
