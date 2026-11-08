@@ -8,8 +8,18 @@ class Base: SKSpriteNode {
     private var catNode: SKNode?
     private var isAlien: Bool = false
 
-    init(position: CGPoint, isAlien: Bool = false) {
-        self.isAlien = isAlien
+    /// Who sits at the base
+    enum Resident {
+        case cat
+        case alien
+        case woman(blond: Bool)  // Secret bonus stage (blond when the stage has a boss)
+        case dog                 // Boss levels
+    }
+    private let resident: Resident
+
+    init(position: CGPoint, resident: Resident = .cat) {
+        self.resident = resident
+        if case .alien = resident { self.isAlien = true }
         super.init(texture: nil, color: .clear, size: CGSize(width: baseSize, height: baseSize))
 
         self.position = position
@@ -44,6 +54,10 @@ class Base: SKSpriteNode {
         } else if isAlien {
             // Draw smiling alien visitor
             drawAlien()
+        } else if case .woman(let blond) = resident {
+            drawWoman(blond: blond)
+        } else if case .dog = resident {
+            drawDog()
         } else {
             // Draw cute cat - cushion is separate so cat can walk away from it
 
@@ -614,5 +628,277 @@ class Base: SKSpriteNode {
             flyAway,
             SKAction.removeFromParent()
         ]))
+    }
+}
+
+// MARK: - Woman (bonus stage) and dog (boss levels)
+
+extension Base {
+
+    private static let skin = SKColor(red: 1.0, green: 0.84, blue: 0.72, alpha: 1)
+
+    private func shape(_ path: CGPath, fill: SKColor, stroke: SKColor = .clear, width: CGFloat = 1) -> SKShapeNode {
+        let node = SKShapeNode(path: path)
+        node.fillColor = fill
+        node.strokeColor = stroke
+        node.lineWidth = width
+        return node
+    }
+
+    private func ellipse(_ w: CGFloat, _ h: CGFloat, at p: CGPoint, fill: SKColor, stroke: SKColor = .clear) -> SKShapeNode {
+        let node = SKShapeNode(ellipseOf: CGSize(width: w, height: h))
+        node.position = p
+        node.fillColor = fill
+        node.strokeColor = stroke
+        node.lineWidth = 1
+        return node
+    }
+
+    /// Woman in a red polka-dot dress on a rug; black hair, or blond on a boss bonus stage
+    fileprivate func drawWoman(blond: Bool) {
+        let rug = ellipse(baseSize * 0.95, baseSize * 0.55, at: CGPoint(x: 0, y: -10),
+                          fill: SKColor(red: 0.55, green: 0.25, blue: 0.6, alpha: 1),
+                          stroke: SKColor(red: 0.95, green: 0.8, blue: 0.3, alpha: 1))
+        rug.name = "cushion"
+        addChild(rug)
+
+        let hair = blond ? SKColor(red: 0.98, green: 0.84, blue: 0.38, alpha: 1)
+                         : SKColor(red: 0.08, green: 0.06, blue: 0.06, alpha: 1)
+        let woman = SKNode()
+        woman.name = "resident"
+
+        // Long hair behind the head and shoulders
+        let back = CGMutablePath()
+        back.addRoundedRect(in: CGRect(x: -8, y: -4, width: 16, height: 16), cornerWidth: 7, cornerHeight: 7)
+        woman.addChild(shape(back, fill: hair))
+
+        // Legs
+        let legs = CGMutablePath()
+        legs.move(to: CGPoint(x: -3, y: -13)); legs.addLine(to: CGPoint(x: -3, y: -17))
+        legs.move(to: CGPoint(x: 3, y: -13)); legs.addLine(to: CGPoint(x: 3, y: -17))
+        let legNode = shape(legs, fill: .clear, stroke: Base.skin, width: 2)
+        woman.addChild(legNode)
+
+        // Dress with white dots
+        let dress = CGMutablePath()
+        dress.move(to: CGPoint(x: -4.5, y: -1))
+        dress.addLine(to: CGPoint(x: 4.5, y: -1))
+        dress.addLine(to: CGPoint(x: 9, y: -14))
+        dress.addLine(to: CGPoint(x: -9, y: -14))
+        dress.closeSubpath()
+        woman.addChild(shape(dress, fill: SKColor(red: 0.88, green: 0.1, blue: 0.2, alpha: 1),
+                             stroke: SKColor(red: 0.55, green: 0.03, blue: 0.1, alpha: 1)))
+        for p in [CGPoint(x: -3, y: -6), CGPoint(x: 2.5, y: -4.5), CGPoint(x: 0, y: -10), CGPoint(x: -5.5, y: -11.5), CGPoint(x: 5, y: -10.5)] {
+            woman.addChild(ellipse(1.6, 1.6, at: p, fill: .white))
+        }
+
+        // Arms (the right one waves)
+        let leftArm = CGMutablePath()
+        leftArm.move(to: CGPoint(x: -4.5, y: -2)); leftArm.addLine(to: CGPoint(x: -8.5, y: -8))
+        woman.addChild(shape(leftArm, fill: .clear, stroke: Base.skin, width: 2))
+        let rightArm = CGMutablePath()
+        rightArm.move(to: .zero); rightArm.addLine(to: CGPoint(x: 4.5, y: 5))
+        let arm = shape(rightArm, fill: .clear, stroke: Base.skin, width: 2)
+        arm.position = CGPoint(x: 4.5, y: -2)
+        arm.name = "wavingArm"
+        woman.addChild(arm)
+
+        // Head, fringe, face
+        woman.addChild(ellipse(11, 12, at: CGPoint(x: 0, y: 5), fill: Base.skin))
+        let fringe = CGMutablePath()
+        fringe.addArc(center: CGPoint(x: 0, y: 6.5), radius: 6, startAngle: 0.15, endAngle: .pi - 0.15, clockwise: false)
+        fringe.closeSubpath()
+        woman.addChild(shape(fringe, fill: hair))
+        woman.addChild(ellipse(1.6, 2, at: CGPoint(x: -2.2, y: 5), fill: .black))
+        woman.addChild(ellipse(1.6, 2, at: CGPoint(x: 2.2, y: 5), fill: .black))
+        woman.addChild(ellipse(2, 1.3, at: CGPoint(x: -3.6, y: 2.8), fill: SKColor(red: 1, green: 0.55, blue: 0.6, alpha: 0.8)))
+        woman.addChild(ellipse(2, 1.3, at: CGPoint(x: 3.6, y: 2.8), fill: SKColor(red: 1, green: 0.55, blue: 0.6, alpha: 0.8)))
+        woman.addChild(ellipse(3.2, 1.6, at: CGPoint(x: 0, y: 1.6), fill: SKColor(red: 0.85, green: 0.05, blue: 0.15, alpha: 1)))
+
+        woman.position = CGPoint(x: 0, y: 2)
+        addChild(woman)
+        catNode = woman
+
+        // Idle: a gentle sway and a little wave now and then
+        woman.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.rotate(toAngle: 0.05, duration: 1.2),
+            SKAction.rotate(toAngle: -0.05, duration: 1.2)
+        ])))
+        arm.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.wait(forDuration: 2.0),
+            SKAction.repeat(SKAction.sequence([SKAction.rotate(toAngle: 0.6, duration: 0.15),
+                                               SKAction.rotate(toAngle: 0, duration: 0.15)]), count: 3)
+        ])))
+    }
+
+    /// Dog sitting on a blue bed, wagging its tail
+    fileprivate func drawDog() {
+        let bed = ellipse(baseSize * 0.9, baseSize * 0.65, at: CGPoint(x: 0, y: -4),
+                          fill: SKColor(red: 0.3, green: 0.5, blue: 0.85, alpha: 1),
+                          stroke: SKColor(red: 0.15, green: 0.3, blue: 0.6, alpha: 1))
+        bed.name = "cushion"
+        addChild(bed)
+
+        let fur = SKColor(red: 0.62, green: 0.4, blue: 0.2, alpha: 1)
+        let darkFur = SKColor(red: 0.38, green: 0.22, blue: 0.1, alpha: 1)
+        let tan = SKColor(red: 0.9, green: 0.75, blue: 0.55, alpha: 1)
+        let dog = SKNode()
+        dog.name = "resident"
+
+        // Tail (wags)
+        let tailPath = CGMutablePath()
+        tailPath.move(to: .zero)
+        tailPath.addQuadCurve(to: CGPoint(x: 6, y: 6), control: CGPoint(x: 6, y: 0))
+        let tail = shape(tailPath, fill: .clear, stroke: fur, width: 3)
+        tail.lineCap = .round
+        tail.position = CGPoint(x: 6, y: -9)
+        tail.name = "tail"
+        dog.addChild(tail)
+
+        // Body, chest, front paws
+        dog.addChild(ellipse(15, 14, at: CGPoint(x: 0, y: -6), fill: fur, stroke: darkFur))
+        dog.addChild(ellipse(7, 8, at: CGPoint(x: 0, y: -6), fill: tan))
+        dog.addChild(ellipse(4, 3, at: CGPoint(x: -3, y: -12.5), fill: tan, stroke: darkFur))
+        dog.addChild(ellipse(4, 3, at: CGPoint(x: 3, y: -12.5), fill: tan, stroke: darkFur))
+
+        // Collar with a gold tag
+        let collar = SKShapeNode(rectOf: CGSize(width: 9, height: 2), cornerRadius: 1)
+        collar.fillColor = SKColor(red: 0.85, green: 0.1, blue: 0.1, alpha: 1)
+        collar.strokeColor = .clear
+        collar.position = CGPoint(x: 0, y: -0.5)
+        dog.addChild(collar)
+        dog.addChild(ellipse(2.2, 2.2, at: CGPoint(x: 0, y: -2), fill: .yellow))
+
+        // Floppy ears, head, snout, nose, tongue, eyes
+        let leftEar = ellipse(5, 10, at: CGPoint(x: -6.5, y: 4), fill: darkFur)
+        leftEar.zRotation = -0.3
+        dog.addChild(leftEar)
+        let rightEar = ellipse(5, 10, at: CGPoint(x: 6.5, y: 4), fill: darkFur)
+        rightEar.zRotation = 0.3
+        dog.addChild(rightEar)
+        dog.addChild(ellipse(13, 12, at: CGPoint(x: 0, y: 6), fill: fur, stroke: darkFur))
+        dog.addChild(ellipse(8, 6, at: CGPoint(x: 0, y: 3), fill: tan))
+        dog.addChild(ellipse(3.4, 2.4, at: CGPoint(x: 0, y: 4.6), fill: .black))
+        dog.addChild(ellipse(2.4, 3, at: CGPoint(x: 0, y: 0.6), fill: SKColor(red: 1, green: 0.45, blue: 0.55, alpha: 1)))
+        dog.addChild(ellipse(2, 2.4, at: CGPoint(x: -2.8, y: 8), fill: .black))
+        dog.addChild(ellipse(2, 2.4, at: CGPoint(x: 2.8, y: 8), fill: .black))
+
+        dog.position = CGPoint(x: 0, y: 2)
+        addChild(dog)
+        catNode = dog
+
+        tail.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.rotate(toAngle: 0.5, duration: 0.18),
+            SKAction.rotate(toAngle: -0.3, duration: 0.18)
+        ])))
+    }
+
+    /// Bonus stage cleared: a car drives up, the woman gets in and they drive off
+    func playCarPickupAnimation(blond: Bool) {
+        guard let woman = catNode, !isDestroyed else { return }
+        woman.removeAllActions()
+        woman.zRotation = 0
+
+        let car = SKNode()
+        car.zPosition = 30
+        let paint = blond ? SKColor(red: 1.0, green: 0.45, blue: 0.7, alpha: 1) : SKColor(red: 0.85, green: 0.08, blue: 0.1, alpha: 1)
+        let bodyPath = CGMutablePath()
+        bodyPath.addRoundedRect(in: CGRect(x: -18, y: -5, width: 36, height: 11), cornerWidth: 4, cornerHeight: 4)
+        car.addChild(shape(bodyPath, fill: paint, stroke: paint.darker(), width: 1.5))
+        let cabinPath = CGMutablePath()
+        cabinPath.addRoundedRect(in: CGRect(x: -10, y: 5, width: 19, height: 9), cornerWidth: 4, cornerHeight: 4)
+        car.addChild(shape(cabinPath, fill: paint, stroke: paint.darker(), width: 1.5))
+        let window = CGMutablePath()
+        window.addRoundedRect(in: CGRect(x: -8, y: 6.5, width: 15, height: 6), cornerWidth: 2, cornerHeight: 2)
+        car.addChild(shape(window, fill: SKColor(red: 0.7, green: 0.9, blue: 1.0, alpha: 1)))
+        car.addChild(ellipse(3, 3, at: CGPoint(x: 17, y: 1), fill: .yellow))
+        var wheels: [SKNode] = []
+        for x: CGFloat in [-10, 10] {
+            let wheel = SKNode()
+            wheel.position = CGPoint(x: x, y: -6)
+            wheel.addChild(ellipse(9, 9, at: .zero, fill: SKColor(white: 0.12, alpha: 1)))
+            let spoke = SKShapeNode(rectOf: CGSize(width: 7, height: 1.4))
+            spoke.fillColor = SKColor(white: 0.75, alpha: 1)
+            spoke.strokeColor = .clear
+            wheel.addChild(spoke)
+            car.addChild(wheel)
+            wheels.append(wheel)
+        }
+        car.position = CGPoint(x: -260, y: -2)
+        addChild(car)
+        for wheel in wheels {
+            wheel.run(SKAction.repeatForever(SKAction.rotate(byAngle: -.pi * 2, duration: 0.35)))
+        }
+
+        let driveIn = SKAction.moveTo(x: -34, duration: 1.4)
+        driveIn.timingMode = .easeOut
+        let honk = SKAction.run { [weak self] in
+            guard let self = self else { return }
+            let label = SKLabelNode(text: "♥ BEEP BEEP ♥")
+            label.fontName = "Helvetica-Bold"
+            label.fontSize = 10
+            label.fontColor = .white
+            label.position = CGPoint(x: -34, y: 24)
+            label.zPosition = 31
+            self.addChild(label)
+            label.run(SKAction.sequence([SKAction.moveBy(x: 0, y: 12, duration: 1.0), SKAction.fadeOut(withDuration: 0.4), SKAction.removeFromParent()]))
+        }
+        let getIn = SKAction.run {
+            woman.run(SKAction.sequence([
+                SKAction.moveTo(x: -30, duration: 0.6),
+                SKAction.group([SKAction.scale(to: 0.4, duration: 0.3), SKAction.fadeOut(withDuration: 0.3)])
+            ]))
+        }
+        let driveOff = SKAction.moveTo(x: 300, duration: 1.8)
+        driveOff.timingMode = .easeIn
+        car.run(SKAction.sequence([
+            driveIn, honk, SKAction.wait(forDuration: 0.4), getIn, SKAction.wait(forDuration: 1.1),
+            driveOff, SKAction.removeFromParent()
+        ]))
+    }
+
+    /// Boss level cleared: the dog trots out, lifts a leg at the base and pees, then wags happily
+    func playDogPeeAnimation() {
+        guard let dog = catNode, !isDestroyed else { return }
+        dog.removeAllActions()
+
+        let walkOut = SKAction.group([
+            SKAction.moveTo(x: 26, duration: 0.8),
+            SKAction.repeat(SKAction.sequence([SKAction.moveBy(x: 0, y: 2, duration: 0.1),
+                                               SKAction.moveBy(x: 0, y: -2, duration: 0.1)]), count: 4)
+        ])
+        let liftLeg = SKAction.rotate(toAngle: 0.35, duration: 0.25)
+        let pee = SKAction.run { [weak self] in self?.startPeeStream(from: CGPoint(x: 19, y: -8)) }
+        let putLegDown = SKAction.rotate(toAngle: 0, duration: 0.25)
+        let happy = SKAction.repeatForever(SKAction.sequence([
+            SKAction.moveBy(x: 0, y: 5, duration: 0.15), SKAction.moveBy(x: 0, y: -5, duration: 0.12),
+            SKAction.wait(forDuration: 0.6)
+        ]))
+        dog.run(SKAction.sequence([
+            SKAction.moveBy(x: 0, y: 8, duration: 0.15), SKAction.moveBy(x: 0, y: -8, duration: 0.12),
+            walkOut, SKAction.wait(forDuration: 0.3), liftLeg, pee, SKAction.wait(forDuration: 2.2),
+            putLegDown, happy
+        ]))
+    }
+
+    /// Yellow drops arcing from the dog toward the base, and a growing puddle
+    private func startPeeStream(from start: CGPoint) {
+        let puddle = ellipse(4, 2, at: CGPoint(x: 9, y: -14), fill: SKColor(red: 1.0, green: 0.9, blue: 0.2, alpha: 0.85))
+        puddle.zPosition = 1
+        addChild(puddle)
+        puddle.run(SKAction.scaleX(to: 3.2, y: 2.4, duration: 2.0))
+
+        let drip = SKAction.run { [weak self] in
+            guard let self = self else { return }
+            let drop = self.ellipse(2, 2, at: start, fill: SKColor(red: 1.0, green: 0.88, blue: 0.15, alpha: 1))
+            drop.zPosition = 3
+            self.addChild(drop)
+            let path = CGMutablePath()
+            path.move(to: start)
+            path.addQuadCurve(to: CGPoint(x: 9 + CGFloat.random(in: -2...2), y: -13), control: CGPoint(x: 13, y: -2))
+            drop.run(SKAction.sequence([SKAction.follow(path, asOffset: false, orientToPath: false, duration: 0.3),
+                                        SKAction.removeFromParent()]))
+        }
+        run(SKAction.repeat(SKAction.sequence([drip, SKAction.wait(forDuration: 0.04)]), count: 50))
     }
 }

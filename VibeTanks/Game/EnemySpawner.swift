@@ -63,16 +63,19 @@ class EnemySpawner {
             powerCount = 5
         }
 
-        for _ in 0..<heavyCount {
+        // Very short levels (fewer tanks than the guaranteed ones) still fit
+        let heavyFit = min(heavyCount, total)
+        let powerFit = min(powerCount, total - heavyFit)
+        for _ in 0..<heavyFit {
             types.append(.heavy)
         }
 
-        for _ in 0..<powerCount {
+        for _ in 0..<powerFit {
             types.append(.power)
         }
 
         // Fill the rest with regular, fast, armored (and possibly more power)
-        let remaining = total - heavyCount - powerCount
+        let remaining = total - heavyFit - powerFit
         let otherTypes: [Tank.EnemyType] = [.regular, .fast, .armored, .power]
         for _ in 0..<remaining {
             types.append(otherTypes.randomElement() ?? .regular)

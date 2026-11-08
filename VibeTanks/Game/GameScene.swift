@@ -255,6 +255,8 @@ class GameScene: SKScene {
 
     // Alien mode (when UFO escaped previous level - alien is at base instead of cat)
     private var alienMode: Bool = false
+    /// Who sits at the base this level
+    private var baseResident: Base.Resident = .cat
     /// A MAGIC power-up has appeared this level (the bonus stage guarantees one)
     private var magicSpawnedThisLevel = false
     /// Gzhel levels played in a row (5 in a row opens the secret Gorodets bonus stage)
@@ -1100,7 +1102,21 @@ class GameScene: SKScene {
             x: CGFloat(baseCol) * GameConstants.tileSize + GameConstants.tileSize / 2,
             y: CGFloat(GameConstants.mapHeight - 1 - baseRow) * GameConstants.tileSize + GameConstants.tileSize / 2
         )
-        base = Base(position: basePosition, isAlien: alienMode)
+        // Who sits at the base: woman on the bonus stage (blond if it has a boss),
+        // alien in alien mode, a dog on boss levels, otherwise the cat
+        let isBossLevel = level % GameConstants.bossLevelInterval == 0
+        let resident: Base.Resident
+        if bonusStage {
+            resident = .woman(blond: isBossLevel)
+        } else if alienMode {
+            resident = .alien
+        } else if isBossLevel {
+            resident = .dog
+        } else {
+            resident = .cat
+        }
+        baseResident = resident
+        base = Base(position: basePosition, resident: resident)
         gameLayer.addChild(base)
 
         // Create player tanks (player 2 starts to the right of the base)
@@ -2801,7 +2817,11 @@ class GameScene: SKScene {
         showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false, bonus: bonus)
 
         // Victory animations
-        if alienMode {
+        if case .woman(let blond) = baseResident {
+            base.playCarPickupAnimation(blond: blond)
+        } else if case .dog = baseResident {
+            base.playDogPeeAnimation()
+        } else if alienMode {
             // Alien gets picked up by UFO and flies away
             let flyAwayPosition = CGPoint(
                 x: base.position.x,
