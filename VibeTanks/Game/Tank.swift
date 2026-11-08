@@ -209,8 +209,8 @@ class Tank: SKSpriteNode {
     /// one more bullet per shot, for good (kept through deaths and levels)
     var bossFireBoost: Int = 0
     var bossExtraBullets: Int { bossFireBoost / GameConstants.bossesPerExtraBullet }
-    /// MAGIC power-up: safe from the enemies' bomb and freeze until the end of the round
-    /// (kept through deaths; every level makes new tanks, so it ends with the round)
+    /// MAGIC power-up: safe from the enemies' bomb and freeze until the player dies or the
+    /// round ends (lost on death; every level makes new tanks and doesn't carry it over)
     var hasMagic: Bool = false
     /// Player deaths on this level that cost the soccer ball (a new tank is made every level).
     /// Deaths from an enemy's bomb are taken back off by the scene.
@@ -1396,6 +1396,7 @@ class Tank: SKSpriteNode {
         canDestroyTrees = false
         machinegunCount = 0
         laserRounds = 0
+        hasMagic = false
         moveSpeed = isPlayer ? GameConstants.tankSpeed : GameConstants.enemyTankSpeed
     }
 

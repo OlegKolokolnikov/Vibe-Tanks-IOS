@@ -17,7 +17,7 @@ class PowerUp: SKSpriteNode {
         case bomb       // Explode all enemies
         case gold       // Gzhel-only: 99 points, enemies get major upgrade
         case laser      // Only dropped by the alien: shots of light pass through walls
-        case magic      // Very rare: protects from the enemies' bomb and freeze until the end of the round
+        case magic      // Very rare: protects from the enemies' bomb and freeze until death or the end of the round
         // Level-clear bonuses (appear when the last enemy dies)
         case strawberry // Player crossed 250 points this level: +50 points
         case banana     // Player crossed 500 points this level: +75 points
