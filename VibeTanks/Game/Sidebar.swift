@@ -184,7 +184,8 @@ class Sidebar: SKNode {
         var hasGun: Bool = false      // Can break steel
         var hasShip: Bool = false     // Can swim
         var hasSaw: Bool = false      // Can destroy trees
-        var speedBoosts: Int = 0      // Speed upgrades
+        var speedBoosts: Int = 0      // Speed upgrades (cars)
+        var ballBoosts: Int = 0       // Start speed from soccer balls
         var hasLaser: Bool = false    // Shots pass through walls
         var friendHits: Int = 0       // Gzhel friend's remaining hits (0 = no friend on field)
     }
@@ -262,6 +263,7 @@ class Sidebar: SKNode {
         if data.hasSaw { rows.append(("🪚", "")) }      // Can destroy trees
         if data.hasLaser { rows.append(("🔦", "")) }    // Shots pass through walls
         if data.speedBoosts > 0 { rows.append(("🚗", "x\(data.speedBoosts)")) }
+        if data.ballBoosts > 0 { rows.append(("⚽", "x\(data.ballBoosts)")) }      // Start speed (kept until a new game)
 
         var yOffset: CGFloat = y
         for row in rows {

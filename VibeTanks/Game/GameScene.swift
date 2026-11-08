@@ -3553,8 +3553,9 @@ class GameScene: SKScene {
         powerUps.hasShip = player.canSwim
         powerUps.hasSaw = player.canDestroyTrees
         powerUps.hasLaser = player.hasLaser
-        // Calculate speed boosts (each 0.3 increment is one boost)
-        powerUps.speedBoosts = Int((player.speedMultiplier - 1.0) / 0.3)
+        // Cars: each one is +0.3 on top of the start speed (soccer balls raise the start speed itself)
+        powerUps.speedBoosts = max(Int(((player.speedMultiplier - player.baseSpeedMultiplier) / 0.3).rounded()), 0)
+        powerUps.ballBoosts = max(Int(((player.baseSpeedMultiplier - 1.0) / GameConstants.ballSpeedBoost).rounded()), 0)
         return powerUps
     }
 

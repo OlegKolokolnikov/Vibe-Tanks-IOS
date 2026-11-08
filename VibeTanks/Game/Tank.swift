@@ -1234,6 +1234,9 @@ class Tank: SKSpriteNode {
         if isPlayer {
             lives -= 1
             deathsThisLevel += 1
+            // Power-ups are lost right away (not only on respawn), so the sidebar shows it
+            // and a player who is out of lives doesn't carry them into the next level
+            resetPowerUps()
             isHidden = true
             health = 0  // Ensure health is 0
         } else {
