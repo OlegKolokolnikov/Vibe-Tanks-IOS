@@ -17,6 +17,7 @@ class PowerUp: SKSpriteNode {
         case bomb       // Explode all enemies
         case gold       // Gzhel-only: 99 points, enemies get major upgrade
         case laser      // Only dropped by the alien: shots of light pass through walls
+        case magic      // Very rare: protects from the enemies' bomb and freeze until the end of the round
         // Level-clear bonuses (appear when the last enemy dies)
         case strawberry // Player crossed 250 points this level: +50 points
         case banana     // Player crossed 500 points this level: +75 points
@@ -36,7 +37,7 @@ class PowerUp: SKSpriteNode {
 
     /// Only players can take it (level-clear bonuses and the boss's question mark),
     /// and the level waits for it
-    var isPlayersOnly: Bool { type.isLevelBonus || isMystery }
+    var isPlayersOnly: Bool { type.isLevelBonus || isMystery || type == .magic }
 
     init(position: CGPoint, type: PowerUpType? = nil, mystery: Bool = false) {
         self.type = type ?? PowerUp.randomType()
@@ -214,6 +215,7 @@ class PowerUp: SKSpriteNode {
         case .bomb: return SKColor(red: 0.5, green: 0.0, blue: 0.0, alpha: 1.0) // Dark red
         case .gold: return SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Bright gold
         case .laser: return SKColor(red: 0.0, green: 0.85, blue: 0.85, alpha: 1.0) // Cyan
+        case .magic: return SKColor(red: 0.55, green: 0.2, blue: 0.85, alpha: 1.0) // Violet
         case .strawberry: return .red
         case .banana: return .yellow
         case .ball: return .white
@@ -235,6 +237,7 @@ class PowerUp: SKSpriteNode {
         case .bomb: return "💣"
         case .gold: return "$"  // Lode Runner style
         case .laser: return "🔦"
+        case .magic: return "🔮"
         case .strawberry: return "🍓"
         case .banana: return "🍌"
         case .ball: return "⚽"
@@ -285,6 +288,8 @@ class PowerUp: SKSpriteNode {
             break
         case .laser:
             tank.laserRounds = GameConstants.laserRoundsOnPickup
+        case .magic:
+            tank.hasMagic = true
         case .strawberry, .banana:
             // Handled by game scene (points only)
             break

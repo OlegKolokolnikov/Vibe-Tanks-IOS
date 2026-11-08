@@ -207,6 +207,9 @@ class Tank: SKSpriteNode {
     /// one more bullet per shot, for good (kept through deaths and levels)
     var bossFireBoost: Int = 0
     var bossExtraBullets: Int { bossFireBoost / GameConstants.bossesPerExtraBullet }
+    /// MAGIC power-up: safe from the enemies' bomb and freeze until the end of the round
+    /// (kept through deaths; every level makes new tanks, so it ends with the round)
+    var hasMagic: Bool = false
     /// Player deaths on this level that cost the soccer ball (a new tank is made every level).
     /// Deaths from an enemy's bomb are taken back off by the scene.
     var deathsThisLevel = 0
@@ -389,6 +392,11 @@ class Tank: SKSpriteNode {
         // === Shield indicator ===
         if hasShield {
             addShieldEffect(tankSize: tankSize)
+        }
+
+        // === MAGIC indicator: violet sparkles circling the tank ===
+        if hasMagic {
+            addMagicEffect(tankSize: tankSize)
         }
 
         // === SHIP indicator (can swim) ===
@@ -782,6 +790,24 @@ class Tank: SKSpriteNode {
     }
 
 
+
+    private func addMagicEffect(tankSize: CGFloat) {
+        let ring = SKNode()
+        ring.name = "magic"
+        ring.zPosition = 2
+        let radius = tankSize * 0.62
+        for i in 0..<3 {
+            let angle = CGFloat(i) * 2 * .pi / 3
+            let sparkle = SKLabelNode(text: "✦")
+            sparkle.fontSize = 9
+            sparkle.fontColor = SKColor(red: 0.8, green: 0.55, blue: 1.0, alpha: 1)
+            sparkle.verticalAlignmentMode = .center
+            sparkle.position = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
+            ring.addChild(sparkle)
+        }
+        ring.run(SKAction.repeatForever(SKAction.rotate(byAngle: .pi * 2, duration: 2.5)))
+        addChild(ring)
+    }
 
     private func addShieldEffect(tankSize: CGFloat) {
         let shieldContainer = SKNode()

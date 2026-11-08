@@ -50,6 +50,9 @@ struct GameConstants {
     static let fireBoostStep = 5       // Frames off the shot cooldown per star / defeated boss
     static let bossesPerExtraBullet = 3   // Every 3rd defeated boss adds a bullet per shot
     static let gzhelLevelsForBonusStage = 5  // Gzhel levels in a row before the secret Gorodets stage
+    static let magicChance = 0.02              // MAGIC: 2% of random drops on normal levels
+    static let magicChanceBonusStage = 0.12    // 12% on the bonus stage
+    static let magicGuaranteeEnemiesLeft = 10  // Bonus stage: forced once this few enemies are left
     static let mysteryPrizeCount = 3  // Power-ups inside the boss's question mark
     static let enemySpeedPerBoss: CGFloat = 0.1  // Enemies are 10% faster per defeated boss
     static let enemyMaxBossSpeed: CGFloat = 1.6  // ...up to 1.6x

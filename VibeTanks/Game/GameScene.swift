@@ -255,6 +255,8 @@ class GameScene: SKScene {
 
     // Alien mode (when UFO escaped previous level - alien is at base instead of cat)
     private var alienMode: Bool = false
+    /// A MAGIC power-up has appeared this level (the bonus stage guarantees one)
+    private var magicSpawnedThisLevel = false
     /// Gzhel levels played in a row (5 in a row opens the secret Gorodets bonus stage)
     private var gzhelStreak: Int = 0
     /// Secret bonus stage: Gorodets painted border, enemy tanks look like birds
@@ -2272,16 +2274,25 @@ class GameScene: SKScene {
             enemy.machinegunCount += 1
             showEffect(text: "ENEMY MACHINEGUN!", color: .red)
         case .freeze:
-            // Freeze all players for 30 seconds (can still shoot)
-            for player in playerTanks where player.isAlive {
+            // Freeze all players for 30 seconds (can still shoot); MAGIC protects
+            var frozen = false
+            for player in playerTanks where player.isAlive && !player.hasMagic {
                 playerFreezeTimers[player.playerNumber - 1] = playerFreezeDuration
                 addFreezeEffect(to: player)
+                frozen = true
             }
-            showEffect(text: isTwoPlayer ? "PLAYERS FROZEN!" : "PLAYER FROZEN!", color: .red)
+            if frozen {
+                showEffect(text: isTwoPlayer ? "PLAYERS FROZEN!" : "PLAYER FROZEN!", color: .red)
+            } else if playerTanks.contains(where: { $0.isAlive && $0.hasMagic }) {
+                showEffect(text: "🔮 MAGIC STOPPED THE FREEZE!", color: magicColor)
+            }
         case .bomb:
-            // Kills all players instantly! Bypasses ship AND shield protection.
+            // Kills all players instantly! Bypasses ship AND shield protection, but not MAGIC.
             // No effect on a player who is already dead and waiting to respawn.
-            for player in playerTanks where player.isAlive {
+            if playerTanks.contains(where: { $0.isAlive && $0.hasMagic }) {
+                showEffect(text: "🔮 MAGIC STOPPED THE BOMB!", color: magicColor)
+            }
+            for player in playerTanks where player.isAlive && !player.hasMagic {
                 player.damage(bypassShip: true, bypassShield: true)
                 if !player.isAlive {
                     player.deathsThisLevel -= 1  // A bomb death doesn't cost the soccer ball
@@ -2300,7 +2311,7 @@ class GameScene: SKScene {
         case .gold:
             // Major upgrade based on current type
             handleEnemyGoldCollection(enemy)
-        case .laser, .strawberry, .banana, .ball:
+        case .laser, .strawberry, .banana, .ball, .magic:
             break  // Never collected by enemies
         }
     }
@@ -2456,6 +2467,10 @@ class GameScene: SKScene {
         case .laser:
             powerUp.apply(to: player)
             showEffect(text: "LASER!", color: .cyan)
+        case .magic:
+            powerUp.apply(to: player)
+            player.drawTank()
+            showEffect(text: "🔮 MAGIC! SAFE FROM BOMB AND FREEZE", color: magicColor)
         default:
             powerUp.apply(to: player)
         }
@@ -2639,11 +2654,28 @@ class GameScene: SKScene {
     func spawnPowerUp(at position: CGPoint, type: PowerUp.PowerUpType? = nil) {
         // Find random empty position instead of spawning at enemy location
         let spawnPosition = findRandomEmptyPosition()
-        let powerUp = PowerUp(position: spawnPosition, type: type)
+        let powerUp = PowerUp(position: spawnPosition, type: type ?? (rollMagic() ? .magic : nil))
         powerUps.append(powerUp)
         gameLayer.addChild(powerUp)
         SoundManager.shared.playPowerUpSpawn()
     }
+
+    /// MAGIC is very rare; the bonus stage has a better chance and always gets at least one
+    /// (the next drop is MAGIC once only a few enemies are left and none appeared yet)
+    private func rollMagic() -> Bool {
+        let roll: Bool
+        if bonusStage {
+            let enemiesLeft = enemySpawner.remainingEnemies + enemyTanks.filter { $0.isAlive }.count
+            roll = (!magicSpawnedThisLevel && enemiesLeft <= GameConstants.magicGuaranteeEnemiesLeft)
+                || Double.random(in: 0..<1) < GameConstants.magicChanceBonusStage
+        } else {
+            roll = Double.random(in: 0..<1) < GameConstants.magicChance
+        }
+        if roll { magicSpawnedThisLevel = true }
+        return roll
+    }
+
+    var magicColor: SKColor { SKColor(red: 0.75, green: 0.45, blue: 1.0, alpha: 1) }
 
     func findRandomEmptyPosition() -> CGPoint {
         let tileSize = GameConstants.tileSize
@@ -3553,6 +3585,7 @@ class GameScene: SKScene {
         powerUps.hasShip = player.canSwim
         powerUps.hasSaw = player.canDestroyTrees
         powerUps.hasLaser = player.hasLaser
+        powerUps.hasMagic = player.hasMagic
         // Cars: each one is +0.3 on top of the start speed (soccer balls raise the start speed itself)
         powerUps.speedBoosts = max(Int(((player.speedMultiplier - player.baseSpeedMultiplier) / 0.3).rounded()), 0)
         powerUps.ballBoosts = max(Int(((player.baseSpeedMultiplier - 1.0) / GameConstants.ballSpeedBoost).rounded()), 0)
