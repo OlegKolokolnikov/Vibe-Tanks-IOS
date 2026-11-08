@@ -3597,14 +3597,23 @@ class GameScene: SKScene {
         isTwoPlayer ? "1P: \(scores[0])   2P: \(scores[1])" : "Score: \(score)"
     }
 
-    /// Add score to a player (player 1 if unknown) and check for their bonus life every 100 points
+    /// Score where bonus lives come early in the game: each step 50 points longer than the last
+    private static let earlyLifeScores = [100, 250, 450, 700, 1000]
+
+    /// Bonus lives earned with this score: at 100, 250, 450, 700, 1000, then one every 1000 (2000, 3000...)
+    static func lifeMilestones(for score: Int) -> Int {
+        let early = earlyLifeScores.filter { score >= $0 }.count
+        return score >= 1000 ? early + score / 1000 - 1 : early
+    }
+
+    /// Add score to a player (player 1 if unknown) and check for their bonus lives
     func addScore(_ points: Int, for player: Tank?) {
         let index = player?.playerNumber == 2 ? 1 : 0
-        let oldMilestone = scores[index] / 100
+        let oldMilestone = GameScene.lifeMilestones(for: scores[index])
         scores[index] += points
-        let newMilestone = scores[index] / 100
+        let newMilestone = GameScene.lifeMilestones(for: scores[index])
 
-        // Award bonus life for each 100-point milestone of this player's own score
+        // Award a bonus life for each milestone of this player's own score
         // (also brings back a player who ran out of lives)
         if newMilestone > oldMilestone {
             let bonusLives = newMilestone - oldMilestone

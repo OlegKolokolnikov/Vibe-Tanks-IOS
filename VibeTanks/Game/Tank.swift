@@ -199,6 +199,8 @@ class Tank: SKSpriteNode {
     // Power-ups
     var hasShield: Bool = false
     var shieldTimer: Int = 0
+    /// Last 1.5 seconds of a shield: 3 flashes warn that it is about to end
+    private static let shieldWarningFrames = 90
     var speedMultiplier: CGFloat = 1.0
     /// Start speed from soccer balls: kept through deaths and levels until a new game
     var baseSpeedMultiplier: CGFloat = 1.0
@@ -1479,6 +1481,9 @@ class Tank: SKSpriteNode {
             if shieldTimer <= 0 {
                 hasShield = false
                 childNode(withName: "shield")?.removeFromParent()
+            } else if shieldTimer <= Tank.shieldWarningFrames {
+                // About to run out: the shield flashes 3 times (off/on every half second)
+                childNode(withName: "shield")?.isHidden = (shieldTimer % 30) >= 15
             }
         }
 
