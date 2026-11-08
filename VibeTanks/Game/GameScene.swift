@@ -1962,7 +1962,7 @@ class GameScene: SKScene {
             if hit {
                 // Bullet spawned inside wall - immediately destroy it
                 // This triggers wall destruction if applicable
-                bullet.owner?.bulletDestroyed(hitObstacle: true)
+                bullet.owner?.bulletDestroyed(bullet, hitObstacle: true)
                 // Don't add bullet to scene
             } else {
                 bullets.append(bullet)
@@ -2770,7 +2770,7 @@ class GameScene: SKScene {
         guard !bulletsMarkedForRemoval.contains(id) else { return }
         // Mark for batch removal instead of O(n) removeAll per bullet
         bulletsMarkedForRemoval.insert(id)
-        bullet.owner?.bulletDestroyed(hitObstacle: hitObstacle)
+        bullet.owner?.bulletDestroyed(bullet, hitObstacle: hitObstacle)
         bullet.removeFromParent()
     }
 

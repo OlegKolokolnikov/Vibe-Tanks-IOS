@@ -17,6 +17,13 @@ class Bullet: SKSpriteNode {
 
     let direction: Direction
     weak var owner: Tank?
+
+    /// Bullets fired together in one shot (machinegun): the shot ends when all are gone
+    final class Burst {
+        var remaining: Int
+        init(count: Int) { remaining = count }
+    }
+    let burst: Burst?
     let power: Int
     let moveSpeed: CGFloat
     /// LASER shot: a bolt of light that passes through walls
@@ -35,8 +42,9 @@ class Bullet: SKSpriteNode {
         return isFromEnemy
     }
 
-    init(position: CGPoint, direction: Direction, owner: Tank, power: Int = 1, isLaser: Bool = false) {
+    init(position: CGPoint, direction: Direction, owner: Tank, power: Int = 1, isLaser: Bool = false, burst: Burst? = nil) {
         self.direction = direction
+        self.burst = burst
         self.owner = owner
         self.power = power
         self.isLaser = isLaser
@@ -67,6 +75,7 @@ class Bullet: SKSpriteNode {
     init(x: CGFloat, y: CGFloat, direction: Direction, isEnemy: Bool, power: Int = 1) {
         self.direction = direction
         self.owner = nil
+        self.burst = nil
         self.power = power
         self.isLaser = false
         self.moveSpeed = GameConstants.bulletSpeed

@@ -180,6 +180,8 @@ class Tank: SKSpriteNode {
 
     // Combat
     var bulletPower: Int = 1
+    /// Shots still on the field. A machinegun burst (several bullets fired together)
+    /// counts as one shot, so it doesn't use up the bullet limit by itself.
     var activeBullets: Int = 0
     var maxBullets: Int = GameConstants.maxBulletsPerTank
     var shootCooldown: Int = 0
@@ -1157,6 +1159,9 @@ class Tank: SKSpriteNode {
         let bulletOffset: CGFloat = size.width / 2 + GameConstants.bulletSize / 2
         let bulletSpacing: CGFloat = GameConstants.bulletSize * 2
 
+        let burst = Bullet.Burst(count: bulletCount)
+        activeBullets += 1  // The whole burst is one shot
+
         for i in 0..<bulletCount {
             let spacing = CGFloat(i) * bulletSpacing
             let bulletPosition = CGPoint(
@@ -1169,16 +1174,21 @@ class Tank: SKSpriteNode {
                 direction: direction,
                 owner: self,
                 power: bulletPower,
-                isLaser: hasLaser || firesAlienLaser
+                isLaser: hasLaser || firesAlienLaser,
+                burst: burst
             )
             bullets.append(bullet)
-            activeBullets += 1
         }
 
         return bullets
     }
 
-    func bulletDestroyed(hitObstacle: Bool = false) {
+    func bulletDestroyed(_ bullet: Bullet, hitObstacle: Bool = false) {
+        // A burst's shot is over once its last bullet is gone
+        if let burst = bullet.burst {
+            burst.remaining -= 1
+            guard burst.remaining <= 0 else { return }
+        }
         activeBullets = max(0, activeBullets - 1)
         // Reset cooldown so tank can shoot immediately when bullet is destroyed
         // This matches original Battle City behavior
