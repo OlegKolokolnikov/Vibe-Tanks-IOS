@@ -1357,21 +1357,24 @@ class GameMap: SKNode {
 
     // MARK: - Base Protection
 
-    /// Set base protection tiles to steel or brick
-    func setBaseProtection(steel: Bool) {
+    /// Set base protection tiles to steel or brick. A tile a tank is standing on is left
+    /// open (the wall would lock the tank in); it is filled on a later call once the tank has moved.
+    func setBaseProtection(steel: Bool, avoiding tanks: [Tank] = []) {
         let type: TileType = steel ? .steel : .brick
 
-        // Base protection positions (same as createBaseProtection)
-        // Top of protection (row 23)
-        setTileAndUpdate(row: 23, col: 12, type: type)
-        setTileAndUpdate(row: 23, col: 13, type: type)
-        setTileAndUpdate(row: 23, col: 14, type: type)
-
-        // Left side (col 12)
-        setTileAndUpdate(row: 24, col: 12, type: type)
-
-        // Right side (col 14)
-        setTileAndUpdate(row: 24, col: 14, type: type)
+        // Base protection positions (same as createBaseProtection):
+        // top row 23 (cols 12-14), left and right sides of row 24
+        let wallTiles = [(23, 12), (23, 13), (23, 14), (24, 12), (24, 14)]
+        for (row, col) in wallTiles {
+            let center = CGPoint(x: CGFloat(col) * tileSize + tileSize / 2,
+                                 y: CGFloat(mapHeight - 1 - row) * tileSize + tileSize / 2)
+            let occupied = tanks.contains { tank in
+                tank.isAlive && EnemySpawner.boxesOverlap(center, tileSize, tank.position, tank.size.width)
+            }
+            if !occupied {
+                setTileAndUpdate(row: row, col: col, type: type)
+            }
+        }
     }
 
     /// Clear base protection entirely (remove all protection tiles)

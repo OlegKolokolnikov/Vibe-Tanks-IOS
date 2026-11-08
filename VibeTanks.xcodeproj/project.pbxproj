@@ -22,7 +22,6 @@
 		A10000010000000000000013 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000013 /* Main.storyboard */; };
 		A10000010000000000000014 /* PowerUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000014 /* PowerUp.swift */; };
 		A10000010000000000000015 /* Base.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000015 /* Base.swift */; };
-		A10000010000000000000016 /* CollisionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000016 /* CollisionHandler.swift */; };
 		A10000010000000000000017 /* EnemySpawner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000017 /* EnemySpawner.swift */; };
 		A10000010000000000000018 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000018 /* SoundManager.swift */; };
 		A10000010000000000000020 /* MenuScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000020 /* MenuScene.swift */; };
@@ -64,7 +63,6 @@
 		A10000020000000000000013 /* Main.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
 		A10000020000000000000014 /* PowerUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerUp.swift; sourceTree = "<group>"; };
 		A10000020000000000000015 /* Base.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base.swift; sourceTree = "<group>"; };
-		A10000020000000000000016 /* CollisionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollisionHandler.swift; sourceTree = "<group>"; };
 		A10000020000000000000017 /* EnemySpawner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnemySpawner.swift; sourceTree = "<group>"; };
 		A10000020000000000000018 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
 		A10000020000000000000019 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -146,7 +144,6 @@
 				A10000020000000000000010 /* GameConstants.swift */,
 				A10000020000000000000014 /* PowerUp.swift */,
 				A10000020000000000000015 /* Base.swift */,
-				A10000020000000000000016 /* CollisionHandler.swift */,
 				A10000020000000000000017 /* EnemySpawner.swift */,
 				A10000020000000000000018 /* SoundManager.swift */,
 				A10000020000000000000020 /* MenuScene.swift */,
@@ -288,7 +285,6 @@
 				A10000010000000000000010 /* GameConstants.swift in Sources */,
 				A10000010000000000000014 /* PowerUp.swift in Sources */,
 				A10000010000000000000015 /* Base.swift in Sources */,
-				A10000010000000000000016 /* CollisionHandler.swift in Sources */,
 				A10000010000000000000017 /* EnemySpawner.swift in Sources */,
 				A10000010000000000000018 /* SoundManager.swift in Sources */,
 				A10000010000000000000020 /* MenuScene.swift in Sources */,

@@ -47,13 +47,13 @@ class GameViewController: UIViewController {
         scoreLabel = score
 
         // Pause button - positioned at top right in letterbox area
-        let pause = UIButton(type: .system)
-        pause.setTitle("⏸ Pause", for: .normal)
-        pause.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
-        pause.setTitleColor(.white, for: .normal)
+        var config = UIButton.Configuration.plain()
+        config.attributedTitle = AttributedString("⏸ Pause", attributes: AttributeContainer([.font: UIFont.boldSystemFont(ofSize: 18)]))
+        config.baseForegroundColor = .white
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+        let pause = UIButton(configuration: config)
         pause.backgroundColor = UIColor.gray.withAlphaComponent(0.5)
         pause.layer.cornerRadius = 8
-        pause.contentEdgeInsets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         pause.addTarget(self, action: #selector(pauseButtonTapped), for: .touchUpInside)
         pause.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(pause)

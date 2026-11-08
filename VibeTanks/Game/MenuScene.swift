@@ -105,7 +105,6 @@ class MenuScene: SKScene {
             link.fillColor = metalMid
             link.strokeColor = metalDark
             link.lineWidth = 0.5
-            let angle = CGFloat(i) * 0.3
             let x: CGFloat
             let y: CGFloat
             if i < 10 {
@@ -747,23 +746,6 @@ class MenuScene: SKScene {
             default:
                 break
             }
-        }
-    }
-    #elseif os(macOS)
-    override func mouseDown(with event: NSEvent) {
-        let location = event.location(in: self)
-        handleClick(at: location)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        // Enter, Space or 1 = one player, 2 = two players
-        switch event.keyCode {
-        case 36, 49, 18:
-            startGame(playerCount: 1)
-        case 19:
-            startGame(playerCount: 2)
-        default:
-            break
         }
     }
     #endif

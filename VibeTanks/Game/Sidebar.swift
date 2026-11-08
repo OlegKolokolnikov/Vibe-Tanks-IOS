@@ -309,7 +309,24 @@ class Sidebar: SKNode {
         // Get cached texture (created once, reused for all icons)
         let texture = Sidebar.getEnemyIconTexture(size: Sidebar.enemyIconSize)
 
-        for i in 0..<count {
+        // Only so many rows fit above the lives section (later levels have up to 50 enemies):
+        // when there are more, the last row shows "+N" instead of icons
+        let step = Sidebar.enemyIconSize + Sidebar.enemyIconSpacing
+        let maxRows = Int((Sidebar.playerSectionY - Sidebar.enemySectionY - 20) / step)
+        let maxIcons = maxRows * Sidebar.enemyColumns
+        let shown = count > maxIcons ? maxIcons - Sidebar.enemyColumns : count
+        if shown < count {
+            let more = SKLabelNode(text: "+\(count - shown)")
+            more.fontName = "Helvetica-Bold"
+            more.fontSize = 13
+            more.fontColor = Sidebar.textColor
+            more.horizontalAlignmentMode = .left
+            more.verticalAlignmentMode = .center
+            more.position = CGPoint(x: 0, y: -CGFloat(maxRows - 1) * step - Sidebar.enemyIconSize / 2)
+            enemyIconsNode.addChild(more)
+        }
+
+        for i in 0..<shown {
             let col = i % Sidebar.enemyColumns
             let row = i / Sidebar.enemyColumns
 

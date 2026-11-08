@@ -66,6 +66,12 @@ class GameSettings {
         }
     }
 
+    /// Best score ever (saved; 250 until someone beats it)
+    var highScore: Int {
+        get { max(UserDefaults.standard.integer(forKey: "highScore"), 250) }
+        set { UserDefaults.standard.set(newValue, forKey: "highScore") }
+    }
+
     /// All sound muted (volume level is kept, so unmuting restores it)
     var isMuted: Bool {
         get { UserDefaults.standard.bool(forKey: mutedKey) }

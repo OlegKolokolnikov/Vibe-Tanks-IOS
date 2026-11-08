@@ -57,11 +57,6 @@ struct GameConstants {
     static let enemySpeedPerBoss: CGFloat = 0.1  // Enemies are 10% faster per defeated boss
     static let enemyMaxBossSpeed: CGFloat = 1.6  // ...up to 1.6x
 
-    // Spawn type thresholds (cumulative probabilities)
-    static let spawnRegularThreshold = 0.50
-    static let spawnFastThreshold = 0.70
-    static let spawnArmoredThreshold = 0.85
-
     // Victory delay (frames)
     static let victoryDelay = 300 // 5 seconds at 60fps
 

@@ -32,18 +32,6 @@ class Tank: SKSpriteNode {
         return texture
     }
 
-    /// Pre-generate all explosion textures (call once at startup)
-    static func preloadExplosionTextures() {
-        // Main explosion circles
-        _ = getExplosionTexture(color: .red, radius: 5, key: "explosion_red")
-        _ = getExplosionTexture(color: .orange, radius: 5, key: "explosion_orange")
-        _ = getExplosionTexture(color: .yellow, radius: 5, key: "explosion_yellow")
-        // Particles
-        _ = getExplosionTexture(color: .red, radius: 3, key: "particle_red")
-        _ = getExplosionTexture(color: .orange, radius: 3, key: "particle_orange")
-        _ = getExplosionTexture(color: .yellow, radius: 3, key: "particle_yellow")
-    }
-
     /// Get or create cached rainbow textures for a given tank size
     private static func getRainbowTextures(size: CGFloat) -> [[SKTexture]] {
         let key = "\(Int(size))\(isBirdStage ? "_bird" : "")"
@@ -1380,7 +1368,7 @@ class Tank: SKSpriteNode {
 
         // Give temporary shield after respawn
         hasShield = true
-        shieldTimer = 180 // 3 seconds of shield
+        shieldTimer = GameConstants.temporaryShieldDuration // 3 seconds of shield
         drawTank()
 
         // Clear pending position

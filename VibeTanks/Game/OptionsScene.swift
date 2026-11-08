@@ -392,18 +392,6 @@ class OptionsScene: SKScene {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         isDraggingVolume = false
     }
-    #elseif os(macOS)
-    override func mouseDown(with event: NSEvent) {
-        let location = event.location(in: self)
-        handleClick(at: location)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        // Escape to go back
-        if event.keyCode == 53 {
-            goBack()
-        }
-    }
     #endif
 
     private func handleClick(at location: CGPoint) {

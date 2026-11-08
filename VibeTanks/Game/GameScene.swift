@@ -14,8 +14,11 @@ extension UIImage {
 /// Main game scene
 class GameScene: SKScene {
 
-    // Highscore (persists across games until app restart)
-    private static var highScore: Int = 250
+    // High score: saved, so it survives going to the menu and closing the app
+    private static var highScore: Int {
+        get { GameSettings.shared.highScore }
+        set { GameSettings.shared.highScore = newValue }
+    }
 
     // Easy mode: activates after 3 consecutive losses
     private static var consecutiveLosses: Int = 0
@@ -218,11 +221,7 @@ class GameScene: SKScene {
     // Keys are set per player in Options → Controls (default P1 WASD + Space, P2 arrows + Enter).
     private var keyboardDirection: [Direction?] = [nil, nil]
     private var keyboardFiring: [Bool] = [false, false]
-    #if os(iOS) || os(tvOS)
     private var pressedDirectionKeys: Set<UIKeyboardHIDUsage> = []
-    #else
-    private var pressedDirectionKeys: Set<UInt16> = []
-    #endif
 
     // Spawning
     private var enemySpawner: EnemySpawner!
@@ -1995,9 +1994,7 @@ class GameScene: SKScene {
             invalidateAllTanksCache()
 
             // Enemies get faster with every boss defeated this game
-            let speedUp = enemySpeedFactor
-            newEnemy.baseSpeedMultiplier = speedUp
-            newEnemy.speedMultiplier = speedUp
+            applyBossSpeedUp(to: newEnemy)
             gameLayer.addChild(newEnemy)
             showSpawnEffect(at: newEnemy.position)
             if newEnemy.enemyType == .boss {
@@ -2013,9 +2010,17 @@ class GameScene: SKScene {
         if let extraEnemy = enemySpawner.spawnExtraEnemy(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap, otherTanks: nonEnemyTanks) {
             enemyTanks.append(extraEnemy)
             invalidateAllTanksCache()
+            applyBossSpeedUp(to: extraEnemy)
             gameLayer.addChild(extraEnemy)
             showSpawnEffect(at: extraEnemy.position)
         }
+    }
+
+    /// Every enemy is faster for each boss defeated this game (also extra enemies)
+    private func applyBossSpeedUp(to enemy: Tank) {
+        let speedUp = enemySpeedFactor
+        enemy.baseSpeedMultiplier = speedUp
+        enemy.speedMultiplier = speedUp
     }
 
     /// Show electricity/lightning effect when enemy spawns
@@ -2278,8 +2283,8 @@ class GameScene: SKScene {
             enemy.bulletPower = 2
             showEffect(text: "ENEMY GUN!", color: .red)
         case .car:
-            // Enemy moves faster
-            enemy.speedMultiplier = 1.5
+            // Enemy moves faster (on top of the speed-up from defeated bosses)
+            enemy.speedMultiplier = enemy.baseSpeedMultiplier * 1.5
             showEffect(text: "ENEMY FAST!", color: .red)
         case .ship:
             // Enemy can swim
@@ -2350,7 +2355,7 @@ class GameScene: SKScene {
             showEffect(text: "GOLD BOSS!", color: .red)
         case .heavy:
             // Heavy tank → gets speed + machinegun + ship (ultimate form)
-            enemy.speedMultiplier = 1.8
+            enemy.speedMultiplier = enemy.baseSpeedMultiplier * 1.8
             enemy.machinegunCount = 2
             enemy.activateShip()
             showEffect(text: "GOLD ULTIMATE!", color: .red)
@@ -2606,7 +2611,7 @@ class GameScene: SKScene {
         baseProtectionTimer = GameConstants.baseProtectionTime
         baseFlashTimer = 0
         baseIsSteel = true
-        gameMap.setBaseProtection(steel: true)
+        gameMap.setBaseProtection(steel: true, avoiding: allTanks)
     }
 
     /// Remove base protection (when enemy gets shovel)
@@ -2631,14 +2636,14 @@ class GameScene: SKScene {
             if baseFlashTimer >= 15 {
                 baseFlashTimer = 0
                 baseIsSteel = !baseIsSteel
-                gameMap.setBaseProtection(steel: baseIsSteel)
+                gameMap.setBaseProtection(steel: baseIsSteel, avoiding: allTanks)
             }
         }
 
         // When timer expires, return to brick
         if baseProtectionTimer == 0 {
             baseIsSteel = false
-            gameMap.setBaseProtection(steel: false)
+            gameMap.setBaseProtection(steel: false, avoiding: allTanks)
         }
     }
 
@@ -2806,6 +2811,7 @@ class GameScene: SKScene {
     private func levelComplete() {
         isGameOver = true
         didWinLevel = true
+        lockEndScreenInput()
         hideFreezeLabels()
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.playVictory()
@@ -2839,6 +2845,15 @@ class GameScene: SKScene {
     }
 
     private var pauseOverlay: SKNode?
+
+    /// End screens ignore taps and Enter for a moment, so a player still pressing fire
+    /// doesn't skip the game over screen or the statistics by accident
+    private var endScreenInputUnlockTime: TimeInterval = 0
+    private static let endScreenInputDelay: TimeInterval = 1.0
+    private func lockEndScreenInput() {
+        endScreenInputUnlockTime = CACurrentMediaTime() + GameScene.endScreenInputDelay
+    }
+    private var isEndScreenInputLocked: Bool { CACurrentMediaTime() < endScreenInputUnlockTime }
 
     private func togglePause() {
         isGamePaused = !isGamePaused
@@ -2930,6 +2945,7 @@ class GameScene: SKScene {
         // Base hit and last life lost can both trigger in the same frame
         guard !isGameOver else { return }
         isGameOver = true
+        lockEndScreenInput()
         hideFreezeLabels()
         SoundManager.shared.stopGameplaySounds()
 
@@ -3058,6 +3074,7 @@ class GameScene: SKScene {
     private func finishGameOverScreen() {
         guard let screen = gameOverScreen else { return }
         gameOverScreen = nil
+        lockEndScreenInput()
         SoundManager.shared.stopGameOver()
 
         screen.removeAllActions()
@@ -3685,6 +3702,9 @@ class GameScene: SKScene {
             return
         }
 
+        // Just after the round ended: ignore stray taps
+        if isGameOver && isEndScreenInputLocked { return }
+
         // Game over screen: a tap skips to the statistics
         if isShowingGameOverScreen {
             finishGameOverScreen()
@@ -3759,7 +3779,7 @@ class GameScene: SKScene {
 
     private func restartGame() {
         SoundManager.shared.stopGameOver()
-        // Restart the SAME level with score reset to 0 (high score persists until menu or app close)
+        // Restart the SAME level with score reset to 0 (the high score is saved)
         let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed, playerCount: playerCount)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
@@ -3769,9 +3789,6 @@ class GameScene: SKScene {
         SoundManager.shared.stopGameOver()
         // Reset consecutive losses on menu (exits easy mode)
         GameScene.consecutiveLosses = 0
-        // Reset high score when going to menu
-        GameScene.highScore = 250
-
         SoundManager.shared.stopGameplaySounds()
         SoundManager.shared.stopBackgroundMusic()
         let menuScene = MenuScene(size: size)
@@ -3810,7 +3827,9 @@ class GameScene: SKScene {
 
             // Continue/restart on Enter when game over
             if key.keyCode == .keyboardReturnOrEnter && isGameOver {
-                if isShowingGameOverScreen {
+                if isEndScreenInputLocked {
+                    continue  // Probably still firing: don't skip the screen
+                } else if isShowingGameOverScreen {
                     finishGameOverScreen()  // Skip to the statistics
                 } else if didWinLevel {
                     nextLevel()
@@ -3866,97 +3885,6 @@ class GameScene: SKScene {
         return nil
     }
 
-    #elseif os(macOS)
-    // macOS keyboard support
-    // Key codes for macOS
-    private static let keyW: UInt16 = 13
-    private static let keyA: UInt16 = 0
-    private static let keyS: UInt16 = 1
-    private static let keyD: UInt16 = 2
-    private static let keyJ: UInt16 = 38
-    private static let keyUp: UInt16 = 126
-    private static let keyDown: UInt16 = 125
-    private static let keyLeft: UInt16 = 123
-    private static let keyRight: UInt16 = 124
-    private static let keySpace: UInt16 = 49
-    private static let keyReturn: UInt16 = 36
-    private static let keyEscape: UInt16 = 53
-    private static let keyP: UInt16 = 35
-
-    private static let keyRightShift: UInt16 = 60
-
-    /// Same bindings as on iOS: see the iOS `keyBinding`
-    private func keyBinding(_ code: UInt16) -> (player: Int, direction: Direction?)? {
-        let p2 = isTwoPlayer ? 1 : 0
-        switch code {
-        case GameScene.keyW: return (0, .up)
-        case GameScene.keyS: return (0, .down)
-        case GameScene.keyA: return (0, .left)
-        case GameScene.keyD: return (0, .right)
-        case GameScene.keyUp: return (p2, .up)
-        case GameScene.keyDown: return (p2, .down)
-        case GameScene.keyLeft: return (p2, .left)
-        case GameScene.keyRight: return (p2, .right)
-        case GameScene.keySpace, GameScene.keyJ: return (0, nil)
-        case GameScene.keyReturn, GameScene.keyRightShift:
-            return isTwoPlayer ? (1, nil) : nil
-        default: return nil
-        }
-    }
-
-    override func keyDown(with event: NSEvent) {
-        // Ignore key repeat
-        guard !event.isARepeat else { return }
-
-        let keyCode = event.keyCode
-
-        // Continue/restart on Enter when game over
-        if keyCode == GameScene.keyReturn && isGameOver {
-            if isShowingGameOverScreen {
-                finishGameOverScreen()  // Skip to the statistics
-            } else if didWinLevel {
-                nextLevel()
-            } else {
-                restartGame()
-            }
-            return
-        }
-
-        // Pause: P or Escape
-        if keyCode == GameScene.keyP || keyCode == GameScene.keyEscape {
-            togglePause()
-            return
-        }
-
-        guard let binding = keyBinding(keyCode) else { return }
-        if let direction = binding.direction {
-            pressedDirectionKeys.insert(keyCode)
-            keyboardDirection[binding.player] = direction
-        } else {
-            keyboardFiring[binding.player] = true
-        }
-    }
-
-    override func keyUp(with event: NSEvent) {
-        let keyCode = event.keyCode
-        guard let binding = keyBinding(keyCode) else { return }
-
-        if binding.direction != nil {
-            pressedDirectionKeys.remove(keyCode)
-            keyboardDirection[binding.player] = getDirectionFromPressedKeys(player: binding.player)
-        } else {
-            keyboardFiring[binding.player] = false
-        }
-    }
-
-    private func getDirectionFromPressedKeys(player: Int) -> Direction? {
-        for keyCode in pressedDirectionKeys {
-            if let binding = keyBinding(keyCode), binding.player == player, let direction = binding.direction {
-                return direction
-            }
-        }
-        return nil
-    }
     #endif
 }
 
