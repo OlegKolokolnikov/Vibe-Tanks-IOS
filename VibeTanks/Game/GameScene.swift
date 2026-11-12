@@ -184,6 +184,9 @@ class GameScene: SKScene {
     private var bestScore: Int { scores.prefix(playerCount).max() ?? 0 }
     var level: Int = 1
     private var sessionSeed: UInt64 = 0
+    /// Continues left this game: CONTINUE on the game over screen replays the same level.
+    /// Every defeated boss adds one; with none left the game starts again from level 1.
+    private(set) var continues: Int = GameConstants.startingContinues
     var isGameOver: Bool = false
     var isGamePaused: Bool = false
     var didWinLevel: Bool = false
@@ -267,7 +270,9 @@ class GameScene: SKScene {
     // Level initialization
     init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
          playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0,
-         friend: FriendCarry? = nil, gzhelStreak: Int = 0, bonusStage: Bool = false) {
+         friend: FriendCarry? = nil, gzhelStreak: Int = 0, bonusStage: Bool = false,
+         continues: Int = GameConstants.startingContinues) {
+        self.continues = continues
         self.returningFriend = friend
         self.gzhelStreak = gzhelStreak
         self.bonusStage = bonusStage
@@ -1176,6 +1181,16 @@ class GameScene: SKScene {
         return tank
     }
 
+    /// What a player keeps through a death, carried into a continue: faster shooting from
+    /// defeated bosses and the soccer-ball start speed (the other power-ups are lost on death)
+    private func keptAfterDeath(_ tank: Tank) -> PlayerPowerUps {
+        var powerUps = PlayerPowerUps()
+        powerUps.bossFireBoost = tank.bossFireBoost
+        powerUps.baseSpeedMultiplier = tank.baseSpeedMultiplier
+        powerUps.speedMultiplier = tank.baseSpeedMultiplier
+        return powerUps
+    }
+
     /// Carry a player's power-ups into the next level
     private func carriedPowerUps(of tank: Tank) -> PlayerPowerUps {
         var powerUps = PlayerPowerUps()
@@ -1712,6 +1727,7 @@ class GameScene: SKScene {
             player.bossFireBoost += 1
             player.drawTank()
         }
+        continues += 1  // Every defeated boss gives one more continue
         bossHealthBar?.removeFromParent()
         bossHealthBar = nil
 
@@ -1791,7 +1807,8 @@ class GameScene: SKScene {
             SKAction.rotate(toAngle: -0.05, duration: 0.15)
         ]), count: 6)
         let extraBullet = (playerTank?.bossFireBoost ?? 0) % GameConstants.bossesPerExtraBullet == 0
-        let reward = SKLabelNode(text: extraBullet ? "🔥 FASTER SHOOTING + 1 BULLET! 🔥" : "🔥 FASTER SHOOTING! 🔥")
+        let reward = SKLabelNode(text: extraBullet ? "🔥 FASTER SHOOTING + 1 BULLET + 1 CONTINUE! 🔥"
+                                                   : "🔥 FASTER SHOOTING + 1 CONTINUE! 🔥")
         reward.fontName = "Helvetica-Bold"
         reward.fontSize = 20 * cs
         reward.fontColor = .white
@@ -3051,6 +3068,10 @@ class GameScene: SKScene {
             ]))
         }
 
+        // Continues: replay this level, or start again from level 1 when none are left
+        let continuesText = continues > 0 ? "CONTINUES LEFT: \(continues)" : "NO CONTINUES LEFT - BACK TO LEVEL 1"
+        _ = addInfo(continuesText, fontSize: 18, color: continues > 0 ? .green : .orange, y: -128, delay: infoDelay + 0.6)
+
         // Countdown until the statistics appear
         var secondsLeft = GameScene.gameOverScreenSeconds
         let countdown = addInfo("Tap to continue  \(secondsLeft)", fontSize: 16, color: .lightGray, y: -155, delay: infoDelay + 0.6)
@@ -3328,11 +3349,21 @@ class GameScene: SKScene {
 
         // Buttons
         if showRestart {
-            let restartButton = createPauseButton(text: "RESTART", cameraScale: cameraScale)
-            restartButton.position = CGPoint(x: 0, y: yPos)
+            // CONTINUE (same level) next to NEW GAME (level 1), while continues are left
+            let restartButton = createPauseButton(text: "NEW GAME", cameraScale: cameraScale)
             restartButton.zPosition = 200
             restartButton.name = "restartButton"
             gameCamera.addChild(restartButton)
+            if continues > 0 {
+                let continueButton = createPauseButton(text: "CONTINUE (\(continues))", cameraScale: cameraScale)
+                continueButton.position = CGPoint(x: -100 * cameraScale, y: yPos)
+                continueButton.zPosition = 200
+                continueButton.name = "continueButton"
+                gameCamera.addChild(continueButton)
+                restartButton.position = CGPoint(x: 100 * cameraScale, y: yPos)
+            } else {
+                restartButton.position = CGPoint(x: 0, y: yPos)
+            }
             yPos -= 60 * cameraScale
         } else {
             let nextButton = createPauseButton(text: "NEXT LEVEL", cameraScale: cameraScale)
@@ -3721,6 +3752,10 @@ class GameScene: SKScene {
                     goToMenu()
                     return
                 }
+                if node.name == "continueButton" || node.parent?.name == "continueButton" {
+                    continueGame()
+                    return
+                }
                 if node.name == "restartButton" || node.parent?.name == "restartButton" {
                     restartGame()
                     return
@@ -3731,11 +3766,11 @@ class GameScene: SKScene {
                 }
             }
 
-            // Tap anywhere else - next level if won, restart if lost
+            // Tap anywhere else - next level if won, otherwise continue (or a new game without continues)
             if didWinLevel {
                 nextLevel()
             } else {
-                restartGame()
+                continueOrRestart()
             }
             return
         }
@@ -3772,15 +3807,39 @@ class GameScene: SKScene {
 
         let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel && !nextIsBonus, alienMode: nextAlienMode,
                                  playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2,
-                                 player2Score: scores[1], friend: friend, gzhelStreak: streak, bonusStage: nextIsBonus)
+                                 player2Score: scores[1], friend: friend, gzhelStreak: streak, bonusStage: nextIsBonus,
+                                 continues: continues)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
 
+    /// Default action after losing: use a continue if one is left, otherwise start over
+    private func continueOrRestart() {
+        if continues > 0 {
+            continueGame()
+        } else {
+            restartGame()
+        }
+    }
+
+    /// CONTINUE: replay the level where the game was lost (same map), with fresh lives
+    /// and score 0. Uses up one continue.
+    private func continueGame() {
+        guard continues > 0 else { return restartGame() }
+        SoundManager.shared.stopGameOver()
+        let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed,
+                                 powerUps: keptAfterDeath(playerTank), playerCount: playerCount,
+                                 player2PowerUps: player2Tank.map { keptAfterDeath($0) } ?? PlayerPowerUps(),
+                                 continues: continues - 1)
+        newScene.scaleMode = scaleMode
+        view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
+    }
+
+    /// NEW GAME: start again from level 1 with a new map set and a full set of continues
     private func restartGame() {
         SoundManager.shared.stopGameOver()
-        // Restart the SAME level with score reset to 0 (the high score is saved)
-        let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed, playerCount: playerCount)
+        let newScene = GameScene(size: size, level: 1, score: 0, sessionSeed: UInt64.random(in: 1..<UInt64.max),
+                                 playerCount: playerCount)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
@@ -3834,7 +3893,7 @@ class GameScene: SKScene {
                 } else if didWinLevel {
                     nextLevel()
                 } else {
-                    restartGame()
+                    continueOrRestart()
                 }
                 continue
             }

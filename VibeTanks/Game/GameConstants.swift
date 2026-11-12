@@ -54,6 +54,7 @@ struct GameConstants {
     static let magicChanceBonusStage = 0.12    // 12% on the bonus stage
     static let magicGuaranteeEnemiesLeft = 10  // Bonus stage: forced once this few enemies are left
     static let mysteryPrizeCount = 3  // Power-ups inside the boss's question mark
+    static let startingContinues = 3  // Continues per game; every defeated boss adds one
     static let enemySpeedPerBoss: CGFloat = 0.1  // Enemies are 10% faster per defeated boss
     static let enemyMaxBossSpeed: CGFloat = 1.6  // ...up to 1.6x
 
