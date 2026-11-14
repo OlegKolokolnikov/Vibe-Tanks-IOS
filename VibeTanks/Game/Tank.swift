@@ -1208,6 +1208,12 @@ class Tank: SKSpriteNode {
         // Ship acts as extra protection - first shot removes ship (unless bypassed by bomb)
         if canSwim && !bypassShip {
             canSwim = false
+            // Losing the ship out on the water: the tank sinks (alien/boss swim on their own)
+            if isOnWater && !canMoveOnWater {
+                health = 0
+                die()
+                return
+            }
             drawTank()  // Remove ship indicator
             // Flash to indicate ship was lost
             let flash = SKAction.sequence([
@@ -1252,9 +1258,16 @@ class Tank: SKSpriteNode {
         damage(bypassShip: true, bypassShield: true)
     }
 
+    /// Tank's center is on a water tile
+    private var isOnWater: Bool {
+        (scene as? GameScene)?.gameMap?.getTile(at: position) == .water
+    }
+
     private func die() {
         // The friend leaves with its own colorful animation (played by the scene)
-        if isPlayer || enemyType != .gzhel {
+        if isOnWater {
+            createWhirlpool()  // Sinks instead of exploding
+        } else if isPlayer || enemyType != .gzhel {
             createExplosion()
         }
         if isPlayer {
@@ -1269,6 +1282,100 @@ class Tank: SKSpriteNode {
             // Enemy death handled by game scene
             health = 0
         }
+    }
+
+    /// Drowning: the tank spins down into a whirlpool and disappears
+    private func createWhirlpool() {
+        guard let parent = self.parent else { return }
+        let duration: TimeInterval = 1.2
+        let radius = tankSize * 0.9
+
+        let pool = SKNode()
+        pool.position = position
+        pool.zPosition = zPosition
+
+        // Dark eye of the whirlpool
+        let eye = SKShapeNode(circleOfRadius: radius * 0.45)
+        eye.fillColor = SKColor(red: 0.0, green: 0.12, blue: 0.35, alpha: 0.85)
+        eye.strokeColor = .clear
+        eye.setScale(0.2)
+        pool.addChild(eye)
+        eye.run(SKAction.sequence([
+            SKAction.scale(to: 1.0, duration: duration * 0.4),
+            SKAction.wait(forDuration: duration * 0.3),
+            SKAction.group([SKAction.scale(to: 0.1, duration: duration * 0.3),
+                            SKAction.fadeOut(withDuration: duration * 0.3)])
+        ]))
+
+        // Spiral arms of foam
+        let spiral = CGMutablePath()
+        let arms = 3
+        for arm in 0..<arms {
+            let start = CGFloat(arm) * 2 * .pi / CGFloat(arms)
+            let steps = 24
+            for i in 0...steps {
+                let t = CGFloat(i) / CGFloat(steps)
+                let angle = start + t * 2.4 * .pi
+                let r = radius * (0.12 + 0.88 * t)
+                let point = CGPoint(x: cos(angle) * r, y: sin(angle) * r)
+                if i == 0 { spiral.move(to: point) } else { spiral.addLine(to: point) }
+            }
+        }
+        let swirl = SKShapeNode(path: spiral)
+        swirl.strokeColor = SKColor(red: 0.75, green: 0.92, blue: 1.0, alpha: 0.9)
+        swirl.lineWidth = max(1.5, tankSize * 0.07)
+        swirl.lineCap = .round
+        swirl.alpha = 0
+        swirl.setScale(0.5)
+        pool.addChild(swirl)
+        swirl.run(SKAction.group([
+            SKAction.rotate(byAngle: -5 * .pi, duration: duration),
+            SKAction.sequence([
+                SKAction.group([SKAction.fadeIn(withDuration: duration * 0.2),
+                                SKAction.scale(to: 1.0, duration: duration * 0.4)]),
+                SKAction.wait(forDuration: duration * 0.3),
+                SKAction.group([SKAction.scale(to: 0.2, duration: duration * 0.3),
+                                SKAction.fadeOut(withDuration: duration * 0.3)])
+            ])
+        ]))
+
+        // The tank itself spins and shrinks as it goes under
+        if let texture = cachedTextures.first {
+            let hull = SKSpriteNode(texture: texture)
+            hull.size = CGSize(width: tankSize, height: tankSize)
+            hull.zRotation = zRotation
+            pool.addChild(hull)
+            hull.run(SKAction.group([
+                SKAction.rotate(byAngle: -3 * .pi, duration: duration * 0.85),
+                SKAction.scale(to: 0.05, duration: duration * 0.85),
+                SKAction.sequence([SKAction.wait(forDuration: duration * 0.35),
+                                   SKAction.fadeOut(withDuration: duration * 0.5)])
+            ]))
+        }
+
+        // Bubbles rising from the spot
+        for i in 0..<6 {
+            let bubble = SKShapeNode(circleOfRadius: CGFloat.random(in: 1.5...3))
+            bubble.strokeColor = SKColor(white: 1, alpha: 0.85)
+            bubble.fillColor = SKColor(white: 1, alpha: 0.25)
+            bubble.lineWidth = 1
+            bubble.position = CGPoint(x: CGFloat.random(in: -radius * 0.4...radius * 0.4),
+                                      y: CGFloat.random(in: -radius * 0.4...radius * 0.4))
+            bubble.alpha = 0
+            pool.addChild(bubble)
+            bubble.run(SKAction.sequence([
+                SKAction.wait(forDuration: duration * 0.5 + Double(i) * 0.08),
+                SKAction.fadeIn(withDuration: 0.05),
+                SKAction.group([SKAction.moveBy(x: 0, y: CGFloat.random(in: 8...16), duration: 0.4),
+                                SKAction.fadeOut(withDuration: 0.4)])
+            ]))
+        }
+
+        parent.addChild(pool)
+        pool.run(SKAction.sequence([
+            SKAction.wait(forDuration: duration + 0.5),
+            SKAction.removeFromParent()
+        ]))
     }
 
     private func createExplosion() {
