@@ -1202,7 +1202,7 @@ class GameScene: SKScene {
         powerUps.canDestroyTrees = tank.canDestroyTrees
         powerUps.baseSpeedMultiplier = tank.baseSpeedMultiplier
         powerUps.bossFireBoost = tank.bossFireBoost
-        // Laser only carries into one more round (and only if the player still has it)
+        // Laser ends with the round (a kill-bonus laser, given at the round's end, carries into the next one)
         powerUps.laserRounds = max(tank.laserRounds - 1, 0)
         return powerUps
     }
@@ -3127,6 +3127,8 @@ class GameScene: SKScene {
         let type = (useful.isEmpty ? candidates : useful).randomElement() ?? .car
 
         PowerUp(position: .zero, type: type).apply(to: winner)
+        // Awarded as the round ends: the laser is for the whole next round
+        if type == .laser { winner.laserRounds = GameConstants.laserRoundsOnPickup + 1 }
         winner.drawTank()
         return KillBonus(playerIndex: winnerIndex, type: type)
     }
