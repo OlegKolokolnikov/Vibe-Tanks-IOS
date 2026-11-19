@@ -18,7 +18,7 @@ extension GameScene {
 
         for bullet in bullets where !isBulletRemoved(bullet) {
             // The friend (Gzhel tank) stops everyone else's bullets; only enemy bullets hurt it
-            if let friend = gzhelTank, friend.isAlive, !bullet.isFromGzhel, bullet.collidesWith(friend) {
+            if !bullet.isFromGzhel, let friend = friends.first(where: { $0.isAlive && bullet.collidesWith($0) }) {
                 bulletsToRemove.append(bullet)
                 if bullet.isFromEnemy {
                     friend.damage()
@@ -26,7 +26,7 @@ extension GameScene {
                         flashFriendHit(friend)
                     } else {
                         SoundManager.shared.playExplosion()
-                        dismissGzhelTank(killed: true)
+                        dismissGzhelTank(friend, killed: true)
                     }
                 }
                 continue
@@ -204,27 +204,27 @@ extension GameScene {
         }
     }
 
-    /// Check bullets hitting UFO
+    /// Check bullets hitting UFOs
     func checkBulletUFOCollisions() {
-        guard let currentUFO = ufo, currentUFO.isAlive else { return }
-
-        for bullet in bullets where !isBulletRemoved(bullet) {
-            if currentUFO.collidesWith(bullet) {
+        for currentUFO in ufos where currentUFO.isAlive {
+            for bullet in bullets where !isBulletRemoved(bullet) {
+                guard currentUFO.collidesWith(bullet) else { continue }
                 removeBullet(bullet)
 
                 if currentUFO.damage() {
-                    // UFO destroyed - spawn easter egg at random empty position
+                    // UFO destroyed - spawn easter egg at random empty position (one at a time)
                     ufoWasKilled = true
                     currentUFO.createDestroyEffect()
                     currentUFO.removeFromParent()
+                    ufos.removeAll { $0 === currentUFO }
 
-                    // Spawn easter egg at random empty position
-                    let eggPosition = findRandomEmptyPosition()
-                    easterEgg = EasterEgg(x: eggPosition.x, y: eggPosition.y)
-                    gameLayer.addChild(easterEgg!)
+                    if easterEgg == nil {
+                        let eggPosition = findRandomEmptyPosition()
+                        easterEgg = EasterEgg(x: eggPosition.x, y: eggPosition.y)
+                        gameLayer.addChild(easterEgg!)
+                    }
 
                     showUFOMessage("UFO DESTROYED!", color: .green)
-                    ufo = nil
                 }
                 break
             }

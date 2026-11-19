@@ -38,10 +38,13 @@ class MenuScene: SKScene {
         twoPlayersButton.name = "twoPlayersButton"
         addChild(twoPlayersButton)
 
-        // Options button
+        // Options button (next to the CHEATS button once the Konami code is entered)
         let optionsButton = createButton(text: "OPTIONS", position: CGPoint(x: size.width / 2, y: size.height * 0.20))
         optionsButton.name = "optionsButton"
         addChild(optionsButton)
+        if CheatSettings.shared.isUnlocked {
+            addCheatsButton()
+        }
 
         // Credits
         let credits = SKLabelNode(text: "Designed by Oleg")
@@ -726,14 +729,88 @@ class MenuScene: SKScene {
         return container
     }
 
+    // MARK: - Konami code
+
+    /// ↑↑↓↓←→←→ B A on a keyboard; on a touch screen the same swipes, then two taps
+    private enum CodeInput { case up, down, left, right, b, a, tap }
+    private static let keyboardCode: [CodeInput] = [.up, .up, .down, .down, .left, .right, .left, .right, .b, .a]
+    private static let touchCode: [CodeInput] = [.up, .up, .down, .down, .left, .right, .left, .right, .tap, .tap]
+    private var codeInputs: [CodeInput] = []
+    private var touchStart: CGPoint?
+
+    private func registerCodeInput(_ input: CodeInput) {
+        guard !CheatSettings.shared.isUnlocked else { return }
+        codeInputs.append(input)
+        if codeInputs.count > MenuScene.keyboardCode.count {
+            codeInputs.removeFirst()
+        }
+        if codeInputs == MenuScene.keyboardCode || codeInputs == MenuScene.touchCode {
+            unlockCheats()
+        }
+    }
+
+    private func unlockCheats() {
+        CheatSettings.shared.isUnlocked = true
+        codeInputs.removeAll()
+        SoundManager.shared.playPowerUp()
+        addCheatsButton()
+
+        let label = SKLabelNode(text: "CHEATS UNLOCKED!")
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = 28
+        label.fontColor = .magenta
+        label.position = CGPoint(x: size.width / 2, y: size.height * 0.75 - 75)
+        label.setScale(0.2)
+        addChild(label)
+        label.run(SKAction.sequence([
+            SKAction.scale(to: 1.15, duration: 0.25),
+            SKAction.scale(to: 1.0, duration: 0.1),
+            SKAction.wait(forDuration: 1.8),
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ]))
+    }
+
+    /// OPTIONS moves left and CHEATS sits on its right
+    private func addCheatsButton() {
+        guard childNode(withName: "cheatsButton") == nil else { return }
+        let rowY = size.height * 0.20
+        childNode(withName: "optionsButton")?.position = CGPoint(x: size.width / 2 - 110, y: rowY)
+        let cheatsButton = createButton(text: "CHEATS", position: CGPoint(x: size.width / 2 + 110, y: rowY))
+        cheatsButton.name = "cheatsButton"
+        if let background = cheatsButton.children.first as? SKShapeNode {
+            background.strokeColor = .magenta
+        }
+        addChild(cheatsButton)
+    }
+
     #if os(iOS) || os(tvOS)
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
-        handleClick(at: location)
+        if handleClick(at: location) { return }
+        touchStart = location  // Not on a button: a swipe or tap for the code
     }
 
-    // Hardware keyboard: Enter, Space or 1 = one player, 2 = two players
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let start = touchStart, let touch = touches.first else { return }
+        touchStart = nil
+        let end = touch.location(in: self)
+        let dx = end.x - start.x, dy = end.y - start.y
+        if max(abs(dx), abs(dy)) < 30 {
+            registerCodeInput(.tap)
+        } else if abs(dx) > abs(dy) {
+            registerCodeInput(dx > 0 ? .right : .left)
+        } else {
+            registerCodeInput(dy > 0 ? .up : .down)  // Scene y goes up
+        }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        touchStart = nil
+    }
+
+    // Hardware keyboard: Enter, Space or 1 = one player, 2 = two players, C = cheats (once unlocked)
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         for press in presses {
             switch press.key?.keyCode {
@@ -743,30 +820,54 @@ class MenuScene: SKScene {
             case .keyboard2:
                 startGame(playerCount: 2)
                 return
+            case .keyboardUpArrow: registerCodeInput(.up)
+            case .keyboardDownArrow: registerCodeInput(.down)
+            case .keyboardLeftArrow: registerCodeInput(.left)
+            case .keyboardRightArrow: registerCodeInput(.right)
+            case .keyboardB: registerCodeInput(.b)
+            case .keyboardA: registerCodeInput(.a)
+            case .keyboardC:
+                if CheatSettings.shared.isUnlocked {
+                    openCheats()
+                    return
+                }
             default:
-                break
+                codeInputs.removeAll()
             }
         }
     }
     #endif
 
-    private func handleClick(at location: CGPoint) {
+    /// Returns true if a button was hit
+    @discardableResult
+    private func handleClick(at location: CGPoint) -> Bool {
         let nodes = nodes(at: location)
 
         for node in nodes {
             if node.name == "onePlayerButton" || node.parent?.name == "onePlayerButton" {
                 startGame(playerCount: 1)
-                return
+                return true
             }
             if node.name == "twoPlayersButton" || node.parent?.name == "twoPlayersButton" {
                 startGame(playerCount: 2)
-                return
+                return true
             }
             if node.name == "optionsButton" || node.parent?.name == "optionsButton" {
                 openOptions()
-                return
+                return true
+            }
+            if node.name == "cheatsButton" || node.parent?.name == "cheatsButton" {
+                openCheats()
+                return true
             }
         }
+        return false
+    }
+
+    private func openCheats() {
+        let cheatScene = CheatScene(size: size)
+        cheatScene.scaleMode = scaleMode
+        view?.presentScene(cheatScene, transition: .fade(withDuration: 0.3))
     }
 
     private func openOptions() {
@@ -776,9 +877,8 @@ class MenuScene: SKScene {
     }
 
     private func startGame(playerCount: Int) {
-        // Generate a new random session seed for this game session
-        let sessionSeed = UInt64.random(in: 0..<UInt64.max)
-        let gameScene = GameScene(size: size, level: 1, score: 0, sessionSeed: sessionSeed, playerCount: playerCount)
+        // New random session seed; cheats may set the start level, lives and power-ups
+        let gameScene = GameScene.newGame(size: size, playerCount: playerCount)
         gameScene.scaleMode = scaleMode
 
         let transition = SKTransition.fade(withDuration: 0.5)

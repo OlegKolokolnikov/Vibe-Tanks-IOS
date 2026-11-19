@@ -192,6 +192,9 @@ class Tank: SKSpriteNode {
     /// Last 1.5 seconds of a shield: 3 flashes warn that it is about to end
     private static let shieldWarningFrames = 90
     var speedMultiplier: CGFloat = 1.0
+    /// Cheat screen multipliers (1 = normal): movement speed and shooting speed
+    var cheatSpeed: CGFloat = 1.0
+    var cheatFireRate: CGFloat = 1.0
     /// Start speed from soccer balls: kept through deaths and levels until a new game
     var baseSpeedMultiplier: CGFloat = 1.0
     var starCount: Int = 0           // Faster shooting (stackable)
@@ -946,7 +949,7 @@ class Tank: SKSpriteNode {
         let velocity = direction.velocity
         // Speed boost on ice
         let iceMultiplier: CGFloat = isOnIce ? iceSpeedBoost : 1.0
-        let actualMoveSpeed = moveSpeed * speedMultiplier * iceMultiplier
+        let actualMoveSpeed = moveSpeed * speedMultiplier * cheatSpeed * iceMultiplier
         let newX = position.x + velocity.dx * actualMoveSpeed
         let newY = position.y + velocity.dy * actualMoveSpeed
 
@@ -1011,7 +1014,7 @@ class Tank: SKSpriteNode {
         }
 
         let velocity = dir.velocity
-        let slideSpeed = moveSpeed * speedMultiplier * iceSpeedBoost
+        let slideSpeed = moveSpeed * speedMultiplier * cheatSpeed * iceSpeedBoost
         let newX = position.x + velocity.dx * slideSpeed
         let newY = position.y + velocity.dy * slideSpeed
 
@@ -1073,7 +1076,7 @@ class Tank: SKSpriteNode {
         let tileSize = GameConstants.tileSize
 
         // Very subtle slide amount - same as original game (max 0.5 pixels per frame)
-        let slideAmount = min(moveSpeed * speedMultiplier, 0.5)
+        let slideAmount = min(moveSpeed * speedMultiplier * cheatSpeed, 0.5)
 
         // Calculate offset from tile CENTER (not edge)
         // Tank position is its center, gaps are at tile centers
@@ -1154,7 +1157,7 @@ class Tank: SKSpriteNode {
 
         // Base cooldown reduced by star power-ups and defeated bosses (min 5 frames)
         let baseCooldown = max(5, 30 - (starCount + bossFireBoost) * GameConstants.fireBoostStep)
-        shootCooldown = baseCooldown
+        shootCooldown = cheatFireRate == 1 ? baseCooldown : max(2, Int((CGFloat(baseCooldown) / cheatFireRate).rounded()))
 
         let bulletOffset: CGFloat = size.width / 2 + GameConstants.bulletSize / 2
         let bulletSpacing: CGFloat = GameConstants.bulletSize * 2

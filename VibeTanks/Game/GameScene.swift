@@ -117,7 +117,9 @@ class GameScene: SKScene {
     var base: Base!
 
     // UFO and Easter Egg
-    var ufo: UFO?
+    var ufos: [UFO] = []
+    /// Crazy mode: UFOs still to come this level
+    private var crazyUFOsLeft = 0
     var easterEgg: EasterEgg?
     var ufoSpawnedThisLevel: Bool = false
     var ufoWasKilled: Bool = false
@@ -132,8 +134,8 @@ class GameScene: SKScene {
     private var ufoMessageLabel: SKLabelNode?
 
     // Gzhel tank: an ally that hunts enemies. It appears on Gzhel levels, and if it survives
-    // a level it comes back on the next ones until it is destroyed.
-    var gzhelTank: Tank?
+    // a level it comes back on the next ones until it is destroyed. Crazy mode brings several.
+    var friends: [Tank] = []
 
     /// Friend's state carried into the next level
     struct FriendCarry {
@@ -148,9 +150,14 @@ class GameScene: SKScene {
     }
     /// Friend who survived the previous level (appears shortly after this level starts)
     private var returningFriend: FriendCarry?
-    private var friendLivesLabel: SKLabelNode?
-    private var gzhelSpawnedThisLevel: Bool = false
-    private var gzhelSpawnFrame: Int = 0      // Random frame when it tries to appear
+    private var friendLivesLabels: [ObjectIdentifier: SKLabelNode] = [:]
+    /// Friends still to appear this level: a returning friend, the Gzhel friend, crazy mode friends
+    private struct PendingFriend {
+        var carry: FriendCarry?
+        var hits: Int?
+        var frame: Int  // Frame when it tries to appear
+    }
+    private var pendingFriends: [PendingFriend] = []
     private var gzhelFrameCounter: Int = 0
 
     // UI
@@ -248,7 +255,11 @@ class GameScene: SKScene {
         var laserRounds: Int = 0  // LASER: rounds left including the one being started
         var baseSpeedMultiplier: CGFloat = 1.0  // Soccer-ball start speed (until a new game)
         var bossFireBoost: Int = 0  // Faster shooting from defeated bosses (until a new game)
+        var hasMagic: Bool = false  // Cheats: MAGIC from the start
+        var shield: Bool = false    // Cheats: one-minute shield at the start
     }
+    /// Cheats: base starts behind steel
+    private var startSteelBase = false
     private var initialPowerUps = PlayerPowerUps()
     private var initialPowerUps2 = PlayerPowerUps()
 
@@ -271,8 +282,9 @@ class GameScene: SKScene {
     init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
          playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0,
          friend: FriendCarry? = nil, gzhelStreak: Int = 0, bonusStage: Bool = false,
-         continues: Int = GameConstants.startingContinues) {
+         continues: Int = GameConstants.startingContinues, startSteelBase: Bool = false) {
         self.continues = continues
+        self.startSteelBase = startSteelBase
         self.returningFriend = friend
         self.gzhelStreak = gzhelStreak
         self.bonusStage = bonusStage
@@ -301,6 +313,11 @@ class GameScene: SKScene {
         setupUI()
         if bonusStage {
             showUFOMessage("✨ SECRET BONUS STAGE! ✨", color: SKColor(red: 1.0, green: 0.55, blue: 0.1, alpha: 1))
+        } else if CheatSettings.shared.isCrazy {
+            showUFOMessage("🤪 CRAZY MODE! 🤪", color: .magenta)
+        }
+        if startSteelBase {
+            activateBaseProtection()
         }
 
         #if targetEnvironment(macCatalyst)
@@ -1130,21 +1147,104 @@ class GameScene: SKScene {
         }
 
         // Calculate enemies for this level (easy mode: 18, normal: base 20 + 2 per level)
-        let totalEnemies = GameScene.isEasyMode ? 18 : min(20 + (level - 1) * 2, 50)
-
-        // Gzhel tank appears at a random moment, 10-40 seconds into the level
-        if returningFriend != nil {
-            gzhelSpawnFrame = 60  // The surviving friend rolls in a second after the start
-        } else if showGzhelBorder {
-            gzhelSpawnFrame = Int.random(in: 600...2400)
+        let cheats = CheatSettings.shared.active
+        var totalEnemies = GameScene.isEasyMode ? 18 : min(20 + (level - 1) * 2, 50)
+        var maxOnScreen = GameConstants.maxEnemiesOnScreen
+        var plannedTypes: [Tank.EnemyType]?
+        if cheats.crazyMode {
+            // Crazy mode: up to 1000 enemies of any kind, bosses and aliens included, and a few UFOs
+            totalEnemies = Int.random(in: 10...1000)
+            maxOnScreen = Int.random(in: 5...20)
+            plannedTypes = EnemySpawner.crazyEnemyTypes(count: totalEnemies)
+            crazyUFOsLeft = Int.random(in: 1...5)
+        } else {
+            if cheats.enemyCount > 0 { totalEnemies = cheats.enemyCount }
+            if cheats.enemiesOnScreen > 0 { maxOnScreen = cheats.enemiesOnScreen }
         }
 
-        // Setup enemy spawner
+        // Gzhel tank appears at a random moment, 10-40 seconds into the level
+        if let carry = returningFriend {
+            pendingFriends.append(PendingFriend(carry: carry, frame: 60))  // Rolls in a second after the start
+        } else if showGzhelBorder {
+            pendingFriends.append(PendingFriend(frame: Int.random(in: 600...2400)))
+        }
+        // Crazy mode: a random crowd of friends, each with 1-5 hits
+        if cheats.crazyMode {
+            for i in 0..<Int.random(in: 1...6) {
+                pendingFriends.append(PendingFriend(hits: Int.random(in: 1...5), frame: 90 + i * 40))
+            }
+        }
+
+        // Setup enemy spawner (more tanks on screen: they come in faster)
         enemySpawner = EnemySpawner(
             totalEnemies: totalEnemies,
-            maxOnScreen: GameConstants.maxEnemiesOnScreen,
-            hasBoss: level % GameConstants.bossLevelInterval == 0
+            maxOnScreen: maxOnScreen,
+            hasBoss: plannedTypes == nil && level % GameConstants.bossLevelInterval == 0,
+            spawnDelay: maxOnScreen > GameConstants.maxEnemiesOnScreen ? 20 : GameConstants.spawnDelay,
+            plannedTypes: plannedTypes
         )
+    }
+
+    // MARK: - Cheats
+
+    /// Start a new game from the menu or NEW GAME: cheats set the level, lives and power-ups
+    static func newGame(size: CGSize, playerCount: Int) -> GameScene {
+        let cheats = CheatSettings.shared.active
+        return GameScene(size: size, level: cheats.startLevel, score: 0,
+                         lives: startLives(), sessionSeed: UInt64.random(in: 1..<UInt64.max),
+                         powerUps: startPowerUps(), playerCount: playerCount,
+                         player2Lives: startLives(), player2PowerUps: startPowerUps(),
+                         startSteelBase: cheats.steelBase)
+    }
+
+    /// Lives at the start of a game (or a continue): 3, the cheat setting, or crazy 3-99
+    private static func startLives() -> Int {
+        let cheats = CheatSettings.shared.active
+        return cheats.crazyMode ? Int.random(in: 3...99) : cheats.playerLives
+    }
+
+    /// Power-ups at the start of a game (or a continue), on top of what is kept
+    private static func startPowerUps(keeping kept: PlayerPowerUps = PlayerPowerUps()) -> PlayerPowerUps {
+        let cheats = CheatSettings.shared.active
+        var p = kept
+        let stars: Int, guns: Int, cars: Int
+        if cheats.crazyMode {
+            // Crazy mode: a random set every start
+            stars = Int.random(in: 0...3)
+            guns = Int.random(in: 0...3)
+            cars = Int.random(in: 0...4)
+            p.bulletPower = Bool.random() ? 2 : 1
+            p.canSwim = Bool.random()
+            p.canDestroyTrees = Bool.random()
+            p.laserRounds = Int.random(in: 1...4) == 1 ? 1 : 0
+            p.hasMagic = Bool.random()
+            p.shield = Bool.random()
+        } else {
+            stars = cheats.stars
+            guns = cheats.machineguns
+            cars = cheats.cars
+            if cheats.gun { p.bulletPower = 2 }
+            if cheats.ship { p.canSwim = true }
+            if cheats.saw { p.canDestroyTrees = true }
+            if cheats.laser { p.laserRounds = 1 }
+            p.hasMagic = cheats.magic
+            p.shield = cheats.shield
+        }
+        p.starCount = max(p.starCount, stars)
+        p.machinegunCount = max(p.machinegunCount, guns)
+        p.speedMultiplier = min(max(p.speedMultiplier, p.baseSpeedMultiplier + CGFloat(cars) * 0.3), 2.5)
+        return p
+    }
+
+    /// Cheat speed, fire rate and armor for a new enemy
+    private func applyEnemyCheats(to enemy: Tank) {
+        let cheats = CheatSettings.shared.active
+        enemy.cheatSpeed = CGFloat(cheats.enemySpeed)
+        enemy.cheatFireRate = CGFloat(cheats.enemyFireRate)
+        if cheats.enemyArmor > 0 {
+            enemy.health += cheats.enemyArmor
+            enemy.maxHealth += cheats.enemyArmor
+        }
     }
 
     /// Create a player tank with lives and power-ups carried from the previous level
@@ -1167,9 +1267,23 @@ class GameScene: SKScene {
         tank.laserRounds = powerUps.laserRounds
         tank.baseSpeedMultiplier = powerUps.baseSpeedMultiplier
         tank.bossFireBoost = powerUps.bossFireBoost
+        tank.hasMagic = powerUps.hasMagic
+
+        // Cheats: player speed and fire rate (faster shooting also allows more shots in the air)
+        let cheats = CheatSettings.shared.active
+        tank.cheatSpeed = CGFloat(cheats.playerSpeed)
+        tank.cheatFireRate = CGFloat(cheats.playerFireRate)
+        if cheats.playerFireRate >= 2 {
+            tank.maxBullets = GameConstants.maxBulletsPerTank + 2
+        } else if cheats.playerFireRate > 1 {
+            tank.maxBullets = GameConstants.maxBulletsPerTank + 1
+        }
 
         // Always redraw tank to show power-up indicators
         tank.drawTank()
+        if powerUps.shield {
+            tank.activateShield(duration: GameConstants.shieldDuration)
+        }
 
         // Two players: a player who ran out of lives stays out (a bonus life brings them back)
         if lives <= 0 {
@@ -1455,7 +1569,7 @@ class GameScene: SKScene {
 
             // Update AI
             if let ai = enemy.ai {
-                let (direction, shouldShoot) = ai.update(
+                let (direction, aiWantsToShoot) = ai.update(
                     map: gameMap,
                     playerTanks: playerTanks,
                     allTanks: allTanks
@@ -1468,6 +1582,15 @@ class GameScene: SKScene {
                 // Check for forest destruction (SAW power-up)
                 if enemy.canDestroyTrees {
                     checkForestDestruction(for: enemy)
+                }
+
+                // Cheats: enemies shoot less or more often
+                var shouldShoot = aiWantsToShoot
+                let fireRate = Double(enemy.cheatFireRate)
+                if fireRate < 1 {
+                    shouldShoot = shouldShoot && Double.random(in: 0..<1) < fireRate
+                } else if fireRate > 1 && !shouldShoot {
+                    shouldShoot = Double.random(in: 0..<1) < 0.03 * (fireRate - 1)
                 }
 
                 if shouldShoot {
@@ -1499,12 +1622,13 @@ class GameScene: SKScene {
     // MARK: - Gzhel Tank
 
     /// Spawn the Gzhel tank once per Gzhel level at its random moment,
-    /// or bring back the friend who survived the previous level
+    /// bring back the friend who survived the previous level, or the crazy mode friends
     private func updateGzhelSpawn() {
-        guard showGzhelBorder || returningFriend != nil, !gzhelSpawnedThisLevel, victoryDelayTimer == 0 else { return }
+        guard !pendingFriends.isEmpty, victoryDelayTimer == 0 else { return }
 
         gzhelFrameCounter += 1
-        guard gzhelFrameCounter >= gzhelSpawnFrame else { return }
+        guard let index = pendingFriends.firstIndex(where: { gzhelFrameCounter >= $0.frame }) else { return }
+        let pending = pendingFriends[index]
 
         // Random empty tile, not on another tank and not right next to the player.
         // If none fits this frame, try again next frame.
@@ -1517,7 +1641,7 @@ class GameScene: SKScene {
             guard !blocked else { continue }
 
             let tank = Tank(position: pos, direction: .up, isPlayer: false, playerNumber: 0, enemyType: .gzhel)
-            if let carry = returningFriend {
+            if let carry = pending.carry {
                 // Same friend as last level: keeps its remaining hits and upgrades.
                 // Another Gzhel level heals it back to at least the full 3 hits (extra hearts are kept).
                 let hits = showGzhelBorder ? max(carry.health, GameConstants.friendHits) : carry.health
@@ -1530,13 +1654,16 @@ class GameScene: SKScene {
                 tank.canSwim = carry.canSwim
                 tank.canDestroyTrees = carry.canDestroyTrees
                 tank.drawTank()
+            } else if let hits = pending.hits {
+                tank.health = hits
+                tank.maxHealth = hits
             }
-            gzhelTank = tank
-            gzhelSpawnedThisLevel = true
+            friends.append(tank)
+            pendingFriends.remove(at: index)
             invalidateAllTanksCache()
             gameLayer.addChild(tank)
             showSpawnEffect(at: pos)
-            showUFOMessage(returningFriend != nil ? "FRIEND IS BACK!" : "FRIEND!",
+            showUFOMessage(pending.carry != nil ? "FRIEND IS BACK!" : "FRIEND!",
                            color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
             return
         }
@@ -1544,41 +1671,41 @@ class GameScene: SKScene {
 
     /// Gzhel AI: same tank AI, but its targets are the enemies instead of the player
     private func updateGzhelTank() {
-        guard let gzhel = gzhelTank, gzhel.isAlive, let ai = gzhel.ai else { return }
+        for gzhel in friends {
+            guard gzhel.isAlive, let ai = gzhel.ai else { continue }
 
-        let direction: Direction?, shouldShoot: Bool
-        if victoryDelayTimer > 0 {
-            // Level cleared: collect what the friend may take, then park at the base
-            let takeable = powerUps.filter { $0.type != .laser && !$0.isPlayersOnly }.map { $0.position }
-            (direction, shouldShoot) = ai.updateFriendLevelCleared(map: gameMap, powerUps: takeable)
-        } else {
-            let enemyBullets = bullets.filter { $0.isFromEnemy && !isBulletRemoved($0) }
-            (direction, shouldShoot) = ai.updateFriend(map: gameMap, enemies: enemyTanks, allTanks: allTanks,
-                                                       enemyBullets: enemyBullets)
-        }
-
-        if let dir = direction {
-            gzhel.move(direction: dir, map: gameMap, allTanks: allTanks)
-        }
-        updateFriendLivesLabel()
-        if shouldShoot {
-            let newBullets = gzhel.shoot()
-            if !newBullets.isEmpty {
-                SoundManager.shared.playShoot()
-                addBulletsWithSpawnCheck(newBullets)
+            let direction: Direction?, shouldShoot: Bool
+            if victoryDelayTimer > 0 {
+                // Level cleared: collect what the friend may take, then park at the base
+                let takeable = powerUps.filter { $0.type != .laser && !$0.isPlayersOnly }.map { $0.position }
+                (direction, shouldShoot) = ai.updateFriendLevelCleared(map: gameMap, powerUps: takeable)
+            } else {
+                let enemyBullets = bullets.filter { $0.isFromEnemy && !isBulletRemoved($0) }
+                (direction, shouldShoot) = ai.updateFriend(map: gameMap, enemies: enemyTanks, allTanks: allTanks,
+                                                           enemyBullets: enemyBullets)
             }
+
+            if let dir = direction {
+                gzhel.move(direction: dir, map: gameMap, allTanks: allTanks)
+            }
+            updateFriendLivesLabel(gzhel)
+            if shouldShoot {
+                let newBullets = gzhel.shoot()
+                if !newBullets.isEmpty {
+                    SoundManager.shared.playShoot()
+                    addBulletsWithSpawnCheck(newBullets)
+                }
+            }
+            gzhel.update(map: gameMap, allTanks: allTanks)
         }
-        gzhel.update(map: gameMap, allTanks: allTanks)
     }
 
     /// The friend (Gzhel tank) leaves with a colorful farewell:
     /// when enemies have used up its hits (a friend that survives a level stays for the next one)
-    func dismissGzhelTank(killed: Bool = false) {
-        gzhelSpawnedThisLevel = true  // Appears only once per level
-        guard let gzhel = gzhelTank else { return }
-        gzhelTank = nil
-        friendLivesLabel?.removeFromParent()
-        friendLivesLabel = nil
+    func dismissGzhelTank(_ gzhel: Tank, killed: Bool = false) {
+        guard friends.contains(where: { $0 === gzhel }) else { return }
+        friends.removeAll { $0 === gzhel }
+        friendLivesLabels.removeValue(forKey: ObjectIdentifier(gzhel))?.removeFromParent()
         if killed {
             showUFOMessage("FRIEND LOST!", color: SKColor(red: 0.3, green: 0.55, blue: 1.0, alpha: 1.0))
         }
@@ -1605,11 +1732,12 @@ class GameScene: SKScene {
         gzhel.run(SKAction.sequence([spinAndPop, burst, SKAction.removeFromParent()]))
     }
 
-    /// Hearts floating above the friend: one per remaining hit
-    private func updateFriendLivesLabel() {
-        guard let friend = gzhelTank, friend.isAlive else { return }
+    /// Hearts floating above a friend: one per remaining hit
+    private func updateFriendLivesLabel(_ friend: Tank) {
+        guard friend.isAlive else { return }
+        let key = ObjectIdentifier(friend)
         let label: SKLabelNode
-        if let existing = friendLivesLabel {
+        if let existing = friendLivesLabels[key] {
             label = existing
         } else {
             label = SKLabelNode(fontNamed: "Helvetica-Bold")
@@ -1618,7 +1746,7 @@ class GameScene: SKScene {
             label.verticalAlignmentMode = .bottom
             label.zPosition = 55
             gameLayer.addChild(label)
-            friendLivesLabel = label
+            friendLivesLabels[key] = label
         }
         let hits = max(0, friend.health)
         let text = hits <= 5 ? String(repeating: "♥", count: hits) : "♥x\(hits)"
@@ -1634,7 +1762,7 @@ class GameScene: SKScene {
             SKAction.fadeAlpha(to: 0.3, duration: 0.08),
             SKAction.fadeAlpha(to: 1.0, duration: 0.08)
         ]))
-        updateFriendLivesLabel()
+        updateFriendLivesLabel(friend)
     }
 
     /// The friend picked up a power-up: tank upgrades go to the friend itself,
@@ -1662,7 +1790,7 @@ class GameScene: SKScene {
             powerUp.apply(to: friend)
             friend.drawTank()
         }
-        updateFriendLivesLabel()
+        updateFriendLivesLabel(friend)
     }
 
     // MARK: - Boss
@@ -2005,7 +2133,7 @@ class GameScene: SKScene {
 
     private func updateSpawner() {
         // Spawn regular enemies (don't spawn on players or the friend)
-        let nonEnemyTanks = [gzhelTank, player2Tank].compactMap { $0 }
+        let nonEnemyTanks = friends + [player2Tank].compactMap { $0 }
         if let newEnemy = enemySpawner.update(existingEnemies: enemyTanks, playerTank: playerTank, map: gameMap, otherTanks: nonEnemyTanks) {
             enemyTanks.append(newEnemy)
             invalidateAllTanksCache()
@@ -2021,6 +2149,7 @@ class GameScene: SKScene {
                 newEnemy.maxHealth = newEnemy.health
                 showEffect(text: "☠ BOSS IS COMING! ☠", color: .red)
             }
+            applyEnemyCheats(to: newEnemy)
         }
 
         // Spawn extra enemies (from tank power-up collection, don't spawn on player)
@@ -2028,6 +2157,7 @@ class GameScene: SKScene {
             enemyTanks.append(extraEnemy)
             invalidateAllTanksCache()
             applyBossSpeedUp(to: extraEnemy)
+            applyEnemyCheats(to: extraEnemy)
             gameLayer.addChild(extraEnemy)
             showSpawnEffect(at: extraEnemy.position)
         }
@@ -2083,8 +2213,17 @@ class GameScene: SKScene {
             }
         }
 
-        // Check UFO spawn conditions (no UFO in alien mode or easy mode)
-        if !ufoSpawnedThisLevel && ufo == nil && !alienMode && !GameScene.isEasyMode {
+        let cheats = CheatSettings.shared.active
+        if !cheats.ufoEnabled {
+            // Cheats: UFO switched off
+        } else if cheats.crazyMode {
+            // Crazy mode: several UFOs a level, no conditions (up to 3 at once)
+            if crazyUFOsLeft > 0 && ufos.count < 3 && victoryDelayTimer == 0 && Double.random(in: 0...1) < 0.002 {
+                crazyUFOsLeft -= 1
+                spawnUFO()
+            }
+        } else if !ufoSpawnedThisLevel && ufos.isEmpty && !alienMode && !GameScene.isEasyMode {
+            // Check UFO spawn conditions (no UFO in alien mode or easy mode)
             // UFO spawns when player has machinegun and 5+ kills
             if playerTanks.contains(where: { $0.machinegunCount > 0 }) && playerKills >= GameConstants.ufoKillsRequired {
                 // Random chance each frame
@@ -2094,35 +2233,33 @@ class GameScene: SKScene {
             }
         }
 
-        // Update existing UFO
-        guard let currentUFO = ufo, currentUFO.isAlive else {
-            // Check if UFO escaped (died but wasn't killed by player)
-            if ufo != nil && !ufoWasKilled {
+        // Update existing UFOs (a shot down UFO is removed right away, so a gone one escaped)
+        for currentUFO in ufos {
+            guard currentUFO.isAlive else {
                 showUFOMessage("UFO ESCAPED!", color: .red)
                 ufoEscapedThisLevel = true  // Next level will have alien at base
+                currentUFO.removeFromParent()
+                ufos.removeAll { $0 === currentUFO }
+                continue
             }
-            if ufo != nil && !ufo!.isAlive {
-                ufo?.removeFromParent()
-                ufo = nil
+
+            let newBullets = currentUFO.update(
+                mapWidth: gameMap.pixelSize.width,
+                mapHeight: gameMap.pixelSize.height
+            )
+
+            for bullet in newBullets {
+                bullets.append(bullet)
+                gameLayer.addChild(bullet)
+                SoundManager.shared.playLaser()
             }
-            return
-        }
-
-        let newBullets = currentUFO.update(
-            mapWidth: gameMap.pixelSize.width,
-            mapHeight: gameMap.pixelSize.height
-        )
-
-        for bullet in newBullets {
-            bullets.append(bullet)
-            gameLayer.addChild(bullet)
-            SoundManager.shared.playLaser()
         }
     }
 
     private func spawnUFO() {
-        ufo = UFO(mapSize: gameMap.pixelSize)
-        gameLayer.addChild(ufo!)
+        let newUFO = UFO(mapSize: gameMap.pixelSize)
+        ufos.append(newUFO)
+        gameLayer.addChild(newUFO)
         ufoSpawnedThisLevel = true
 
         showUFOMessage("UFO INCOMING!", color: .yellow)
@@ -2250,19 +2387,22 @@ class GameScene: SKScene {
             }
 
             // The friend collects power-ups too (except the player's laser)
-            if let friend = gzhelTank, friend.isAlive, powerUp.type != .laser, !powerUp.isPlayersOnly {
+            if powerUp.type != .laser, !powerUp.isPlayersOnly, let friend = friends.first(where: { friend in
                 let friendDist = (friend.size.width + powerUp.size.width) / 2
-                if abs(friend.position.x - powerUp.position.x) < friendDist &&
-                    abs(friend.position.y - powerUp.position.y) < friendDist {
-                    handleFriendPowerUpCollection(powerUp, friend: friend)
-                    powerUpsToRemove.append(powerUp)
-                    SoundManager.shared.playPowerUp()
-                    continue
-                }
+                return friend.isAlive &&
+                    abs(friend.position.x - powerUp.position.x) < friendDist &&
+                    abs(friend.position.y - powerUp.position.y) < friendDist
+            }) {
+                handleFriendPowerUpCollection(powerUp, friend: friend)
+                powerUpsToRemove.append(powerUp)
+                SoundManager.shared.playPowerUp()
+                continue
             }
 
-            // Check enemy collisions (the laser is the player's reward: enemies can't take it)
-            for enemy in enemyTanks where powerUp.type != .laser && !powerUp.isPlayersOnly {
+            // Check enemy collisions (the laser is the player's reward: enemies can't take it;
+            // cheats can stop enemies taking power-ups at all)
+            let enemiesTake = CheatSettings.shared.active.enemiesTakePowerUps
+            for enemy in enemyTanks where enemiesTake && powerUp.type != .laser && !powerUp.isPlayersOnly {
                 guard enemy.isAlive else { continue }
                 let enemyDx = abs(enemy.position.x - powerUp.position.x)
                 let enemyDy = abs(enemy.position.y - powerUp.position.y)
@@ -2816,7 +2956,7 @@ class GameScene: SKScene {
                 victoryDelayTimer = GameConstants.levelBonusVictoryDelay
             }
             // The friend stays (it comes along to the next level); one that hasn't appeared yet won't now
-            gzhelSpawnedThisLevel = true
+            pendingFriends.removeAll()
         }
 
         // Check lose condition: every player is out of lives
@@ -2969,7 +3109,8 @@ class GameScene: SKScene {
         // Track consecutive losses for easy mode
         GameScene.consecutiveLosses += 1
 
-        isNewHighScore = bestScore > GameScene.highScore
+        // No high score with cheats on
+        isNewHighScore = !CheatSettings.shared.isActive && bestScore > GameScene.highScore
         if isNewHighScore {
             GameScene.highScore = bestScore
         }
@@ -3630,7 +3771,7 @@ class GameScene: SKScene {
 
         // Build power-up data from the player tanks
         var powerUps = sidebarPowerUps(of: playerTank)
-        if let friend = gzhelTank, friend.isAlive {
+        if let friend = friends.first(where: { $0.isAlive }) {
             powerUps.friendHits = friend.health
         }
         let powerUps2 = player2Tank.map { sidebarPowerUps(of: $0) } ?? Sidebar.PowerUpData()
@@ -3696,7 +3837,7 @@ class GameScene: SKScene {
 
     private var allTanks: [Tank] {
         if _allTanksDirty {
-            _cachedAllTanks = [playerTank, player2Tank].compactMap { $0 } + enemyTanks + [gzhelTank].compactMap { $0 }
+            _cachedAllTanks = [playerTank, player2Tank].compactMap { $0 } + enemyTanks + friends
             _allTanksDirty = false
         }
         return _cachedAllTanks
@@ -3790,12 +3931,12 @@ class GameScene: SKScene {
         // If UFO escaped this level, next level has alien at base (only one level, then back to cat)
         // If currently in alien mode, alien leaves so next level is normal
         // UFO escaped if: it spawned this level AND wasn't killed (still alive or escaped earlier)
-        let ufoEscaped = ufoEscapedThisLevel || (ufoSpawnedThisLevel && !ufoWasKilled)
+        let ufoEscaped = ufoEscapedThisLevel || !ufos.isEmpty
         let nextAlienMode = ufoEscaped && !alienMode
 
-        // A friend who survived the level comes along
-        let friend = gzhelTank.flatMap { tank -> FriendCarry? in
-            guard tank.isAlive else { return nil }
+        // A friend who survived the level comes along (crazy mode brings new friends every level)
+        let carried = CheatSettings.shared.isCrazy ? nil : friends.first(where: { $0.isAlive })
+        let friend = carried.flatMap { tank -> FriendCarry? in
             return FriendCarry(health: tank.health, maxHealth: tank.maxHealth, starCount: tank.starCount,
                                machinegunCount: tank.machinegunCount, bulletPower: tank.bulletPower,
                                speedMultiplier: tank.speedMultiplier, canSwim: tank.canSwim,
@@ -3829,10 +3970,11 @@ class GameScene: SKScene {
     private func continueGame() {
         guard continues > 0 else { return restartGame() }
         SoundManager.shared.stopGameOver()
-        let newScene = GameScene(size: size, level: level, score: 0, sessionSeed: sessionSeed,
-                                 powerUps: keptAfterDeath(playerTank), playerCount: playerCount,
-                                 player2PowerUps: player2Tank.map { keptAfterDeath($0) } ?? PlayerPowerUps(),
-                                 continues: continues - 1)
+        let newScene = GameScene(size: size, level: level, score: 0, lives: GameScene.startLives(), sessionSeed: sessionSeed,
+                                 powerUps: GameScene.startPowerUps(keeping: keptAfterDeath(playerTank)), playerCount: playerCount,
+                                 player2Lives: GameScene.startLives(),
+                                 player2PowerUps: GameScene.startPowerUps(keeping: player2Tank.map { keptAfterDeath($0) } ?? PlayerPowerUps()),
+                                 continues: continues - 1, startSteelBase: CheatSettings.shared.active.steelBase)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
@@ -3840,8 +3982,7 @@ class GameScene: SKScene {
     /// NEW GAME: start again from level 1 with a new map set and a full set of continues
     private func restartGame() {
         SoundManager.shared.stopGameOver()
-        let newScene = GameScene(size: size, level: 1, score: 0, sessionSeed: UInt64.random(in: 1..<UInt64.max),
-                                 playerCount: playerCount)
+        let newScene = GameScene.newGame(size: size, playerCount: playerCount)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }

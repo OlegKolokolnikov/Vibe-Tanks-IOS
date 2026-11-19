@@ -7,6 +7,7 @@ class EnemySpawner {
     private let maxOnScreen: Int
     private var spawnedCount: Int = 0
     private var spawnCooldown: Int
+    private let spawnDelay: Int
 
     // Pre-planned enemy types for guaranteed distribution
     private var plannedEnemyTypes: [Tank.EnemyType] = []
@@ -17,11 +18,14 @@ class EnemySpawner {
     /// Every 10th level: the last planned tank is the boss
     private let hasBoss: Bool
 
-    init(totalEnemies: Int, maxOnScreen: Int, hasBoss: Bool = false) {
-        self.totalEnemies = totalEnemies
+    /// `plannedTypes`: the exact enemies to send (crazy mode); otherwise they are planned for the level
+    init(totalEnemies: Int, maxOnScreen: Int, hasBoss: Bool = false,
+         spawnDelay: Int = GameConstants.spawnDelay, plannedTypes: [Tank.EnemyType]? = nil) {
+        self.totalEnemies = plannedTypes?.count ?? totalEnemies
         self.hasBoss = hasBoss
         self.maxOnScreen = maxOnScreen
-        self.spawnCooldown = GameConstants.spawnDelay
+        self.spawnDelay = spawnDelay
+        self.spawnCooldown = spawnDelay
 
         // Initialize spawn positions
         let tileSize = GameConstants.tileSize
@@ -35,7 +39,22 @@ class EnemySpawner {
         ]
 
         // Plan enemy types with guaranteed distribution
-        plannedEnemyTypes = planEnemyTypes(total: totalEnemies)
+        plannedEnemyTypes = plannedTypes ?? planEnemyTypes(total: totalEnemies)
+    }
+
+    /// Crazy mode: any enemy at all, bosses and aliens included
+    static func crazyEnemyTypes(count: Int) -> [Tank.EnemyType] {
+        let weighted: [(Tank.EnemyType, Int)] = [(.regular, 20), (.fast, 18), (.armored, 18), (.power, 15),
+                                                 (.heavy, 15), (.alien, 7), (.boss, 7)]
+        let total = weighted.reduce(0) { $0 + $1.1 }
+        return (0..<count).map { _ in
+            var roll = Int.random(in: 0..<total)
+            for (type, weight) in weighted {
+                if roll < weight { return type }
+                roll -= weight
+            }
+            return .regular
+        }
     }
 
     /// Plan enemy types ensuring guaranteed heavy and power tank counts
@@ -124,7 +143,7 @@ class EnemySpawner {
         guard spawnCooldown <= 0 else { return nil }
 
         // Reset cooldown
-        spawnCooldown = GameConstants.spawnDelay
+        spawnCooldown = spawnDelay
 
         // Determine enemy type
         let type = determineEnemyType()
