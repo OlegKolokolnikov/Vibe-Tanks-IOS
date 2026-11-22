@@ -12,7 +12,8 @@ class Base: SKSpriteNode {
     enum Resident {
         case cat
         case alien
-        case woman(blond: Bool)  // Secret bonus stage (blond when the stage has a boss)
+        case woman               // Secret bonus stage
+        case rat                 // Secret bonus stage that has a boss
         case dog                 // Boss levels
     }
     private let resident: Resident
@@ -54,8 +55,10 @@ class Base: SKSpriteNode {
         } else if isAlien {
             // Draw smiling alien visitor
             drawAlien()
-        } else if case .woman(let blond) = resident {
-            drawWoman(blond: blond)
+        } else if case .woman = resident {
+            drawWoman()
+        } else if case .rat = resident {
+            drawRat()
         } else if case .dog = resident {
             drawDog()
         } else {
@@ -631,7 +634,7 @@ class Base: SKSpriteNode {
     }
 }
 
-// MARK: - Woman (bonus stage) and dog (boss levels)
+// MARK: - Woman and rat (bonus stage) and dog (boss levels)
 
 extension Base {
 
@@ -654,16 +657,20 @@ extension Base {
         return node
     }
 
-    /// Woman in a red polka-dot dress on a rug; black hair, or blond on a boss bonus stage
-    fileprivate func drawWoman(blond: Bool) {
+    /// Purple rug with a gold edge that the woman or the rat sits on
+    private func addRug() {
         let rug = ellipse(baseSize * 0.95, baseSize * 0.55, at: CGPoint(x: 0, y: -10),
                           fill: SKColor(red: 0.55, green: 0.25, blue: 0.6, alpha: 1),
                           stroke: SKColor(red: 0.95, green: 0.8, blue: 0.3, alpha: 1))
         rug.name = "cushion"
         addChild(rug)
+    }
 
-        let hair = blond ? SKColor(red: 0.98, green: 0.84, blue: 0.38, alpha: 1)
-                         : SKColor(red: 0.08, green: 0.06, blue: 0.06, alpha: 1)
+    /// Woman with black hair in a red polka-dot dress on a rug
+    fileprivate func drawWoman() {
+        addRug()
+
+        let hair = SKColor(red: 0.08, green: 0.06, blue: 0.06, alpha: 1)
         let woman = SKNode()
         woman.name = "resident"
 
@@ -731,6 +738,97 @@ extension Base {
         ])))
     }
 
+    /// Grey rat sitting up on the rug (boss bonus stage), twitching its whiskers
+    fileprivate func drawRat() {
+        addRug()
+
+        let fur = SKColor(red: 0.58, green: 0.58, blue: 0.62, alpha: 1)
+        let darkFur = SKColor(red: 0.35, green: 0.35, blue: 0.4, alpha: 1)
+        let lightFur = SKColor(red: 0.82, green: 0.82, blue: 0.85, alpha: 1)
+        let pink = SKColor(red: 1.0, green: 0.62, blue: 0.7, alpha: 1)
+        let rat = SKNode()
+        rat.name = "resident"
+
+        // Long bare tail curling up beside the body
+        let tailPath = CGMutablePath()
+        tailPath.move(to: CGPoint(x: 4, y: -12))
+        tailPath.addQuadCurve(to: CGPoint(x: 13, y: -6), control: CGPoint(x: 14, y: -14))
+        tailPath.addQuadCurve(to: CGPoint(x: 11, y: 3), control: CGPoint(x: 12, y: -1))
+        let tail = shape(tailPath, fill: .clear, stroke: pink, width: 1.6)
+        tail.lineCap = .round
+        rat.addChild(tail)
+
+        // Body, belly, feet, little front paws
+        rat.addChild(ellipse(14, 16, at: CGPoint(x: 0, y: -6), fill: fur, stroke: darkFur))
+        rat.addChild(ellipse(8, 10, at: CGPoint(x: 0, y: -7), fill: lightFur))
+        rat.addChild(ellipse(4.5, 2.5, at: CGPoint(x: -3.5, y: -14), fill: pink))
+        rat.addChild(ellipse(4.5, 2.5, at: CGPoint(x: 3.5, y: -14), fill: pink))
+        rat.addChild(ellipse(2.8, 2.6, at: CGPoint(x: -2.6, y: -3.5), fill: pink))
+        rat.addChild(ellipse(2.8, 2.6, at: CGPoint(x: 2.6, y: -3.5), fill: pink))
+
+        // Big round ears with pink insides
+        for x: CGFloat in [-6, 6] {
+            rat.addChild(ellipse(8, 8, at: CGPoint(x: x, y: 10), fill: fur, stroke: darkFur))
+            rat.addChild(ellipse(5, 5, at: CGPoint(x: x, y: 10), fill: pink))
+        }
+
+        // Head, snout, nose, buck teeth, eyes
+        rat.addChild(ellipse(12, 11, at: CGPoint(x: 0, y: 5), fill: fur, stroke: darkFur))
+        rat.addChild(ellipse(6, 5, at: CGPoint(x: 0, y: 1.8), fill: lightFur))
+        let teeth = SKShapeNode(rectOf: CGSize(width: 2, height: 1.6))
+        teeth.fillColor = .white
+        teeth.strokeColor = .clear
+        teeth.position = CGPoint(x: 0, y: -0.4)
+        rat.addChild(teeth)
+        rat.addChild(ellipse(2.4, 1.8, at: CGPoint(x: 0, y: 1.4), fill: SKColor(red: 0.95, green: 0.4, blue: 0.5, alpha: 1)))
+        for x: CGFloat in [-2.4, 2.4] {
+            rat.addChild(ellipse(1.9, 2.3, at: CGPoint(x: x, y: 6.3), fill: .black))
+            rat.addChild(ellipse(0.7, 0.7, at: CGPoint(x: x + 0.4, y: 6.9), fill: .white))
+        }
+
+        // Whiskers
+        let whiskerPath = CGMutablePath()
+        for side: CGFloat in [-1, 1] {
+            whiskerPath.move(to: CGPoint(x: side * 2, y: 1.6)); whiskerPath.addLine(to: CGPoint(x: side * 8.5, y: 3.2))
+            whiskerPath.move(to: CGPoint(x: side * 2, y: 1.2)); whiskerPath.addLine(to: CGPoint(x: side * 8.5, y: 0.2))
+        }
+        let whiskers = shape(whiskerPath, fill: .clear, stroke: SKColor(white: 0.15, alpha: 0.8), width: 0.6)
+        whiskers.position = .zero
+        rat.addChild(whiskers)
+
+        rat.position = CGPoint(x: 0, y: 2)
+        addChild(rat)
+        catNode = rat
+
+        // Idle: a gentle sway, and a quick sniff now and then
+        rat.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.rotate(toAngle: 0.05, duration: 1.2),
+            SKAction.rotate(toAngle: -0.05, duration: 1.2)
+        ])))
+        whiskers.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.wait(forDuration: 1.8),
+            SKAction.repeat(SKAction.sequence([SKAction.moveBy(x: 0, y: 0.8, duration: 0.07),
+                                               SKAction.moveBy(x: 0, y: -0.8, duration: 0.07)]), count: 4)
+        ])))
+    }
+
+    /// Cheese taken: a pulsing golden ring shows the base can't be destroyed until the level ends
+    func makeInvincible() {
+        guard !isDestroyed, childNode(withName: "invincibleGlow") == nil else { return }
+        let ring = SKShapeNode(rectOf: CGSize(width: baseSize + 6, height: baseSize + 6), cornerRadius: 6)
+        ring.fillColor = SKColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 0.15)
+        ring.strokeColor = SKColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1)
+        ring.lineWidth = 2
+        ring.glowWidth = 3
+        ring.zPosition = -1
+        ring.name = "invincibleGlow"
+        addChild(ring)
+        ring.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.35, duration: 0.5),
+            SKAction.fadeAlpha(to: 1.0, duration: 0.5)
+        ])))
+    }
+
     /// Dog sitting on a blue bed, wagging its tail
     fileprivate func drawDog() {
         let bed = ellipse(baseSize * 0.9, baseSize * 0.65, at: CGPoint(x: 0, y: -4),
@@ -793,15 +891,15 @@ extension Base {
         ])))
     }
 
-    /// Bonus stage cleared: a car drives up, the woman gets in and they drive off
-    func playCarPickupAnimation(blond: Bool) {
+    /// Bonus stage cleared: a car drives up, the woman (red car) or the rat (pink car) gets in and they drive off
+    func playCarPickupAnimation(pink: Bool) {
         guard let woman = catNode, !isDestroyed else { return }
         woman.removeAllActions()
         woman.zRotation = 0
 
         let car = SKNode()
         car.zPosition = 30
-        let paint = blond ? SKColor(red: 1.0, green: 0.45, blue: 0.7, alpha: 1) : SKColor(red: 0.85, green: 0.08, blue: 0.1, alpha: 1)
+        let paint = pink ? SKColor(red: 1.0, green: 0.45, blue: 0.7, alpha: 1) : SKColor(red: 0.85, green: 0.08, blue: 0.1, alpha: 1)
         let bodyPath = CGMutablePath()
         bodyPath.addRoundedRect(in: CGRect(x: -18, y: -5, width: 36, height: 11), cornerWidth: 4, cornerHeight: 4)
         car.addChild(shape(bodyPath, fill: paint, stroke: paint.darker(), width: 1.5))

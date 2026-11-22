@@ -190,8 +190,9 @@ extension GameScene {
         // Laser light (the players' and the alien's) passes the cat harmlessly (it also goes through the base walls)
         for bullet in bullets where !isBulletRemoved(bullet) && !bullet.isLaser {
             if base.checkCollision(bulletPosition: bullet.position) {
-                // The Gzhel friend can't kill the base: its stray shots stop there harmlessly
-                if bullet.isFromGzhel {
+                // The Gzhel friend can't kill the base: its stray shots stop there harmlessly.
+                // Nor can anyone once the cheese made the base invincible
+                if bullet.isFromGzhel || baseInvincible {
                     removeBullet(bullet)
                     continue
                 }

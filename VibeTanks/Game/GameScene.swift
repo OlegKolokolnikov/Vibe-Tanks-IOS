@@ -131,6 +131,12 @@ class GameScene: SKScene {
     private var goldSpawnedThisLevel: Bool = false
     private var goldSpawnTimer: Int = 0
     private let goldSpawnChance: Double = 0.0003  // ~1% chance per second at 60fps
+
+    // Cheese (boss bonus stage only, once): appears at a random moment
+    private var cheeseSpawnFrame: Int?     // Frame of the level the cheese appears on (nil: no cheese this level)
+    private var cheeseFrameCounter = 0
+    /// Cheese taken: the base can't be destroyed until the level ends
+    var baseInvincible = false
     private var ufoMessageLabel: SKLabelNode?
 
     // Gzhel tank: an ally that hunts enemies. It appears on Gzhel levels, and if it survives
@@ -1123,12 +1129,14 @@ class GameScene: SKScene {
             x: CGFloat(baseCol) * GameConstants.tileSize + GameConstants.tileSize / 2,
             y: CGFloat(GameConstants.mapHeight - 1 - baseRow) * GameConstants.tileSize + GameConstants.tileSize / 2
         )
-        // Who sits at the base: woman on the bonus stage (blond if it has a boss),
+        // Who sits at the base: woman on the bonus stage (a rat if it has a boss),
         // alien in alien mode, a dog on boss levels, otherwise the cat
         let isBossLevel = level % GameConstants.bossLevelInterval == 0
         let resident: Base.Resident
         if bonusStage {
-            resident = .woman(blond: isBossLevel)
+            resident = isBossLevel ? .rat : .woman
+            // The rat's stage hides a cheese that appears somewhere between 10 and 70 seconds in
+            if isBossLevel { cheeseSpawnFrame = Int.random(in: 600...4200) }
         } else if alienMode {
             resident = .alien
         } else if isBossLevel {
@@ -1453,6 +1461,7 @@ class GameScene: SKScene {
         updateUFO()
         updateEasterEgg()
         updateGoldSpawn()
+        updateCheeseSpawn()
         checkCollisions()
         flushBulletRemovals()  // Batch remove all bullets marked for removal
         checkGameState()
@@ -2307,6 +2316,21 @@ class GameScene: SKScene {
         }
     }
 
+    /// Boss bonus stage: the cheese appears once at its random moment
+    /// (or as soon as only a few enemies are left, so it never gets skipped)
+    private func updateCheeseSpawn() {
+        guard let spawnFrame = cheeseSpawnFrame, victoryDelayTimer == 0 else { return }
+        cheeseFrameCounter += 1
+        let enemiesLeft = enemySpawner.remainingEnemies + enemyTanks.filter { $0.isAlive }.count
+        guard cheeseFrameCounter >= spawnFrame || (cheeseFrameCounter > 300 && enemiesLeft <= 3) else { return }
+        cheeseSpawnFrame = nil
+        let cheese = PowerUp(position: findRandomEmptyPosition(), type: .cheese)
+        powerUps.append(cheese)
+        gameLayer.addChild(cheese)
+        showEffect(text: "🧀 CHEESE!", color: .yellow)
+        SoundManager.shared.playPowerUpSpawn()
+    }
+
     /// Spawn gold power-up at random empty position
     private func spawnGold() {
         goldSpawnedThisLevel = true
@@ -2489,7 +2513,7 @@ class GameScene: SKScene {
         case .gold:
             // Major upgrade based on current type
             handleEnemyGoldCollection(enemy)
-        case .laser, .strawberry, .banana, .ball, .magic:
+        case .laser, .strawberry, .banana, .ball, .magic, .cheese:
             break  // Never collected by enemies
         }
     }
@@ -2618,6 +2642,12 @@ class GameScene: SKScene {
             powerUp.apply(to: player)
             player.drawTank()
             showEffect(text: "+\(GameConstants.ballPoints) GOAL! SPEED UP!", color: .white)
+            return
+        case .cheese:
+            powerUp.apply(to: player)  // +11 lives
+            baseInvincible = true
+            base.makeInvincible()
+            showEffect(text: "🧀 +\(GameConstants.cheeseLivesBonus) LIVES! BASE INVINCIBLE!", color: .yellow)
             return
         default:
             break
@@ -2980,8 +3010,10 @@ class GameScene: SKScene {
         showScoreBreakdown(title: "LEVEL COMPLETE!", titleColor: .green, showRestart: false, bonus: bonus)
 
         // Victory animations
-        if case .woman(let blond) = baseResident {
-            base.playCarPickupAnimation(blond: blond)
+        if case .woman = baseResident {
+            base.playCarPickupAnimation(pink: false)
+        } else if case .rat = baseResident {
+            base.playCarPickupAnimation(pink: true)
         } else if case .dog = baseResident {
             base.playDogPeeAnimation()
         } else if alienMode {

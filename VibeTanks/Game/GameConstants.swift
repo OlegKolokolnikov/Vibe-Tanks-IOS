@@ -98,6 +98,7 @@ struct GameConstants {
     // Easter Egg settings
     static let easterEggLifetime = 600 // 10 seconds
     static let easterEggLivesBonus = 3 // extra lives when player collects
+    static let cheeseLivesBonus = 11   // extra lives from the cheese on the boss bonus stage
 
     // Colors
     struct Colors {

@@ -18,6 +18,7 @@ class PowerUp: SKSpriteNode {
         case gold       // Gzhel-only: 99 points, enemies get major upgrade
         case laser      // Only dropped by the alien: shots of light pass through walls
         case magic      // Very rare: protects from the enemies' bomb and freeze until death or the end of the round
+        case cheese     // Once on the boss bonus stage (the rat's): 11 extra lives and an invincible base until the level ends
         // Level-clear bonuses (appear when the last enemy dies)
         case strawberry // Player crossed 250 points this level: +50 points
         case banana     // Player crossed 500 points this level: +75 points
@@ -37,13 +38,13 @@ class PowerUp: SKSpriteNode {
 
     /// Only players can take it (level-clear bonuses and the boss's question mark),
     /// and the level waits for it
-    var isPlayersOnly: Bool { type.isLevelBonus || isMystery || type == .magic }
+    var isPlayersOnly: Bool { type.isLevelBonus || isMystery || type == .magic || type == .cheese }
 
     init(position: CGPoint, type: PowerUpType? = nil, mystery: Bool = false) {
         self.type = type ?? PowerUp.randomType()
         self.isMystery = mystery
-        // Level-clear bonuses and the question mark stay until the level ends
-        self.lifetime = (self.type.isLevelBonus || mystery) ? Int.max : GameConstants.powerUpLifetime
+        // Level-clear bonuses, the question mark and the cheese stay until the level ends
+        self.lifetime = (self.type.isLevelBonus || mystery || self.type == .cheese) ? Int.max : GameConstants.powerUpLifetime
 
         let size = CGSize(width: 28, height: 28)
         super.init(texture: nil, color: .clear, size: size)
@@ -68,6 +69,8 @@ class PowerUp: SKSpriteNode {
             drawGoldBar()
         } else if type.isLevelBonus {
             drawLevelBonus()
+        } else if type == .cheese {
+            drawCheese()
         } else {
             let background = SKShapeNode(rectOf: size, cornerRadius: 4)
             background.fillColor = colorForType
@@ -118,6 +121,58 @@ class PowerUp: SKSpriteNode {
 
         // Add sparkle effect
         addSparkle()
+    }
+
+    /// Yellow cheese wedge with holes and a pulsing golden glow
+    private func drawCheese() {
+        let glow = SKShapeNode(circleOfRadius: 17)
+        glow.fillColor = SKColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 0.3)
+        glow.strokeColor = .clear
+        glow.zPosition = -1
+        addChild(glow)
+        glow.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 1.0, duration: 0.4),
+            SKAction.fadeAlpha(to: 0.4, duration: 0.4)
+        ])))
+
+        let cheeseYellow = SKColor(red: 1.0, green: 0.82, blue: 0.2, alpha: 1)
+        let rind = SKColor(red: 0.85, green: 0.6, blue: 0.05, alpha: 1)
+        let wedge = CGMutablePath()
+        wedge.move(to: CGPoint(x: -12, y: -8))
+        wedge.addLine(to: CGPoint(x: 12, y: -8))
+        wedge.addLine(to: CGPoint(x: 12, y: 4))
+        wedge.addLine(to: CGPoint(x: -12, y: -1))
+        wedge.closeSubpath()
+        let body = SKShapeNode(path: wedge)
+        body.fillColor = cheeseYellow
+        body.strokeColor = rind
+        body.lineWidth = 1.5
+        addChild(body)
+
+        // Top face of the wedge
+        let top = CGMutablePath()
+        top.move(to: CGPoint(x: -12, y: -1))
+        top.addLine(to: CGPoint(x: 12, y: 4))
+        top.addLine(to: CGPoint(x: 9, y: 9))
+        top.closeSubpath()
+        let topNode = SKShapeNode(path: top)
+        topNode.fillColor = SKColor(red: 1.0, green: 0.92, blue: 0.45, alpha: 1)
+        topNode.strokeColor = rind
+        topNode.lineWidth = 1.5
+        addChild(topNode)
+
+        for (p, r) in [(CGPoint(x: -5, y: -4), 2.2), (CGPoint(x: 3, y: -5), 1.6), (CGPoint(x: 7, y: -1), 2.0), (CGPoint(x: 0, y: -1), 1.2)] as [(CGPoint, CGFloat)] {
+            let hole = SKShapeNode(circleOfRadius: r)
+            hole.fillColor = rind
+            hole.strokeColor = .clear
+            hole.position = p
+            addChild(hole)
+        }
+
+        run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.scale(to: 1.12, duration: 0.4),
+            SKAction.scale(to: 1.0, duration: 0.4)
+        ])))
     }
 
     /// Boss drop: purple box with a big pulsing question mark
@@ -216,6 +271,7 @@ class PowerUp: SKSpriteNode {
         case .gold: return SKColor(red: 1.0, green: 0.84, blue: 0.0, alpha: 1.0) // Bright gold
         case .laser: return SKColor(red: 0.0, green: 0.85, blue: 0.85, alpha: 1.0) // Cyan
         case .magic: return SKColor(red: 0.55, green: 0.2, blue: 0.85, alpha: 1.0) // Violet
+        case .cheese: return SKColor(red: 1.0, green: 0.82, blue: 0.2, alpha: 1.0) // Cheese yellow
         case .strawberry: return .red
         case .banana: return .yellow
         case .ball: return .white
@@ -238,6 +294,7 @@ class PowerUp: SKSpriteNode {
         case .gold: return "$"  // Lode Runner style
         case .laser: return "🔦"
         case .magic: return "🔮"
+        case .cheese: return "🧀"
         case .strawberry: return "🍓"
         case .banana: return "🍌"
         case .ball: return "⚽"
@@ -290,6 +347,8 @@ class PowerUp: SKSpriteNode {
             tank.laserRounds = GameConstants.laserRoundsOnPickup
         case .magic:
             tank.hasMagic = true
+        case .cheese:
+            tank.addLives(GameConstants.cheeseLivesBonus)  // The invincible base is handled by the game scene
         case .strawberry, .banana:
             // Handled by game scene (points only)
             break
