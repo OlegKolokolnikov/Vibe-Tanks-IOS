@@ -77,6 +77,9 @@ struct GameConstants {
     static let strawberryPoints = 50
     static let bananaPoints = 75
     static let ballPoints = 90
+    static let watermelonPoints = 55
+    static let icecreamPoints = 33
+    static let watermelonTimeLimit = 3600       // Level won within 1 minute (frames)
     static let ballSpeedBoost: CGFloat = 0.15   // Start speed per ball
     static let ballMaxBaseSpeed: CGFloat = 1.6  // Start speed cap
     static let levelBonusVictoryDelay = 720     // 12 seconds to grab the bonuses

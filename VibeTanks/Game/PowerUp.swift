@@ -23,10 +23,12 @@ class PowerUp: SKSpriteNode {
         case strawberry // Player crossed 250 points this level: +50 points
         case banana     // Player crossed 500 points this level: +75 points
         case ball       // No bomb used this level: +90 points and faster start speed for the rest of the game
+        case watermelon // Level won within a minute: +55 points and an extra life
+        case icecream   // Level won faster than the previous one: +33 points and a machinegun
 
         /// Level-clear bonus items: only players can pick them up
         var isLevelBonus: Bool {
-            self == .strawberry || self == .banana || self == .ball
+            self == .strawberry || self == .banana || self == .ball || self == .watermelon || self == .icecream
         }
     }
 
@@ -209,6 +211,8 @@ class PowerUp: SKSpriteNode {
         switch type {
         case .strawberry: glowColor = .red; icon = "🍓"; iconSize = 16  // Small strawberry
         case .banana: glowColor = .yellow; icon = "🍌"; iconSize = 22
+        case .watermelon: glowColor = .green; icon = "🍉"; iconSize = 22
+        case .icecream: glowColor = SKColor(red: 1.0, green: 0.6, blue: 0.8, alpha: 1); icon = "🍦"; iconSize = 22
         default: glowColor = .white; icon = "⚽"; iconSize = 22
         }
 
@@ -275,6 +279,8 @@ class PowerUp: SKSpriteNode {
         case .strawberry: return .red
         case .banana: return .yellow
         case .ball: return .white
+        case .watermelon: return .green
+        case .icecream: return SKColor(red: 1.0, green: 0.6, blue: 0.8, alpha: 1.0) // Pink
         }
     }
 
@@ -298,6 +304,8 @@ class PowerUp: SKSpriteNode {
         case .strawberry: return "🍓"
         case .banana: return "🍌"
         case .ball: return "⚽"
+        case .watermelon: return "🍉"
+        case .icecream: return "🍦"
         }
     }
 
@@ -354,6 +362,10 @@ class PowerUp: SKSpriteNode {
             break
         case .ball:
             tank.addBallSpeedBoost()
+        case .watermelon:
+            tank.addLives(1)
+        case .icecream:
+            tank.machinegunCount = min(tank.machinegunCount + 1, 3)
         }
     }
 

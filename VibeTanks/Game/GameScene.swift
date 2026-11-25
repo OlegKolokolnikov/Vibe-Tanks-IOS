@@ -225,6 +225,10 @@ class GameScene: SKScene {
     private var victoryDelayTimer: Int = 0
     /// A bomb killed enemies this level (no soccer ball at the end; neither if a player died)
     private var bombUsedThisLevel = false
+    /// Frames played this level until the last enemy died (paused time doesn't count)
+    private var levelFrames = 0
+    /// How long the previous level took to win (nil on the first level or after a continue)
+    private var previousLevelFrames: Int?
     /// Level-clear bonuses were put on the field (the level ends early once they are all taken)
     private var levelBonusesSpawned = false
 
@@ -288,7 +292,8 @@ class GameScene: SKScene {
     init(size: CGSize, level: Int = 1, score: Int = 0, lives: Int = 3, sessionSeed: UInt64 = 0, powerUps: PlayerPowerUps = PlayerPowerUps(), gzhelBorder: Bool = false, alienMode: Bool = false,
          playerCount: Int = 1, player2Lives: Int = 3, player2PowerUps: PlayerPowerUps = PlayerPowerUps(), player2Score: Int = 0,
          friend: FriendCarry? = nil, gzhelStreak: Int = 0, bonusStage: Bool = false,
-         continues: Int = GameConstants.startingContinues, startSteelBase: Bool = false) {
+         continues: Int = GameConstants.startingContinues, startSteelBase: Bool = false, previousLevelFrames: Int? = nil) {
+        self.previousLevelFrames = previousLevelFrames
         self.continues = continues
         self.startSteelBase = startSteelBase
         self.returningFriend = friend
@@ -1433,6 +1438,9 @@ class GameScene: SKScene {
             }
         }
 
+        // Level clock stops once the last enemy is down
+        if victoryDelayTimer == 0 { levelFrames += 1 }
+
         // Update victory delay timer (5 seconds to collect power-ups)
         if victoryDelayTimer > 0 {
             victoryDelayTimer -= 1
@@ -2513,7 +2521,7 @@ class GameScene: SKScene {
         case .gold:
             // Major upgrade based on current type
             handleEnemyGoldCollection(enemy)
-        case .laser, .strawberry, .banana, .ball, .magic, .cheese:
+        case .laser, .strawberry, .banana, .ball, .magic, .cheese, .watermelon, .icecream:
             break  // Never collected by enemies
         }
     }
@@ -2642,6 +2650,17 @@ class GameScene: SKScene {
             powerUp.apply(to: player)
             player.drawTank()
             showEffect(text: "+\(GameConstants.ballPoints) GOAL! SPEED UP!", color: .white)
+            return
+        case .watermelon:
+            addScore(GameConstants.watermelonPoints, for: player)
+            powerUp.apply(to: player)  // +1 life
+            showEffect(text: "🍉 +\(GameConstants.watermelonPoints) +1 LIFE! \(formatLevelTime(levelFrames))", color: .green)
+            return
+        case .icecream:
+            addScore(GameConstants.icecreamPoints, for: player)
+            powerUp.apply(to: player)  // +1 machinegun
+            player.drawTank()
+            showEffect(text: "🍦 +\(GameConstants.icecreamPoints) MACHINEGUN! FASTER THAN LAST LEVEL!", color: SKColor(red: 1.0, green: 0.6, blue: 0.8, alpha: 1))
             return
         case .cheese:
             powerUp.apply(to: player)  // +11 lives
@@ -2834,8 +2853,15 @@ class GameScene: SKScene {
         }
     }
 
+    /// Level time as m:ss
+    private func formatLevelTime(_ frames: Int) -> String {
+        let seconds = frames / 60
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
     /// Level cleared: strawberry for crossing 250 points this level, banana for crossing 500,
-    /// soccer ball when no bomb was used and no player died (enemy bomb deaths don't count).
+    /// soccer ball when no bomb was used and no player died (enemy bomb deaths don't count),
+    /// watermelon when won within a minute, ice cream when won faster than the previous level.
     /// Returns true if anything appeared.
     private func spawnLevelBonuses() -> Bool {
         var bonuses: [PowerUp.PowerUpType] = []
@@ -2851,6 +2877,13 @@ class GameScene: SKScene {
         let playerDied = [playerTank, player2Tank].compactMap { $0 }.contains { $0.deathsThisLevel > 0 }
         if !bombUsedThisLevel && !playerDied {
             bonuses.append(.ball)
+        }
+        // Speed bonuses: watermelon for winning within a minute, ice cream for beating the previous level's time
+        if levelFrames <= GameConstants.watermelonTimeLimit {
+            bonuses.append(.watermelon)
+        }
+        if let previous = previousLevelFrames, levelFrames < previous {
+            bonuses.append(.icecream)
         }
         for type in bonuses {
             spawnPowerUp(at: .zero, type: type)
@@ -3983,7 +4016,7 @@ class GameScene: SKScene {
         let newScene = GameScene(size: size, level: level + 1, score: score, lives: playerTank.lives, sessionSeed: sessionSeed, powerUps: powerUps, gzhelBorder: earnedGzhel && !nextIsBonus, alienMode: nextAlienMode,
                                  playerCount: playerCount, player2Lives: player2Tank?.lives ?? 3, player2PowerUps: powerUps2,
                                  player2Score: scores[1], friend: friend, gzhelStreak: streak, bonusStage: nextIsBonus,
-                                 continues: continues)
+                                 continues: continues, previousLevelFrames: levelFrames)
         newScene.scaleMode = scaleMode
         view?.presentScene(newScene, transition: .fade(withDuration: 0.5))
     }
