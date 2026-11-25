@@ -1175,14 +1175,15 @@ class GameScene: SKScene {
             if cheats.enemiesOnScreen > 0 { maxOnScreen = cheats.enemiesOnScreen }
         }
 
-        // Gzhel tank appears at a random moment, 10-40 seconds into the level
-        if let carry = returningFriend {
+        // Gzhel tank appears at a random moment, 10-40 seconds into the level.
+        // No friends on the bonus stage: a returning friend waits for the next level.
+        if !bonusStage, let carry = returningFriend {
             pendingFriends.append(PendingFriend(carry: carry, frame: 60))  // Rolls in a second after the start
-        } else if showGzhelBorder {
+        } else if !bonusStage && showGzhelBorder {
             pendingFriends.append(PendingFriend(frame: Int.random(in: 600...2400)))
         }
         // Crazy mode: a random crowd of friends, each with 1-5 hits
-        if cheats.crazyMode {
+        if cheats.crazyMode && !bonusStage {
             for i in 0..<Int.random(in: 1...6) {
                 pendingFriends.append(PendingFriend(hits: Int.random(in: 1...5), frame: 90 + i * 40))
             }
@@ -2862,6 +2863,7 @@ class GameScene: SKScene {
     /// Level cleared: strawberry for crossing 250 points this level, banana for crossing 500,
     /// soccer ball when no bomb was used and no player died (enemy bomb deaths don't count),
     /// watermelon when won within a minute, ice cream when won faster than the previous level.
+    /// When several are earned only one random bonus appears.
     /// Returns true if anything appeared.
     private func spawnLevelBonuses() -> Bool {
         var bonuses: [PowerUp.PowerUpType] = []
@@ -2885,7 +2887,7 @@ class GameScene: SKScene {
         if let previous = previousLevelFrames, levelFrames < previous {
             bonuses.append(.icecream)
         }
-        for type in bonuses {
+        if let type = bonuses.randomElement() {
             spawnPowerUp(at: .zero, type: type)
         }
         levelBonusesSpawned = !bonuses.isEmpty
@@ -4001,12 +4003,14 @@ class GameScene: SKScene {
 
         // A friend who survived the level comes along (crazy mode brings new friends every level)
         let carried = CheatSettings.shared.isCrazy ? nil : friends.first(where: { $0.isAlive })
-        let friend = carried.flatMap { tank -> FriendCarry? in
+        var friend = carried.flatMap { tank -> FriendCarry? in
             return FriendCarry(health: tank.health, maxHealth: tank.maxHealth, starCount: tank.starCount,
                                machinegunCount: tank.machinegunCount, bulletPower: tank.bulletPower,
                                speedMultiplier: tank.speedMultiplier, canSwim: tank.canSwim,
                                canDestroyTrees: tank.canDestroyTrees)
         }
+        // The friend sat out the bonus stage: it comes back on the level after it
+        if bonusStage && !CheatSettings.shared.isCrazy { friend = returningFriend }
 
         // Five Gzhel levels in a row open the secret Gorodets bonus stage
         var streak = showGzhelBorder ? gzhelStreak + 1 : 0
