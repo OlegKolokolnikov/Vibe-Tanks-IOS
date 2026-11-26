@@ -22,7 +22,12 @@ class GameScene: SKScene {
 
     // Easy mode: activates after 3 consecutive losses
     private static var consecutiveLosses: Int = 0
-    static var isEasyMode: Bool { consecutiveLosses >= 3 }
+    static var isEasyMode: Bool {
+        CheatSettings.Force.apply(CheatSettings.shared.active.easyLevel, to: consecutiveLosses >= 3,
+                                  firstLevel: isCheatFirstLevel)
+    }
+    /// This level is the first of the game (the cheat start level): ONCE cheats apply here only
+    private static var isCheatFirstLevel = false
 
     // Gzhel decoration state (accessible for cat color)
     private(set) static var isGzhelActive: Bool = false
@@ -300,7 +305,6 @@ class GameScene: SKScene {
         self.startSteelBase = startSteelBase
         self.returningFriend = friend
         self.gzhelStreak = gzhelStreak
-        self.bonusStage = bonusStage
         self.level = level
         self.scores = [score, player2Score]
         self.initialLives = lives
@@ -308,8 +312,13 @@ class GameScene: SKScene {
         self.playerCount = playerCount == 2 ? 2 : 1
         self.initialLives2 = player2Lives
         self.initialPowerUps2 = player2PowerUps
-        self.showGzhelBorder = gzhelBorder
-        self.alienMode = alienMode
+        // Cheats can force a level kind on every level or switch it off
+        let cheats = CheatSettings.shared.active
+        let first = level == cheats.startLevel
+        GameScene.isCheatFirstLevel = first
+        self.bonusStage = CheatSettings.Force.apply(cheats.bonusLevel, to: bonusStage, firstLevel: first)
+        self.showGzhelBorder = !self.bonusStage && CheatSettings.Force.apply(cheats.gzhelLevel, to: gzhelBorder, firstLevel: first)
+        self.alienMode = CheatSettings.Force.apply(cheats.alienLevel, to: alienMode, firstLevel: first)
         self.sessionSeed = sessionSeed == 0 ? UInt64.random(in: 0..<UInt64.max) : sessionSeed
         super.init(size: size)
     }
@@ -1138,7 +1147,6 @@ class GameScene: SKScene {
         )
         // Who sits at the base: woman on the bonus stage (a rat if it has a boss),
         // alien in alien mode (red on a boss level), a dog on boss levels, otherwise the cat
-        let isBossLevel = level % GameConstants.bossLevelInterval == 0
         let resident: Base.Resident
         if bonusStage {
             resident = isBossLevel ? .rat : .woman
@@ -1196,17 +1204,36 @@ class GameScene: SKScene {
             }
         }
 
+        // Cheat: a friend on every level (even the bonus stage), or no friends at all
+        switch cheats.friendLevel {
+        case .once where level != cheats.startLevel:
+            break
+        case .always, .once:
+            if pendingFriends.isEmpty { pendingFriends.append(PendingFriend(frame: Int.random(in: 120...600))) }
+        case .never:
+            pendingFriends.removeAll()
+        case nil:
+            break
+        }
+
         // Setup enemy spawner (more tanks on screen: they come in faster)
         enemySpawner = EnemySpawner(
             totalEnemies: totalEnemies,
             maxOnScreen: maxOnScreen,
-            hasBoss: plannedTypes == nil && level % GameConstants.bossLevelInterval == 0,
+            hasBoss: plannedTypes == nil && isBossLevel,
             spawnDelay: maxOnScreen > GameConstants.maxEnemiesOnScreen ? 20 : GameConstants.spawnDelay,
             plannedTypes: plannedTypes
         )
     }
 
     // MARK: - Cheats
+
+    /// The boss comes as the last tank of every 10th level (cheats can force it or switch it off)
+    private var isBossLevel: Bool {
+        let cheats = CheatSettings.shared.active
+        return CheatSettings.Force.apply(cheats.bossLevel, to: level % GameConstants.bossLevelInterval == 0,
+                                         firstLevel: level == cheats.startLevel)
+    }
 
     /// Start a new game from the menu or NEW GAME: cheats set the level, lives and power-ups
     static func newGame(size: CGSize, playerCount: Int) -> GameScene {

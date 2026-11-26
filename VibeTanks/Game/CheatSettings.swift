@@ -6,6 +6,29 @@ import CoreGraphics
 final class CheatSettings {
     static let shared = CheatSettings()
 
+    /// Level kinds: nil = AUTO (the game decides as usual), forced on every level,
+    /// only on the first level of the game (the start level), or never
+    enum Force: String, Codable {
+        case always, once, never
+
+        /// The game's own choice with this override applied
+        static func apply(_ force: Force?, to natural: Bool, firstLevel: Bool) -> Bool {
+            switch force {
+            case .always: return true
+            case .once: return firstLevel || natural
+            case .never: return false
+            case nil: return natural
+            }
+        }
+
+        /// AUTO → ALWAYS → ONCE → NEVER → AUTO (backwards for a negative step)
+        static func cycle(_ force: Force?, by delta: Int) -> Force? {
+            let order: [Force?] = [nil, .always, .once, .never]
+            let index = order.firstIndex(of: force) ?? 0
+            return order[(index + (delta < 0 ? order.count - 1 : 1)) % order.count]
+        }
+    }
+
     struct Config: Codable, Equatable {
         // Players
         var playerSpeed: Double = 1
@@ -33,6 +56,14 @@ final class CheatSettings {
         var enemiesOnScreen: Int = 0  // 0 = normal (5)
         var enemyArmor: Int = 0       // Extra hits for every enemy
         var ufoEnabled = true
+
+        // Level kinds (optional, so configs saved before these existed still load)
+        var alienLevel: Force?
+        var gzhelLevel: Force?
+        var bossLevel: Force?
+        var bonusLevel: Force?
+        var friendLevel: Force?
+        var easyLevel: Force?
 
         var crazyMode = false
     }

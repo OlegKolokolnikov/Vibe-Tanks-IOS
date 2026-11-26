@@ -1,17 +1,18 @@
 import SpriteKit
 
 /// Cheat options (opened from the menu after the Konami code): pages of rows with < value > controls.
-/// Keyboard: ↑↓ pick a row, ←→ change it, Tab / 1-4 switch pages, Esc goes back.
+/// Keyboard: ↑↓ pick a row, ←→ change it, Tab / 1-5 switch pages, Esc goes back.
 class CheatScene: SKScene {
 
     private enum Page: Int, CaseIterable {
-        case player, powerUps, enemies, crazy
+        case player, powerUps, enemies, level, crazy
 
         var title: String {
             switch self {
             case .player: return "PLAYER"
             case .powerUps: return "POWER-UPS"
             case .enemies: return "ENEMIES"
+            case .level: return "LEVEL"
             case .crazy: return "CRAZY"
             }
         }
@@ -62,6 +63,20 @@ class CheatScene: SKScene {
             change: { config, _ in config[keyPath: path].toggle() })
     }
 
+    /// AUTO / ALWAYS / ONCE / NEVER: force a level kind on every level or switch it off
+    private func forceRow(_ title: String, _ path: WritableKeyPath<CheatSettings.Config, CheatSettings.Force?>) -> Row {
+        Row(title: title,
+            value: { config in
+                switch config[keyPath: path] {
+                case .always: return "ALWAYS"
+                case .once: return "ONCE"
+                case .never: return "NEVER"
+                case nil: return "AUTO"
+                }
+            },
+            change: { config, delta in config[keyPath: path] = CheatSettings.Force.cycle(config[keyPath: path], by: delta) })
+    }
+
     private func rows(for page: Page) -> [Row] {
         switch page {
         case .player:
@@ -93,6 +108,15 @@ class CheatScene: SKScene {
                 listRow("ON SCREEN", \.enemiesOnScreen, CheatSettings.onScreenSteps) { $0 == 0 ? "AUTO" : "\($0)" },
                 listRow("EXTRA ARMOR", \.enemyArmor, Array(0...5)) { $0 == 0 ? "0" : "+\($0)" },
                 boolRow("UFO", \.ufoEnabled)
+            ]
+        case .level:
+            return [
+                forceRow("👽 ALIEN", \.alienLevel),
+                forceRow("🏺 GZHEL", \.gzhelLevel),
+                forceRow("👑 BOSS", \.bossLevel),
+                forceRow("✨ BONUS STAGE", \.bonusLevel),
+                forceRow("🤝 FRIEND", \.friendLevel),
+                forceRow("🐣 EASY", \.easyLevel)
             ]
         case .crazy:
             return [boolRow("🤪 CRAZY MODE", \.crazyMode)]
@@ -165,19 +189,29 @@ class CheatScene: SKScene {
             pageNode.addChild(makeRow(row, index: index, config: config, at: CGPoint(x: x, y: y)))
         }
 
-        if page == .crazy {
-            let lines = [
+        var lines: [String] = []
+        if page == .level {
+            lines = [
+                "AUTO: as usual · ALWAYS: every level · ONCE: the first level only · NEVER: off.",
+                "Alien + boss = red alien with eyes · bonus + boss = the rat stage.",
+                "The bonus stage wins over Gzhel."
+            ]
+        } else if page == .crazy {
+            lines = [
                 "Every level: 10 to 1000 enemies of any kind, bosses and aliens too,",
                 "several UFOs and a crowd of friends with 1 to 5 hits each.",
                 "Every game start: 3 to 99 lives and random power-ups.",
                 "Speeds, fire rates, armor, enemy power-ups and UFO switch still apply."
             ]
+        }
+        if !lines.isEmpty {
+            let linesTop = page == .crazy ? topY - rowHeight * 1.3 : topY - rowHeight * CGFloat(perColumn) - rowHeight * 0.1
             for (i, line) in lines.enumerated() {
                 let label = SKLabelNode(text: line)
                 label.fontName = "Helvetica"
                 label.fontSize = min(16, size.height * 0.038)
                 label.fontColor = .lightGray
-                label.position = CGPoint(x: size.width / 2, y: topY - rowHeight * 1.3 - CGFloat(i) * label.fontSize * 1.5)
+                label.position = CGPoint(x: size.width / 2, y: linesTop - CGFloat(i) * label.fontSize * 1.5)
                 pageNode.addChild(label)
             }
         }
@@ -339,7 +373,7 @@ class CheatScene: SKScene {
                 change(row: selectedRow, by: 1)
             case .keyboardTab:
                 show(Page(rawValue: (page.rawValue + 1) % Page.allCases.count) ?? .player)
-            case .keyboard1, .keyboard2, .keyboard3, .keyboard4:
+            case .keyboard1, .keyboard2, .keyboard3, .keyboard4, .keyboard5:
                 let index = key.rawValue - UIKeyboardHIDUsage.keyboard1.rawValue
                 if let p = Page(rawValue: index) { show(p) }
             default:
