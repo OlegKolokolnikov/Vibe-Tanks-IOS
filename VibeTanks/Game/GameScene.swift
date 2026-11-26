@@ -283,7 +283,7 @@ class GameScene: SKScene {
 
     // Alien mode (when UFO escaped previous level - alien is at base instead of cat)
     private var alienMode: Bool = false
-    /// Red-alien levels: eyes opening on the black tiles (decoration)
+    /// Alien levels: eyes (red alien) or stars (green alien) on the black tiles (decoration)
     private var alienEyes: AlienEyes?
     /// Who sits at the base this level
     private var baseResident: Base.Resident = .cat
@@ -1162,8 +1162,8 @@ class GameScene: SKScene {
         baseResident = resident
         base = Base(position: basePosition, resident: resident, redAlien: alienMode && isBossLevel)
         gameLayer.addChild(base)
-        if alienMode && isBossLevel && !bonusStage {
-            let eyes = AlienEyes()
+        if alienMode && !bonusStage {
+            let eyes = AlienEyes(stars: !isBossLevel)
             gameMap.addChild(eyes)
             alienEyes = eyes
         }
