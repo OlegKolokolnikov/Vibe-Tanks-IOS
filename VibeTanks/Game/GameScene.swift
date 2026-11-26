@@ -278,6 +278,8 @@ class GameScene: SKScene {
 
     // Alien mode (when UFO escaped previous level - alien is at base instead of cat)
     private var alienMode: Bool = false
+    /// Red-alien levels: eyes opening on the black tiles (decoration)
+    private var alienEyes: AlienEyes?
     /// Who sits at the base this level
     private var baseResident: Base.Resident = .cat
     /// A MAGIC power-up has appeared this level (the bonus stage guarantees one)
@@ -1152,6 +1154,11 @@ class GameScene: SKScene {
         baseResident = resident
         base = Base(position: basePosition, resident: resident, redAlien: alienMode && isBossLevel)
         gameLayer.addChild(base)
+        if alienMode && isBossLevel && !bonusStage {
+            let eyes = AlienEyes()
+            gameMap.addChild(eyes)
+            alienEyes = eyes
+        }
 
         // Create player tanks (player 2 starts to the right of the base)
         playerTank = makePlayerTank(number: 1, lives: initialLives, powerUps: initialPowerUps)
@@ -1471,6 +1478,8 @@ class GameScene: SKScene {
         updateEasterEgg()
         updateGoldSpawn()
         updateCheeseSpawn()
+        alienEyes?.update(map: gameMap, tanks: allTanks,
+                          playerBullets: bullets.filter { !$0.isFromEnemy && !$0.isFromGzhel && !isBulletRemoved($0) })
         checkCollisions()
         flushBulletRemovals()  // Batch remove all bullets marked for removal
         checkGameState()
