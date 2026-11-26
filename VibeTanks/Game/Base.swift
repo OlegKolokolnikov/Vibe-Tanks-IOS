@@ -7,6 +7,8 @@ class Base: SKSpriteNode {
     private let baseSize: CGFloat = GameConstants.tileSize // Match tile size so it fits in protection
     private var catNode: SKNode?
     private var isAlien: Bool = false
+    /// Red alien instead of the green one (alien mode on a boss level)
+    private let isRedAlien: Bool
 
     /// Who sits at the base
     enum Resident {
@@ -18,8 +20,9 @@ class Base: SKSpriteNode {
     }
     private let resident: Resident
 
-    init(position: CGPoint, resident: Resident = .cat) {
+    init(position: CGPoint, resident: Resident = .cat, redAlien: Bool = false) {
         self.resident = resident
+        self.isRedAlien = redAlien
         if case .alien = resident { self.isAlien = true }
         super.init(texture: nil, color: .clear, size: CGSize(width: baseSize, height: baseSize))
 
@@ -387,8 +390,10 @@ class Base: SKSpriteNode {
 
     private func drawAlien() {
         // Alien colors
-        let alienGreen = SKColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1)
-        let alienDark = SKColor(red: 0.2, green: 0.6, blue: 0.2, alpha: 1)
+        let alienGreen = isRedAlien ? SKColor(red: 0.95, green: 0.3, blue: 0.3, alpha: 1)
+                                    : SKColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1)
+        let alienDark = isRedAlien ? SKColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
+                                   : SKColor(red: 0.2, green: 0.6, blue: 0.2, alpha: 1)
 
         // Small spaceship pad (instead of cushion)
         let pad = SKShapeNode(ellipseOf: CGSize(width: baseSize * 0.8, height: baseSize * 0.4))

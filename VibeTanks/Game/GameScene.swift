@@ -1135,7 +1135,7 @@ class GameScene: SKScene {
             y: CGFloat(GameConstants.mapHeight - 1 - baseRow) * GameConstants.tileSize + GameConstants.tileSize / 2
         )
         // Who sits at the base: woman on the bonus stage (a rat if it has a boss),
-        // alien in alien mode, a dog on boss levels, otherwise the cat
+        // alien in alien mode (red on a boss level), a dog on boss levels, otherwise the cat
         let isBossLevel = level % GameConstants.bossLevelInterval == 0
         let resident: Base.Resident
         if bonusStage {
@@ -1150,7 +1150,7 @@ class GameScene: SKScene {
             resident = .cat
         }
         baseResident = resident
-        base = Base(position: basePosition, resident: resident)
+        base = Base(position: basePosition, resident: resident, redAlien: alienMode && isBossLevel)
         gameLayer.addChild(base)
 
         // Create player tanks (player 2 starts to the right of the base)
